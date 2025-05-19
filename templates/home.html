@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Drugly</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .hero-section {
+            background: linear-gradient(to right, #007bff, #6610f2);
+            color: white;
+            padding: 100px 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-section h1 {
+            font-size: 3.5rem;
+            font-weight: bold;
+            animation: fadeInDown 1s ease-in-out;
+        }
+        .hero-section p {
+            font-size: 1.5rem;
+            margin: 20px 0;
+            animation: fadeInUp 1s ease-in-out;
+        }
+        .hero-section .btn {
+            animation: fadeIn 1.5s ease-in-out;
+        }
+        .features-section {
+            padding: 60px 20px;
+            background-color: #ffffff;
+        }
+        .features-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            animation: fadeInDown 1s ease-in-out;
+        }
+        .features-section p {
+            font-size: 1.25rem;
+            margin-bottom: 40px;
+            animation: fadeInUp 1s ease-in-out;
+        }
+        .feature-card {
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            border: none;
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #ffffff, #f1f1f1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+        }
+        .feature-card h4 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+        .feature-card p {
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        .feature-card .btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .news-section {
+            padding: 60px 20px;
+            background-color: #f8f9fa;
+        }
+        .news-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            animation: fadeInDown 1s ease-in-out;
+        }
+        .news-card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        }
+        .news-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+        }
+        .news-card h5 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+        .news-card p {
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+        .news-card small {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+        footer {
+            background-color: #343a40;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        footer a {
+            color: #ffffff;
+            text-decoration: none;
+            transition: color 0.3s ease-in-out;
+        }
+        footer a:hover {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- New Navbar (Bootstrap 5) -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item">
+              <a class="nav-link" href="#features">Features</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#news">News</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/contact">Contact</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/about">About</a>
+            </li>
+          </ul>
+        <!-- Example: Only show button if user is logged in and is_admin is True -->
+        {% if user and user.is_admin %}
+        <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+        {% endif %}
+
+        </div>
+      </div>
+    </nav>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+        <div class="toast align-items-center text-bg-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+            <div class="d-flex">
+                <div class="toast-body">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <h1>Welcome to Drugly</h1>
+        <p>Your trusted platform for detailed drug information, interactions, and personalized medicine insights.</p>
+        {% if user_email %}
+            <p>Welcome back, <strong>{{ user_email }}</strong>!</p>
+            <a href="/profile" class="btn btn-light btn-lg mx-2">View Profile</a>
+            <a href="/logout" class="btn btn-outline-light btn-lg mx-2">Logout</a>
+        {% else %}
+            <a href="/login" class="btn btn-light btn-lg mx-2">Login</a>
+            <a href="/register" class="btn btn-outline-light btn-lg mx-2">Register</a>
+        {% endif %}
+    </div>
+
+    <!-- Features Section -->
+    <div class="features-section container text-center" id="features">
+        <h2>Our Features</h2>
+        <p>Explore the powerful tools and features we offer:</p>
+        <div class="row mt-4">
+            <div class="col-md-3">
+                <div class="card feature-card p-3">
+                    <h4>Detailed Drug Information</h4>
+                    <p>Comprehensive data on active ingredients, salts, and more.</p>
+                    <a href="/details" class="btn btn-primary">Learn More</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card feature-card p-3">
+                    <h4>Drug-Drug Interactions</h4>
+                    <p>Analyze and manage potential interactions effectively.</p>
+                    <a href="/interactions" class="btn btn-danger">Explore</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card feature-card p-3">
+                    <h4>Pharmacogenomics</h4>
+                    <p>Personalized medicine insights based on genetic data.</p>
+                    <a href="/pharmacogenomics_dashboard" class="btn btn-success">Discover</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card feature-card p-3">
+                    <h4>Receptor-Ligand Interactions</h4>
+                    <p>Explore drug-receptor interactions for advanced research.</p>
+                    <a href="/receptor-ligand-dashboard" class="btn btn-info">Analyze</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- News Section -->
+    <div class="news-section container" id="news">
+        <h2>Latest News & Updates</h2>
+        <div class="row mt-4">
+            {% for news in announcements + updates %}
+            <div class="col-md-6">
+                <div class="card news-card p-3">
+                    <h5>{{ news.title }}</h5>
+                    <p>{{ news.description }}</p>
+                    <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not (announcements or updates) %}
+            <p class="text-center">No news available at the moment. Stay tuned!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2025 Drugly. All rights reserved.</p>
+        <a href="/contact">Contact Us</a> | <a href="/about">About Us</a> | <a href="/terms">Terms of Service</a>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(toastElement => {
+                const toast = new bootstrap.Toast(toastElement);
+                toast.show();
+            });
+        });
+    </script>
+</body>
+</html>

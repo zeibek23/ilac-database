@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receptor-Ligand Visualizations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .visualization {
+            margin: 20px 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        a {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px 15px;
+            text-decoration: none;
+            color: white;
+            background-color: #007bff;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        a:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Receptor-Ligand Interaction Visualizations</h1>
+        
+        <div class="visualization">
+            <h2>Network Graph</h2>
+            <a href="/visualizations/network">Generate Network Graph</a>
+            <img src="/static/network_graph.png" alt="Network Graph" onerror="this.style.display='none';">
+        </div>
+
+        <div class="visualization">
+            <h2>Bar Chart</h2>
+            <a href="/visualizations/bar-chart">Generate Bar Chart</a>
+            <img src="/static/bar_chart.png" alt="Bar Chart" onerror="this.style.display='none';">
+        </div>
+
+        <div class="error" id="error-message"></div>
+    </div>
+</body>
+</html>

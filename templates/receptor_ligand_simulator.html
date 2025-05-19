@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receptor-Ligand Interaction Simulator</title>
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet" />
+    <style>
+        /* [Your existing styles unchanged] */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 1rem;
+            color: #7f8c8d;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-section {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-text {
+            font-size: 0.875rem;
+            color: #7f8c8d;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+
+        .visualization-section {
+            margin-bottom: 20px;
+        }
+
+        #viewer {
+            width: 100%;
+            height: 400px;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .results-section {
+            margin-bottom: 20px;
+        }
+
+        .results-section h3 {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        #results p {
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 0.875rem;
+            color: #7f8c8d;
+            margin-top: 20px;
+        }
+
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #loading p {
+            font-size: 1rem;
+            color: #3498db;
+        }
+
+        .data-table-section {
+            margin-bottom: 20px;
+        }
+
+        table#interaction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 auto;
+        }
+
+        table#interaction-table th,
+        table#interaction-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        table#interaction-table th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+
+        #toggle-surface-container {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <h1>Receptor-Ligand Interaction Simulator</h1>
+            <p>Visualize and simulate the interaction between receptors and ligands. Select a ligand and receptor to get started.</p>
+        </div>
+
+        <!-- Form Section -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="ligand">
+                    <i class="fas fa-flask"></i> Search Active Ingredient (Ligand):
+                </label>
+                <select id="ligand" class="form-control">
+                    <option value="">Select a ligand...</option>
+                    <!-- Options populated dynamically -->
+                </select>
+                <small class="form-text text-muted">Example: Amlodipine, Metformin, etc.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="receptor">
+                    <i class="fas fa-dna"></i> Search Receptor:
+                </label>
+                <select id="receptor" class="form-control">
+                    <option value="">Select a receptor...</option>
+                    <!-- Options populated dynamically -->
+                </select>
+                <small class="form-text text-muted">Example: Voltage-dependent L-type calcium channel subunit alpha-1C</small>
+            </div>
+
+            <button id="simulate-btn" class="btn btn-primary">
+                <i class="fas fa-play"></i> Simulate Interaction
+            </button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading">
+            <p><i class="fas fa-spinner fa-spin"></i> Simulating...</p>
+        </div>
+
+        <!-- Visualization Section -->
+        <div class="visualization-section">
+            <h3>3D Visualization</h3>
+
+            <!-- Toggle Surface Checkbox -->
+            <div class="form-group" id="toggle-surface-container">
+                <input type="checkbox" id="toggle-surface" checked />
+                <label for="toggle-surface">Show Receptor Surface</label>
+            </div>
+
+            <div id="viewer"></div>
+            <button id="export-btn" class="btn btn-secondary">
+                <i class="fas fa-download"></i> Export Visualization
+            </button>
+        </div>
+
+        <!-- Results Section -->
+        <div class="data-table-section">
+            <h3>Interaction Details</h3>
+            <table id="interaction-table">
+                <thead>
+                    <tr>
+                        <th>Ligand</th>
+                        <th>Receptor</th>
+                        <th>Affinity</th>
+                        <th>Affinity Parameter</th>
+                        <th>Interaction Type</th>
+                        <th>Mechanism</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be populated dynamically -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer Section -->
+        <div class="footer">
+            <p>Need help? <a href="#">View the user guide</a> or <a href="#">contact support</a>.</p>
+        </div>
+    </div>
+
+    <script>
+        // Make viewer a global variable
+        let viewer;
+        let receptorModel;
+        let ligandModel;
+
+        // Helper function to compute the geometric center of a GLModel
+        function computeModelCenter(glModel) {
+            const atoms = glModel.selectedAtoms({});
+            if (atoms.length === 0) return { x: 0, y: 0, z: 0 };
+
+            let cx = 0, cy = 0, cz = 0;
+            for (const atom of atoms) {
+                cx += atom.x;
+                cy += atom.y;
+                cz += atom.z;
+            }
+            cx /= atoms.length;
+            cy /= atoms.length;
+            cz /= atoms.length;
+
+            return { x: cx, y: cy, z: cz };
+        }
+
+        // Helper function to translate a model's atoms
+        function translateModel(glModel, dx, dy, dz) {
+            const atoms = glModel.selectedAtoms({});
+            atoms.forEach(atom => {
+                atom.x += dx;
+                atom.y += dy;
+                atom.z += dz;
+            });
+            // No setPositions needed; changes are reflected when viewer renders
+        }
+
+        $(document).ready(function () {
+            // Initialize Select2 dropdowns
+            $('#ligand').select2({
+                placeholder: "Search for active ingredients...",
+                ajax: {
+                    url: '/api/active_ingredients',
+                    dataType: 'json',
+                    delay: 250,
+                    data: params => ({
+                        q: params.term,
+                        page: params.page || 1
+                    }),
+                    processResults: data => ({
+                        results: data.results.map(item => ({ id: item.id, text: item.text })),
+                        pagination: { more: data.has_next }
+                    }),
+                    cache: true
+                },
+                minimumInputLength: 2
+            });
+
+            $('#receptor').select2({
+                placeholder: "Search for receptors...",
+                ajax: {
+                    url: '/api/receptors',
+                    dataType: 'json',
+                    delay: 250,
+                    data: params => ({
+                        search: params.term,
+                        page: params.page || 1
+                    }),
+                    processResults: data => ({
+                        results: data.results.map(item => ({ id: item.id, text: item.text })),
+                        pagination: { more: data.has_next }
+                    }),
+                    cache: true
+                },
+                minimumInputLength: 2
+            });
+
+            // Handle simulation
+            $('#simulate-btn').on('click', async (e) => {
+                e.preventDefault();
+                $('#loading').show();
+                $('#simulate-btn').html('<i class="fas fa-spinner fa-spin"></i> Simulating...').prop('disabled', true);
+
+                try {
+                    const drugId = $('#ligand').val();
+                    const receptorId = $('#receptor').val();
+
+                    if (!drugId || !receptorId) {
+                        alert("Please select both a ligand and a receptor.");
+                        return;
+                    }
+
+                    // Fetch receptor, ligand, and interaction data
+                    const receptorResponse = await fetch(`/api/get_receptor_structure?receptor_id=${receptorId}`);
+                    const ligandResponse = await fetch(`/api/convert_ligand?drug_id=${drugId}`);
+                    const interactionResponse = await fetch(`/api/get_interaction_data?drug_id=${drugId}&receptor_id=${receptorId}`);
+
+                    if (!receptorResponse.ok || !ligandResponse.ok || !interactionResponse.ok) {
+                        alert("Error fetching data. Please try again.");
+                        return;
+                    }
+
+                    const receptorResult = await receptorResponse.json();
+                    const ligandResult = await ligandResponse.json();
+                    const interactionData = await interactionResponse.json();
+
+                    // Create (or re-create) the 3Dmol viewer
+                    if (!viewer) {
+                        viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
+                    }
+                    viewer.removeAllModels();
+                    viewer.clear();
+
+                    // Render RECEPTOR
+                    if (receptorResult.pdb) {
+                        let receptorModelIndex = viewer.addModel(receptorResult.pdb, "pdb");
+                        receptorModel = viewer.getModel(receptorModelIndex);
+
+                        if ($('#toggle-surface').is(':checked')) {
+                            viewer.setStyle({ model: receptorModelIndex }, {
+                                cartoon: { color: "blue" },
+                                surface: { opacity: 0.7, color: "lightblue" }
+                            });
+                        } else {
+                            viewer.setStyle({ model: receptorModelIndex }, {
+                                cartoon: { color: "blue" }
+                            });
+                        }
+                    }
+
+                    // Render LIGAND or DOCKED COMPLEX
+                    if (interactionData.pdb_file) {
+                        // Use precomputed docked PDB if available
+                        const dockedResponse = await fetch(interactionData.pdb_file);
+                        if (dockedResponse.ok) {
+                            const dockedPdb = await dockedResponse.text();
+                            let dockedModelIndex = viewer.addModel(dockedPdb, "pdb");
+                            ligandModel = viewer.getModel(dockedModelIndex);
+
+                            viewer.setStyle({ model: dockedModelIndex }, {
+                                stick: { colorscheme: "greenCarbon", radius: 0.3 }
+                            });
+
+                            const center = computeModelCenter(ligandModel);
+                            viewer.addLabel("Docked Ligand", {
+                                position: center,
+                                fontSize: 14,
+                                fontColor: "red",
+                                backgroundColor: "white"
+                            });
+                        }
+                    } else if (ligandResult.pdb) {
+                        // No docked PDB; position ligand at fpocket binding site
+                        let ligandModelIndex = viewer.addModel(ligandResult.pdb, "pdb");
+                        ligandModel = viewer.getModel(ligandModelIndex);
+
+                        viewer.setStyle({ model: ligandModelIndex }, {
+                            stick: { colorscheme: "greenCarbon", radius: 0.3 }
+                        });
+
+                        // Use fpocket binding site if available, else fallback
+                        let labelText = "Binding Site"; // Shortened label
+                        let position;
+                        if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
+                            const site = receptorResult.binding_site;
+                            translateModel(ligandModel, site.x, site.y, site.z);
+                            // Offset label slightly to avoid overlap
+                            position = { x: site.x + 5, y: site.y + 5, z: site.z + 5 };
+                        } else {
+                            const receptorCenter = computeModelCenter(receptorModel);
+                            translateModel(ligandModel, receptorCenter.x + 10, receptorCenter.y + 10, receptorCenter.z + 10);
+                            position = computeModelCenter(ligandModel);
+                            labelText = "Approx. Position"; // Shortened fallback label
+                        }
+
+                        viewer.addLabel(labelText, {
+                            position: position,
+                            fontSize: 10, // Smaller font size
+                            fontColor: "red",
+                            backgroundColor: "rgba(255, 255, 255, 0.7)", // Semi-transparent background
+                            borderColor: "black",
+                            borderThickness: 0.5
+                        });
+                    }
+
+                    // Zoom to fit everything
+                    viewer.zoomTo();
+                    viewer.render();
+
+                    // Populate the table with interaction data
+                    const tableBody = $('#interaction-table tbody');
+                    tableBody.empty(); // Clear previous data
+
+                    const row = `
+                        <tr>
+                            <td>${interactionData.ligand}</td>
+                            <td>${interactionData.receptor}</td>
+                            <td>${interactionData.affinity || "N/A"}</td>
+                            <td>${interactionData.affinity_parameter || "N/A"}</td>
+                            <td>${interactionData.interaction_type || "N/A"}</td>
+                            <td>${interactionData.mechanism || "N/A"}</td>
+                        </tr>
+                    `;
+                    tableBody.append(row);
+
+                } catch (error) {
+                    console.error("ERROR:", error);
+                    alert("An unexpected error occurred. Please try again.");
+                } finally {
+                    $('#loading').hide();
+                    $('#simulate-btn').html('<i class="fas fa-play"></i> Simulate Interaction').prop('disabled', false);
+                }
+            });
+
+            // Toggle surface on/off
+            $('#toggle-surface').on('change', function() {
+                if (!receptorModel) return; // If no receptor loaded, do nothing
+
+                const receptorModelIndex = receptorModel.id; // numeric index or "1"
+                if ($(this).is(':checked')) {
+                    viewer.setStyle({ model: receptorModelIndex }, {
+                        cartoon: { color: "blue" },
+                        surface: { opacity: 0.7, color: "lightblue" }
+                    });
+                } else {
+                    viewer.setStyle({ model: receptorModelIndex }, {
+                        cartoon: { color: "blue" }
+                    });
+                }
+                viewer.render();
+            });
+
+            // Export visualization as PNG
+            $('#export-btn').on('click', function() {
+                if (!viewer) {
+                    alert("No visualization to export yet!");
+                    return;
+                }
+                viewer.render();
+                const dataUrl = viewer.pngURI();
+                const link = document.createElement('a');
+                link.download = 'visualization.png';
+                link.href = dataUrl;
+                link.click();
+            });
+        });
+    </script>
+</body>
+</html>

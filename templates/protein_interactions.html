@@ -1,0 +1,19 @@
+<h3>Protein-Protein Interactions for {{ protein }}</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Protein A</th>
+            <th>Protein B</th>
+            <th>Confidence Score</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for interaction in interactions %}
+        <tr>
+            <td>{{ interaction.preferredName_A }}</td>
+            <td>{{ interaction.preferredName_B }}</td>
+            <td>{{ interaction.score }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

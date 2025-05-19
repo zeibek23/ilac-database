@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced CDSS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .severity-low { background-color: #d4edda; }
+        .severity-moderate { background-color: #fff3cd; }
+        .severity-severe { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <h2>Advanced Clinical Decision Support System</h2>
+        <a href="{{ url_for('list_drug_disease_interactions') }}" class="btn btn-info mb-3">Manage Drug-Disease Interactions</a>
+        <form method="POST">
+            <h4>Patient Details</h4>
+            <div class="row mb-3">
+                <div class="col">
+                    <label for="age" class="form-label">Age</label>
+                    <input type="number" class="form-control" id="age" name="age" min="0" value="30" required>
+                </div>
+                <div class="col">
+                    <label for="weight" class="form-label">Weight (kg)</label>
+                    <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="0" value="70.0" required>
+                </div>
+                <div class="col">
+                    <label for="crcl" class="form-label">Creatinine Clearance (mL/min, optional)</label>
+                    <input type="number" class="form-control" id="crcl" name="crcl" step="0.1" min="0" placeholder="Auto-calculated if blank">
+                </div>
+                <div class="col">
+                    <label for="gender" class="form-label">Gender</label>
+                    <select class="form-control" id="gender" name="gender" required>
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="indications" class="form-label">Existing Conditions</label>
+                <select class="form-control" id="indications" name="indications" multiple>
+                    {% for indication in indications %}
+                    <option value="{{ indication.id }}">{{ indication.name_en }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">Hold Ctrl (or Cmd) to select multiple</small>
+            </div>
+
+            <div class="mb-3">
+                <label for="drugs" class="form-label">Select Drugs</label>
+                <select class="form-control" id="drugs" name="drugs" multiple required>
+                    {% for drug in drugs %}
+                    <option value="{{ drug.id }}">{{ drug.name_en }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">Hold Ctrl (or Cmd) to select multiple</small>
+            </div>
+            <div class="mb-3">
+                <label for="route_id" class="form-label">Route of Administration</label>
+                <select class="form-control" id="route_id" name="route_id">
+                    <option value="">General</option>
+                    {% for route in routes %}
+                    <option value="{{ route.id }}">{{ route.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Analyze</button>
+        </form>
+
+        {% if interaction_results %}
+        <h3 class="mt-4">Interaction Results</h3>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Drug</th>
+                    <th>Related To</th>
+                    <th>Base Severity</th>
+                    <th>Predicted Severity</th>
+                    <th>Description</th>
+                    <th>Monitoring</th>
+                    <th>Alternatives</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in interaction_results %}
+                <tr class="{% if result.predicted_severity == 'Severe' %}severity-severe{% elif result.predicted_severity == 'Moderate' %}severity-moderate{% else %}severity-low{% endif %}">
+                    <td>{{ result.type }}</td>
+                    <td>{{ result.drug1 }}</td>
+                    <td>{{ result.drug2 }}</td>
+                    <td>{{ result.severity }}</td>
+                    <td>{{ result.predicted_severity }}</td>
+                    <td>{{ result.description }}</td>
+                    <td>{{ result.monitoring }}</td>
+                    <td>{{ result.alternatives }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

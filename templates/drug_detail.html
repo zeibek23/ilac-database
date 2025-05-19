@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ drug.name_en }} Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 12px;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+            transform: scale(1.05);
+        }
+        .section-icon {
+            margin-right: 8px;
+        }
+        .sidebar {
+            position: sticky;
+            top: 100px;
+            height: fit-content;
+            background: linear-gradient(135deg, #ffffff, #f3e8ff);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .sidebar a {
+            display: block;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .sidebar a:hover {
+            background-color: #e0e7ff;
+        }
+        .collapsible-header {
+            cursor: pointer;
+            padding: 12px;
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+        }
+        .collapsible-header:hover {
+            background: linear-gradient(to right, #4338ca, #6d28d9);
+        }
+        .collapsible-content {
+            display: none;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #ffffff, #f3e8ff);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 700px;
+            width: 90%;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #4b5563;
+        }
+        .modal-close:hover {
+            color: #1f2937;
+        }
+        #viewer {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .metabolite-tree {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            padding: 16px;
+            border-left: 4px solid #4f46e5;
+        }
+        .metabolite-node {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 6px;
+            transition: background-color 0.2s ease;
+        }
+        .metabolite-node:hover {
+            background-color: #e0e7ff;
+        }
+        .metabolite-node .toggle {
+            cursor: pointer;
+            margin-right: 8px;
+            color: #4f46e5;
+        }
+        .metabolite-node .name {
+            font-weight: 500;
+            color: #1f2937;
+        }
+        .metabolite-node .icon {
+            margin-right: 8px;
+            color: #4f46e5;
+        }
+        .metabolite-tree ul {
+            list-style: none;
+            padding-left: 24px;
+        }
+        .metabolite-tree .hidden {
+            display: none;
+        }
+        .grid-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                position: static;
+                margin-bottom: 20px;
+            }
+        }
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                padding: 15px;
+            }
+            #viewer {
+                height: 300px;
+            }
+            .grid-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 py-12 max-w-7xl flex flex-col lg:flex-row gap-8">
+        <!-- Sidebar -->
+        <aside class="lg:w-1/4">
+            <div class="sidebar fade-in">
+                <h3 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-compass section-icon"></i>Quick Navigation</h3>
+                <a href="#salts" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-vial mr-2"></i>Associated Salts</a>
+                <a href="#general" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-info-circle mr-2"></i>General Information</a>
+                <a href="#chemical" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-flask mr-2"></i>Chemical Properties</a>
+                <a href="#identifiers" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-id-card mr-2"></i>Identifiers</a>
+                <a href="#pharmacology" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-heartbeat mr-2"></i>Pharmacology</a>
+                <a href="#routes" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-route mr-2"></i>Routes of Administration</a>
+                <a href="#actions" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-cog mr-2"></i>Actions</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="lg:w-3/4">
+            <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
+                <i class="fas fa-capsules section-icon"></i>{{ drug.name_en }} Details
+            </h1>
+
+            <!-- Associated Salts -->
+            <section id="salts" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-vial section-icon"></i>Associated Salts
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    {% if salts %}
+                    <ul class="list-disc pl-5 space-y-2">
+                        {% for salt in salts %}
+                        <li class="text-gray-600">
+                            <span class="font-medium text-gray-800">{{ salt.name_tr }}</span> ({{ salt.name_en }})
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-red-500 font-medium">No salts found for this drug.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            {% for detail in details %}
+            <!-- General Information -->
+            <section id="general" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-info-circle section-icon"></i>General Information
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    <div class="grid-section">
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Drug Name:</span> {{ detail['drug_name'] }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Salt:</span> {{ detail['salt_name'] or "N/A" }}</p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Black Box Warning:</span>
+                                {% if detail['black_box_warning'] %}
+                                <span class="text-red-500 font-bold">Yes</span>
+                                <br><span class="font-medium">Details:</span> {{ detail['black_box_details'] or "No details available" }}
+                                {% else %}
+                                <span class="text-green-500">No</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">FDA Approved:</span>
+                                <span class="inline-block bg-{{ 'green' if detail['fda_approved'] else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail['fda_approved'] else "No" }}</span>
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">EMA Approved:</span>
+                                <span class="inline-block bg-{{ 'green' if detail['ema_approved'] else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail['ema_approved'] else "No" }}</span>
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">TITCK Approved:</span>
+                                <span class="inline-block bg-{{ 'green' if detail['titck_approved'] else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail['titck_approved'] else "No" }}</span>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Structure:</span>
+                                {% if detail['structure'] %}
+                                <img src="/static/uploads/{{ detail['structure'] }}" alt="Structure" class="max-w-[150px] rounded-lg mt-2">
+                                {% else %}
+                                N/A
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">3D Structure:</span>
+                                {% if detail['structure_3d'] %}
+                                <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/uploads/{{ detail['structure_3d'] }}" data-drug="{{ detail['drug_name'] }}">
+                                    <i class="fas fa-cube mr-1"></i>View 3D
+                                </button>
+                                {% else %}
+                                N/A
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chemical Properties -->
+            <section id="chemical" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-flask section-icon"></i>Chemical Properties
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    <div class="grid-section">
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Formula:</span> {{ detail['molecular_formula'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail['molecular_weight'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">IUPAC Name:</span> {{ detail['iupac_name'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">SMILES:</span> {{ detail['smiles'] or "N/A" }}</p>
+                        </div>
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail['boiling_point'] or "N/A" }} °C</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail['melting_point'] or "N/A" }} °C</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail['density'] or "N/A" }} g/cm³</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail['solubility'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail['flash_point'] or "N/A" }} °C</p>
+                        </div>
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Synthesis:</span> {{ detail['synthesis'] or "N/A" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Identifiers -->
+            <section id="identifiers" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-id-card section-icon"></i>Identifiers
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    <div class="grid-section">
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">CAS ID:</span> {{ detail['cas_id'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">RXCUI:</span> {{ detail['rxcui'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem CID:</span> {{ detail['pubchem_cid'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem SID:</span> {{ detail['pubchem_sid'] or "N/A" }}</p>
+                        </div>
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">InChIKey:</span> {{ detail['inchikey'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">EC Number:</span> {{ detail['ec_number'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">NCI Code:</span> {{ detail['nci_code'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">SNOMED ID:</span> {{ detail['snomed_id'] or "N/A" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pharmacology -->
+            <section id="pharmacology" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-heartbeat section-icon"></i>Pharmacology
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    <div class="grid-section">
+                        <div>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacodynamics:</span> {{ detail['pharmacodynamics'] or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacokinetics:</span> {{ detail['pharmacokinetics'] or "N/A" }}</p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Indications:</span>
+                                {% if detail['indications'] %}
+                                <ul class="list-disc pl-5 space-y-1">
+                                    {% for indication in detail['indications'] %}
+                                    <li class="text-gray-600">{{ indication }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <span class="text-gray-500">No indications provided.</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Side Effects:</span>
+                                {% if detail['side_effects'] %}
+                                <ul class="list-disc pl-5 space-y-1">
+                                    {% for se in detail['side_effects'] %}
+                                    <li class="text-gray-600">{{ se['name_en'] }} ({{ se['name_tr'] or 'N/A' }})</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <span class="text-gray-500">No side effects listed.</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Target Molecules:</span>
+                                {% if detail['target_molecules'] %}
+                                <ul class="list-disc pl-5 space-y-1">
+                                    {% for target in detail['target_molecules'] %}
+                                    <li class="text-gray-600">{{ target }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <span class="text-gray-500">No target molecules listed.</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Routes of Administration -->
+            <section id="routes" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-route section-icon"></i>Routes of Administration
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    {% if detail['routes'] %}
+                    <ul class="space-y-6">
+                        {% for route in detail['routes'] %}
+                        <li class="border-l-4 border-indigo-500 pl-4">
+                            <div class="collapsible-header">
+                                <i class="fas fa-route section-icon"></i>{{ route['name'] }}
+                            </div>
+                            <div class="collapsible-content">
+                                <p class="mb-2"><span class="font-medium">Pharmacodynamics:</span> {{ route['pharmacodynamics'] or "N/A" }}</p>
+                                <p class="mb-2"><span class="font-medium">Pharmacokinetics:</span> {{ route['pharmacokinetics'] or "N/A" }}</p>
+                                <p class="mb-2">
+                                    <span class="font-medium">Indications:</span>
+                                    {% if route['indications'] %}
+                                    <ul class="list-disc pl-5 space-y-1">
+                                        {% for indication in route['indications'] %}
+                                        <li class="text-gray-600">{{ indication }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <span class="text-gray-500">No indications listed for this route.</span>
+                                    {% endif %}
+                                </p>
+                                <p class="mb-2"><span class="font-medium">Pharmacokinetic Parameters:</span></p>
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li><span class="font-medium">Absorption Rate:</span> {{ route['absorption_rate']['min'] | default("N/A") }} - {{ route['absorption_rate']['max'] | default("N/A") }} %/h</li>
+                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route['volume_of_distribution']['min'] | default("N/A") }} - {{ route['volume_of_distribution']['max'] | default("N/A") }} L</li>
+                                    <li><span class="font-medium">Protein Binding:</span> {{ route['protein_binding']['min'] | default("N/A") }} - {{ route['protein_binding']['max'] | default("N/A") }} %</li>
+                                    <li><span class="font-medium">Half-Life:</span> {{ route['half_life']['min'] | default("N/A") }} - {{ route['half_life']['max'] | default("N/A") }} hours</li>
+                                    <li><span class="font-medium">Clearance Rate:</span> {{ route['clearance_rate']['min'] | default("N/A") }} - {{ route['clearance_rate']['max'] | default("N/A") }} mL/min</li>
+                                    <li><span class="font-medium">Bioavailability:</span> {{ route['bioavailability']['min'] | default("N/A") }} - {{ route['bioavailability']['max'] | default("N/A") }} %</li>
+                                    <li><span class="font-medium">Tmax:</span> {{ route['tmax']['min'] | default("N/A") }} - {{ route['tmax']['max'] | default("N/A") }} hours</li>
+                                    <li><span class="font-medium">Cmax:</span> {{ route['cmax']['min'] | default("N/A") }} - {{ route['cmax']['max'] | default("N/A") }} mg/L</li>
+                                    <li>
+                                        <span class="font-medium">Metabolism Organs:</span>
+                                        {% if route['metabolism_organs'] %}
+                                        {{ route['metabolism_organs'] | join(', ') }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <span class="font-medium">Metabolism Enzymes:</span>
+                                        {% if route['metabolism_enzymes'] %}
+                                        {{ route['metabolism_enzymes'] | join(', ') }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <span class="font-medium">Metabolites:</span>
+                                        {% if route['metabolites'] %}
+                                        <div class="metabolite-tree">
+                                            <ul>
+                                                <li class="metabolite-node">
+                                                    <i class="fas fa-circle icon"></i>
+                                                    <span class="name">{{ drug.name_en }}</span>
+                                                    <ul>
+                                                        {% macro render_metabolites(metabolites, parent_id=None) %}
+                                                            {% for met in metabolites if met['parent_id'] == parent_id %}
+                                                                <li class="metabolite-node" data-met-id="{{ met['id'] }}">
+                                                                    <i class="fas fa-chevron-right toggle"></i>
+                                                                    <i class="fas fa-circle-notch icon"></i>
+                                                                    <span class="name">{{ met['name'] }}</span>
+                                                                    <ul class="hidden">
+                                                                        {{ render_metabolites(metabolites, met['id']) }}
+                                                                    </ul>
+                                                                </li>
+                                                            {% endfor %}
+                                                        {% endmacro %}
+                                                        {{ render_metabolites(route['metabolites'], None) }}
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-gray-500">No routes available.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Actions -->
+            <section id="actions" class="mb-10 fade-in">
+                <div class="collapsible-header">
+                    <i class="fas fa-cog section-icon"></i>Actions
+                </div>
+                <div class="collapsible-content card bg-white p-6">
+                    <a href="{{ url_for('update_detail', detail_id=detail['id']) }}" class="btn-primary inline-block bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600">
+                        <i class="fas fa-edit mr-1"></i>Update Details
+                    </a>
+                </div>
+            </section>
+            {% endfor %}
+
+            <!-- Back Button and QR Code -->
+            <div class="text-center mt-10 fade-in">
+                <a href="/backend" class="btn-primary inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Home
+                </a>
+            </div>
+            <div class="text-center mt-6 fade-in">
+                <h4 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-qrcode section-icon"></i>Share this page
+                </h4>
+                <img src="{{ url_for('generate_qr', drug_id=drug.id) }}" alt="QR Code for this page" class="mx-auto max-w-[150px] rounded-lg">
+            </div>
+        </main>
+    </div>
+
+    <!-- 3D Structure Modal -->
+    <div id="structureModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">×</span>
+            <h2 id="modalTitle" class="text-2xl font-bold text-gray-800 mb-4"></h2>
+            <div id="viewer"></div>
+            <div id="loading" class="hidden"><div class="spinner"></div></div>
+            <div class="mt-4 flex justify-between">
+                <a id="downloadLink" href="#" class="text-indigo-600 hover:underline">Download PDB</a>
+                <div>
+                    <button id="rotateBtn" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 mr-2">
+                        <i class="fas fa-sync-alt mr-1"></i>Rotate
+                    </button>
+                    <button id="resetBtn" class="btn-primary bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-undo mr-1"></i>Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            // Collapsible Sections
+            $('.collapsible-header').on('click', function () {
+                const $content = $(this).next('.collapsible-content');
+                $content.slideToggle(300);
+                $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
+            });
+
+            // 3D Modal Handling
+            const modal = $('#structureModal');
+            const modalTitle = $('#modalTitle');
+            const viewerDiv = $('#viewer');
+            const loadingDiv = $('#loading');
+            const downloadLink = $('#downloadLink');
+            let viewer = null;
+            let isRotating = false;
+
+            $('.view-3d-btn').on('click', function () {
+                const structureUrl = $(this).data('structure');
+                const drugName = $(this).data('drug');
+
+                modalTitle.text(`3D Structure of ${drugName}`);
+                viewerDiv.empty();
+                loadingDiv.removeClass('hidden');
+                downloadLink.attr('href', structureUrl).attr('download', '');
+
+                viewer = $3Dmol.createViewer('viewer', { backgroundColor: 'white' });
+
+                $.get(structureUrl, function (data) {
+                    viewer.addModel(data, 'pdb');
+                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
+                    viewer.zoomTo();
+                    viewer.render();
+                    loadingDiv.addClass('hidden');
+                }, 'text').fail(function () {
+                    viewerDiv.html('<p class="text-red-500 text-center">Unable to load 3D structure. The file may be missing or invalid.</p>');
+                    loadingDiv.addClass('hidden');
+                });
+
+                modal.css('display', 'flex');
+            });
+
+            $('.modal-close').on('click', function () {
+                modal.css('display', 'none');
+                viewerDiv.empty();
+                loadingDiv.addClass('hidden');
+                isRotating = false;
+            });
+
+            modal.on('click', function (e) {
+                if (e.target === modal[0]) {
+                    modal.css('display', 'none');
+                    viewerDiv.empty();
+                    loadingDiv.addClass('hidden');
+                    isRotating = false;
+                }
+            });
+
+            // Rotate and Reset Controls
+            $('#rotateBtn').on('click', function () {
+                isRotating = !isRotating;
+                if (isRotating) {
+                    viewer.spin(true);
+                } else {
+                    viewer.spin(false);
+                }
+                $(this).find('i').toggleClass('fa-sync-alt fa-pause');
+            });
+
+            $('#resetBtn').on('click', function () {
+                if (viewer) {
+                    viewer.zoomTo();
+                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
+                    viewer.spin(false);
+                    isRotating = false;
+                    $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
+                    viewer.render();
+                }
+            });
+
+            // Metabolite Tree Toggle
+            $('.metabolite-tree .toggle').on('click', function () {
+                const $node = $(this).closest('.metabolite-node');
+                const $children = $node.children('ul');
+                $children.toggleClass('hidden');
+                $(this).toggleClass('fa-chevron-right fa-chevron-down');
+            });
+
+            // Smooth Scroll for Sidebar
+            $('.sidebar a').on('click', function (e) {
+                e.preventDefault();
+                const target = $(this).attr('href');
+                $('html, body').animate({
+                    scrollTop: $(target).offset().top - 100
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Pharmacology Lab</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 1rem 0;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            font-size: 2rem;
+            margin: 0;
+        }
+        .container {
+            width: 80%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+        }
+        form {
+            margin-bottom: 2rem;
+        }
+        label {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #plot {
+            margin-top: 2rem;
+        }
+        footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 1rem 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Virtual Pharmacology Lab</h1>
+        <p>Simulate Dose-Response Curves in Seconds</p>
+    </header>
+    <div class="container">
+        <form id="dose-response-form">
+            <label for="emax">Emax (Maximum Effect):</label>
+            <input type="number" id="emax" name="emax" placeholder="Enter Emax value (e.g., 100)" required>
+
+            <label for="ec50">EC50 (Half-Max Concentration):</label>
+            <input type="number" id="ec50" name="ec50" placeholder="Enter EC50 value (e.g., 50)" required>
+
+            <label for="hill">Hill Coefficient (n):</label>
+            <input type="number" id="hill" name="hill" placeholder="Enter Hill coefficient (e.g., 1)" required>
+
+            <label for="concentrations">Concentrations (comma-separated):</label>
+            <input type="text" id="concentrations" name="concentrations" placeholder="Enter values (e.g., 0.1, 1, 10, 100)" required>
+
+            <button type="submit">Simulate</button>
+        </form>
+
+        <div id="plot"></div>
+    </div>
+    <footer>
+        Powered by Drugly.ai | Your Virtual Pharmacology Assistant
+    </footer>
+
+    <script>
+        document.getElementById('dose-response-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const emax = parseFloat(document.getElementById('emax').value);
+            const ec50 = parseFloat(document.getElementById('ec50').value);
+            const hill = parseFloat(document.getElementById('hill').value);
+            const concentrations = document.getElementById('concentrations').value
+                .split(',')
+                .map(Number);
+
+            const response = await fetch('/simulate-dose-response', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emax, ec50, n: hill, concentrations })
+            });
+
+            const results = await response.json();
+
+            if (response.ok) {
+                const x = results.data.map(r => r.concentration);
+                const y = results.data.map(r => r.effect);
+
+                const trace = {
+                    x: x,
+                    y: y,
+                    mode: 'lines+markers',
+                    type: 'scatter',
+                    name: 'Dose-Response'
+                };
+
+                const layout = {
+                    title: 'Dose-Response Curve',
+                    xaxis: { title: 'Concentration (log scale)', type: 'log' },
+                    yaxis: { title: 'Effect' },
+                    margin: { t: 50, l: 50, r: 50, b: 50 }
+                };
+
+                Plotly.newPlot('plot', [trace], layout);
+            } else {
+                alert('Error: ' + (results.error || 'Unknown error'));
+            }
+        });
+    </script>
+</body>
+</html>

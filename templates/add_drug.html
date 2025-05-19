@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yeni İlaç Ekle</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .dynamic-input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .dynamic-input-group input {
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Yeni Etken Madde Ekle</h1>
+        <form method="post" class="card shadow-sm p-4">
+            <div class="mb-3">
+                <label for="name_tr" class="form-label">Etken Madde (Türkçe):</label>
+                <input type="text" class="form-control" id="name_tr" name="name_tr" placeholder="Türkçe isim giriniz" required>
+            </div>
+            <div class="mb-3">
+                <label for="name_en" class="form-label">Etken Madde (İngilizce):</label>
+                <input type="text" class="form-control" id="name_en" name="name_en" placeholder="İngilizce isim giriniz" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Alternatif İsimler:</label>
+                <div id="alternative-names-container">
+                    <!-- İlk Alternatif İsim Alanı -->
+                    <div class="dynamic-input-group">
+                        <input type="text" class="form-control" name="alternative_names[]" placeholder="Alternatif isim giriniz">
+                        <button type="button" class="btn btn-danger remove-alternative">Sil</button>
+                    </div>
+                </div>
+                <button type="button" id="add-alternative" class="btn btn-primary mt-2">Yeni İsim Ekle</button>
+            </div>
+            <div class="text-center">
+                <button type="submit" class="btn btn-success">Ekle</button>
+            </div>
+        </form>
+        <div class="text-center mt-4">
+            <a href="/" class="btn btn-secondary">Ana Sayfaya Dön</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const container = document.getElementById('alternative-names-container');
+            const addButton = document.getElementById('add-alternative');
+
+            // Alternatif İsim Ekle
+            addButton.addEventListener('click', () => {
+                const div = document.createElement('div');
+                div.className = 'dynamic-input-group';
+                div.innerHTML = `
+                    <input type="text" class="form-control" name="alternative_names[]" placeholder="Alternatif isim giriniz">
+                    <button type="button" class="btn btn-danger remove-alternative">Sil</button>
+                `;
+                container.appendChild(div);
+
+                // Silme Butonunu Aktif Hale Getir
+                div.querySelector('.remove-alternative').addEventListener('click', () => {
+                    div.remove();
+                });
+            });
+
+            // Mevcut Sil Butonu Aktif Hale Getir
+            document.querySelectorAll('.remove-alternative').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.target.closest('.dynamic-input-group').remove();
+                });
+            });
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

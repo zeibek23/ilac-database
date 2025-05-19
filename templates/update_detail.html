@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Drug Detail</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Select2 CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 900px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-4">Update Drug Detail</h1>
+        <form method="POST">
+            <!-- Drug Name -->
+            <div class="mb-3">
+                <label for="drug_id" class="form-label">Drug Name</label>
+                <select class="form-control" id="drug_id" name="drug_id" required>
+                    {% for drug in drugs %}
+                    <option value="{{ drug.id }}" {% if drug.id == detail.drug_id %}selected{% endif %}>{{ drug.name_en }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Salt -->
+            <div class="mb-3">
+                <label for="salt_id" class="form-label">Salt</label>
+                <select class="form-control" id="salt_id" name="salt_id">
+                    <option value="">None</option>
+                    {% for salt in salts %}
+                    <option value="{{ salt.id }}" {% if salt.id == detail.salt_id %}selected{% endif %}>{{ salt.name_en }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Molecular Formula -->
+            <div class="mb-3">
+                <label for="molecular_formula" class="form-label">Molecular Formula</label>
+                <input type="text" class="form-control" id="molecular_formula" name="molecular_formula" value="{{ detail.molecular_formula }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="molecular_weight">Molecular Weight</label>
+                <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" placeholder="Enter molecular weight">
+            </div>
+            <!-- Structure (Image) -->
+            <div class="mb-3">
+                <label for="structure" class="form-label">Structure (Image)</label>
+                {% if detail.structure %}
+                <a href="/static/uploads/{{ detail.structure }}" target="_blank">View Existing Image</a>
+                {% endif %}
+                <input type="file" class="form-control" id="structure" name="structure">
+            </div>
+
+            <!-- Synthesis -->
+            <div class="mb-3">
+                <label for="synthesis" class="form-label">Synthesis</label>
+                <textarea class="form-control" id="synthesis" name="synthesis" rows="3">{{ detail.synthesis }}</textarea>
+            </div>
+
+            <!-- IUPAC Name -->
+            <div class="mb-3">
+                <label for="iupac_name" class="form-label">IUPAC Name</label>
+                <input type="text" class="form-control" id="iupac_name" name="iupac_name" value="{{ detail.iupac_name }}">
+            </div>
+
+            <!-- SMILES -->
+            <div class="mb-3">
+                <label for="smiles" class="form-label">SMILES</label>
+                <input type="text" class="form-control" id="smiles" name="smiles" value="{{ detail.smiles }}">
+            </div>
+
+            <!-- CAS ID -->
+            <div class="mb-3">
+                <label for="cas_id" class="form-label">CAS ID</label>
+                <input type="text" class="form-control" id="cas_id" name="cas_id" value="{{ detail.cas_id }}">
+            </div>
+
+            <!-- RXCUI -->
+            <div class="mb-3">
+                <label for="rxcui" class="form-label">RXCUI</label>
+                <input type="text" class="form-control" id="rxcui" name="rxcui" value="{{ detail.rxcui }}">
+            </div>
+
+            <!-- PubChem CID -->
+            <div class="mb-3">
+                <label for="pubchem_cid" class="form-label">PubChem CID</label>
+                <input type="text" class="form-control" id="pubchem_cid" name="pubchem_cid" value="{{ detail.pubchem_cid }}">
+            </div>
+
+            <!-- PubChem SID -->
+            <div class="mb-3">
+                <label for="pubchem_sid" class="form-label">PubChem SID</label>
+                <input type="text" class="form-control" id="pubchem_sid" name="pubchem_sid" value="{{ detail.pubchem_sid }}">
+            </div>
+
+            <!-- InChIKey -->
+            <div class="mb-3">
+                <label for="inchikey" class="form-label">InChIKey</label>
+                <input type="text" class="form-control" id="inchikey" name="inchikey" value="{{ detail.inchikey }}">
+            </div>
+
+            <!-- EC Number -->
+            <div class="mb-3">
+                <label for="ec_number" class="form-label">EC Number</label>
+                <input type="text" class="form-control" id="ec_number" name="ec_number" value="{{ detail.ec_number }}">
+            </div>
+
+            <!-- NCI Code -->
+            <div class="mb-3">
+                <label for="nci_code" class="form-label">NCI Code</label>
+                <input type="text" class="form-control" id="nci_code" name="nci_code" value="{{ detail.nci_code }}">
+            </div>
+
+            <!-- SNOMED ID -->
+            <div class="mb-3">
+                <label for="snomed_id" class="form-label">SNOMED ID</label>
+                <input type="text" class="form-control" id="snomed_id" name="snomed_id" value="{{ detail.snomed_id }}">
+            </div>
+
+            <!-- Boiling Point -->
+            <div class="mb-3">
+                <label for="boiling_point" class="form-label">Boiling Point (°C)</label>
+                <input type="text" class="form-control" id="boiling_point" name="boiling_point" value="{{ detail.boiling_point }}">
+            </div>
+
+            <!-- Melting Point -->
+            <div class="mb-3">
+                <label for="melting_point" class="form-label">Melting Point (°C)</label>
+                <input type="text" class="form-control" id="melting_point" name="melting_point" value="{{ detail.melting_point }}">
+            </div>
+
+            <!-- Density -->
+            <div class="mb-3">
+                <label for="density" class="form-label">Density (g/cm³)</label>
+                <input type="text" class="form-control" id="density" name="density" value="{{ detail.density }}">
+            </div>
+
+            <!-- Solubility -->
+            <div class="mb-3">
+                <label for="solubility" class="form-label">Solubility</label>
+                <input type="text" class="form-control" id="solubility" name="solubility" value="{{ detail.solubility }}">
+            </div>
+
+            <!-- Flash Point -->
+            <div class="mb-3">
+                <label for="flash_point" class="form-label">Flash Point (°C)</label>
+                <input type="text" class="form-control" id="flash_point" name="flash_point" value="{{ detail.flash_point }}">
+            </div>
+
+            <!-- Pharmacodynamics -->
+            <div class="mb-3">
+                <label for="pharmacodynamics" class="form-label">Pharmacodynamics</label>
+                <textarea class="form-control" id="pharmacodynamics" name="pharmacodynamics" rows="3">{{ detail.pharmacodynamics }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics</label>
+                <textarea class="form-control" id="pharmacokinetics" name="pharmacokinetics" rows="3">{{ detail.pharmacokinetics or "" }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="mechanism_of_action" class="form-label">Mechanism of Action</label>
+                <textarea class="form-control" id="mechanism_of_action" name="mechanism_of_action" rows="3">{{ detail.mechanism_of_action or "" }}</textarea>
+            </div>
+            
+
+            <div class="mb-3">
+                <label for="indications" class="form-label">General Indications</label>
+                <select id="indications" name="indications[]" class="form-control" multiple>
+                    {% for indication in indications %}
+                    <option value="{{ indication.id }}" {% if indication.id|string in selected_indications %}selected{% endif %}>
+                        {{ indication.name_en }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+
+            <div class="mb-3">
+                <label for="target_molecules" class="form-label">Target Molecules</label>
+                <select id="target_molecules" name="target_molecules[]" class="form-control" multiple>
+                    {% for target in targets %}
+                    <option value="{{ target.id }}" {% if target.id|string in selected_targets %}selected{% endif %}>
+                        {{ target.name_en }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+                
+            
+                            <!-- Side Effects -->
+                            <div class="mb-3">
+                                <label for="side_effects" class="form-label">Side Effects</label>
+                                <select id="side_effects" name="side_effects[]" class="form-select" multiple>
+                                    {% for side_effect in detail.side_effects %}
+                                    <option value="{{ side_effect.id }}" selected>{{ side_effect.name_en }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                <!-- Routes of Administration -->
+                <div class="mb-3">
+                    <label for="routes" class="form-label">Routes of Administration</label>
+                    <select id="routes" name="route_id[]" class="form-select" multiple>
+                        {% for route in routes %}
+                            <option value="{{ route.id }}" {% if route.id in selected_route_ids %}selected{% endif %}>
+                                {{ route.name }} ({{ route.type }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div id="route-details-container">
+                    {% for route in selected_routes %}
+                    <div class="route-group mb-3">
+                        <h5>Route: {{ route.route_id }}</h5>
+                
+                        <label for="route_pharmacodynamics_{{ route.route_id }}">Pharmacodynamics:</label>
+                        <textarea id="route_pharmacodynamics_{{ route.route_id }}" name="route_pharmacodynamics_{{ route.route_id }}" class="form-control">
+                            {{ route.pharmacodynamics or "" }}
+                        </textarea>
+                
+                        <label for="route_pharmacokinetics_{{ route.route_id }}">Pharmacokinetics:</label>
+                        <textarea id="route_pharmacokinetics_{{ route.route_id }}" name="route_pharmacokinetics_{{ route.route_id }}" class="form-control">
+                            {{ route.pharmacokinetics or "" }}
+                        </textarea>
+                
+                        <label for="route_indications_{{ route.route_id }}" class="form-label">Indications:</label>
+                        <select id="route_indications_{{ route.route_id }}" name="route_indications_{{ route.route_id }}[]" class="form-control" multiple>
+                            {% for indication in indications %}
+                            <option value="{{ indication.id }}" {% if indication.id|string in route.indications %}selected{% endif %}>
+                                {{ indication.name_en }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                
+                
+                
+                
+
+            <!-- FDA, EMA, TITCK Approval -->
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="fda_approved" name="fda_approved" {% if detail.fda_approved %}checked{% endif %}>
+                <label class="form-check-label" for="fda_approved">FDA Approved</label>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="ema_approved" name="ema_approved" {% if detail.ema_approved %}checked{% endif %}>
+                <label class="form-check-label" for="ema_approved">EMA Approved</label>
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="titck_approved" name="titck_approved" {% if detail.titck_approved %}checked{% endif %}>
+                <label class="form-check-label" for="titck_approved">TITCK Approved</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Update</button>
+        </form>
+    </div>
+
+        <!-- Bootstrap JS -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- jQuery -->
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- Select2 JS -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
+    
+        <script>
+            $(document).ready(function () {
+                // Target Molecules Searchable Dropdown with Preselected Values
+                $('#target_molecules').select2({
+                    placeholder: "Search target molecules...",
+                    ajax: {
+                        url: "/api/targets", // Flask API endpoint for fetching target molecules
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return {
+                                query: params.term // Search term
+                            };
+                        },
+                        processResults: function (data) {
+                            return {
+                                results: data.map(function (item) {
+                                    return { id: item.id, text: item.name_en };
+                                })
+                            };
+                        },
+                        cache: true
+                    },
+                    minimumInputLength: 2
+                });
+    
+                // Side Effects Searchable Dropdown with Preselected Values
+                $('#side_effects').select2({
+                    placeholder: "Search side effects...",
+                    ajax: {
+                        url: "/api/side_effects", // Flask API endpoint for fetching side effects
+                        dataType: 'json',
+                        delay: 250,
+                        data: function (params) {
+                            return {
+                                query: params.term // Search term
+                            };
+                        },
+                        processResults: function (data) {
+                            return {
+                                results: data.map(function (item) {
+                                    return { id: item.id, text: item.name_en };
+                                })
+                            };
+                        },
+                        cache: true
+                    },
+                    minimumInputLength: 2
+                });
+            });
+
+            $(document).ready(function () {
+    // General Indications
+            $('#indications').select2({
+            placeholder: "Search for general indications...",
+            ajax: {
+                url: "/api/indications",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        search: params.term, // Search query sent to the API
+                        page: params.page || 1, // Current page for pagination
+                        limit: 10  // Number of results per page
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.results, // Use the 'results' array from API response
+                        pagination: {
+                            more: data.has_next // Enable pagination if 'has_next' is true
+                        }
+                    };
+                }
+            },
+            minimumInputLength: 2,  // Start searching after 2 characters
+            allowClear: true,       // Allow clearing the selection
+            multiple: true          // Enable multi-select
+        });
+
+
+    // Route-Specific Indications
+    $('select[id^="route_indications_"]').each(function () {
+        $(this).select2({
+            placeholder: "Search for route-specific indications...",
+            ajax: {
+                url: "/api/indications", // Flask API endpoint
+                dataType: 'json',
+                delay: 250, // Prevent excessive API calls
+                data: function (params) {
+                    return {
+                        search: params.term, // Search query
+                        page: params.page || 1, // For pagination
+                        limit: 10  // Number of results per page
+                    };
+                },
+                processResults: function (data) {
+                    console.log("API Response:", data); // Debugging
+                    return {
+                        results: data.results, // Map results to Select2
+                        pagination: {
+                            more: data.has_next // Enable pagination if more results exist
+                        }
+                    };
+                },
+                cache: true // Cache API results
+            },
+            minimumInputLength: 2, // Start searching after 2 characters
+            allowClear: true, // Allow clearing the selection
+            multiple: true // Enable multi-select
+        });
+    });
+});
+
+$('#routes').on('change', function () {
+    const selectedRoutes = $(this).val() || [];
+    const routeDetailsContainer = $('#route-details-container');
+
+    // Clear existing route details
+    routeDetailsContainer.empty();
+
+    // Add route details dynamically
+    selectedRoutes.forEach(routeId => {
+        const routeGroup = `
+            <div class="route-group mb-3">
+                <h5>Route: ${routeId}</h5>
+
+                <label for="route_pharmacodynamics_${routeId}">Pharmacodynamics:</label>
+                <textarea id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}" class="form-control"></textarea>
+
+                <label for="route_pharmacokinetics_${routeId}">Pharmacokinetics:</label>
+                <textarea id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}" class="form-control"></textarea>
+
+                <label for="route_indications_${routeId}" class="form-label">Indications:</label>
+                <select id="route_indications_${routeId}" name="route_indications_${routeId}[]" class="form-control" multiple></select>
+            </div>
+        `;
+
+        routeDetailsContainer.append(routeGroup);
+
+        // Initialize Select2 for dynamically added indications
+        $(`#route_indications_${routeId}`).select2({
+            placeholder: "Search for route-specific indications...",
+            ajax: {
+                url: "/api/indications",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        search: params.term,
+                        page: params.page || 1,
+                        limit: 10
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.results,
+                        pagination: { more: data.has_next }
+                    };
+                }
+            },
+            minimumInputLength: 2,
+            allowClear: true,
+            multiple: true
+        });
+    });
+});
+
+
+        </script>
+    </body>
+    
+    </html>

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fetch ChEMBL Interactions</title>
+</head>
+<body>
+    <h1>Fetch Ligand-Receptor Interactions from ChEMBL</h1>
+    <form action="{{ url_for('fetch_chembl_interactions') }}" method="POST">
+        <label for="receptor_name">Receptor Name:</label>
+        <input type="text" id="receptor_name" name="receptor_name" required>
+        <button type="submit">Fetch Interactions</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>PGx Explorer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Bootstrap CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
+  <style>
+    body {
+      background-color: #f8f9fa;
+      margin-bottom: 50px;
+    }
+    /* Gradient Header */
+    .header {
+      background: linear-gradient(45deg, #007bff, #0056b3);
+      color: white;
+      padding: 40px 0;
+      margin-bottom: 30px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+    }
+    .header p {
+      font-size: 1.1rem;
+      margin-top: 10px;
+    }
+    /* Search Card */
+    .search-card {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .search-card .card-header {
+      background-color: #343a40;
+      color: #ffffff;
+    }
+    .no-results {
+      color: #6c757d;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Section -->
+  <header class="header text-center">
+    <div class="container">
+      <h1>PGx Explorer</h1>
+      <p>Pharmacogenomic Data Integration - Search Genes, Variants, Drugs, or Diseases</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Search Form in a Card -->
+    <div class="card search-card mb-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">Search</h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('pgx_explorer') }}">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label for="search_type" class="form-label">Search Type</label>
+              <select class="form-select" name="search_type" id="search_type">
+                <option value="gene"    {% if search_type=='gene'    %}selected{% endif %}>Gene</option>
+                <option value="variant" {% if search_type=='variant' %}selected{% endif %}>Variant</option>
+                <option value="drug"    {% if search_type=='drug'    %}selected{% endif %}>Drug</option>
+                <option value="disease" {% if search_type=='disease' %}selected{% endif %}>Disease</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="search_query" class="form-label">Search Query</label>
+              <input
+                type="text"
+                class="form-control"
+                id="search_query"
+                name="search_query"
+                placeholder="Enter search term..."
+                value="{{ search_query or '' }}"
+                required
+              />
+            </div>
+            <div class="col-md-3 align-self-end">
+              <button class="btn btn-primary w-100" type="submit">Search</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    {% if results and results|length > 0 %}
+      <!-- 
+        For demo purposes, let's just show the raw JSON of `results`. 
+        Replace this with a table, accordion, or custom layout 
+        tailored to each search_type.
+      -->
+      <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+          <h5 class="card-title mb-0">Search Results</h5>
+        </div>
+        <div class="card-body">
+          <pre class="mb-0">{{ results|tojson(indent=2) }}</pre>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-info text-center">
+        {% if search_query %}
+          No results found for "<strong>{{ search_query }}</strong>".
+        {% else %}
+          No results found.
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

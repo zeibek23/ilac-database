@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Clinical Annotations</title>
+    <style>
+        .success { color: green; }
+        .danger { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Upload Clinical Annotations</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul>
+                {% for category, msg in messages %}
+                    <li class="{{ category }}">{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+    <form method="POST" enctype="multipart/form-data">
+        <p>
+            <label>clinical_annotations.tsv:</label>
+            <input type="file" name="clinical_annotations" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>clinical_ann_history.tsv:</label>
+            <input type="file" name="clinical_ann_history" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>clinical_ann_alleles.tsv:</label>
+            <input type="file" name="clinical_ann_alleles" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>clinical_ann_evidence.tsv:</label>
+            <input type="file" name="clinical_ann_evidence" accept=".tsv,.csv"/>
+        </p>
+        <input type="submit" value="Upload"/>
+    </form>
+    <p><a href="/">Go Home</a></p>
+</body>
+</html>

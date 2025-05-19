@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drug Database</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f7fb;
+            font-family: 'Arial', sans-serif;
+            color: #333;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1200px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 15px;
+            border-bottom: none;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .btn {
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        #resultsList li {
+            background-color: #fff;
+            margin: 5px 0;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            list-style-type: none;
+            transition: background-color 0.3s;
+        }
+
+        #resultsList li:hover {
+            background-color: #f9f9f9;
+        }
+
+        #resultsList li a {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        #resultsList li a:hover {
+            text-decoration: underline;
+        }
+
+        /* Feature Section Styling */
+        .feature-section .card {
+            background: linear-gradient(135deg, #4a90e2, #9013fe);
+            color: white;
+        }
+
+        .feature-section .card-header {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-section .btn {
+            background: #fff;
+            color: #4a90e2;
+            border: none;
+        }
+
+        .feature-section .btn:hover {
+            background: #f0f0f0;
+            color: #9013fe;
+        }
+
+        /* Custom Card Colors */
+        .bg-gradient-primary { background: linear-gradient(135deg, #007bff, #0056b3); color: white; }
+        .bg-gradient-success { background: linear-gradient(135deg, #28a745, #1e7e34); color: white; }
+        .bg-gradient-danger { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
+        .bg-gradient-warning { background: linear-gradient(135deg, #ffc107, #e0a800); color: #333; }
+        .bg-gradient-info { background: linear-gradient(135deg, #17a2b8, #117a8b); color: white; }
+        .bg-gradient-secondary { background: linear-gradient(135deg, #6c757d, #545b62); color: white; }
+        .bg-gradient-light { background: linear-gradient(135deg, #f8f9fa, #e9ecef); color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="text-center mb-5">Drug Database</h1>
+
+        <!-- Search Bar -->
+        <div class="mb-4">
+            <form action="/" method="get" class="d-flex">
+                <input
+                    type="text"
+                    name="q"
+                    class="form-control me-2"
+                    placeholder="Search for active ingredients..."
+                    value="{{ query }}"
+                >
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
+
+        <!-- Results Count -->
+        {% if query %}
+        <div class="alert alert-info">
+            Showing results for: <strong>{{ query }}</strong>
+        </div>
+        {% endif %}
+
+        <!-- Feature Sections -->
+        <div class="feature-section">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">Virtual Pharmacology Lab</div>
+                        <div class="card-body text-center">
+                            <p class="card-text">Simulate dose-response curves and explore pharmacological interactions.</p>
+                            <a href="http://127.0.0.1:5000/simulate-dose-response" class="btn">Go to Virtual Lab</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-header">Receptor-Ligand Interaction Simulator</div>
+                        <div class="card-body text-center">
+                            <p class="card-text">Visualize and analyze receptor-ligand interactions in 3D.</p>
+                            <a href="http://127.0.0.1:5000/receptor-ligand-simulator" class="btn">Go to Simulator</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Active Ingredients -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-primary">Upload Active Ingredients</div>
+            <div class="card-body text-center">
+                <a href="/upload" class="btn btn-primary">Upload Active Ingredients</a>
+            </div>
+        </div>
+
+        <!-- Drug and Salt Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-primary">Drug and Salt Management</div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for drug in drugs.items %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ drug.name_tr }}</strong> ({{ drug.name_en }})
+                                {% if drug.salts %}
+                                <ul class="mt-2">
+                                    {% for salt in drug.salts %}
+                                    <li>{{ salt.name_tr }} ({{ salt.name_en }})</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <small class="text-muted">No salts added yet.</small>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <a href="{{ url_for('update_drug', drug_id=drug.id) }}" class="btn btn-sm btn-warning">Update</a>
+                                <form method="POST" action="{{ url_for('delete_drug', drug_id=drug.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this drug?');">
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <a href="/add" class="btn btn-primary mt-3">Add New Drug</a>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <nav aria-label="Page navigation example">
+            <ul class="pagination justify-content-center mt-4">
+                {% if drugs.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('backend_index', page=drugs.prev_num) }}" aria-label="Previous">
+                        <span aria-hidden="true">«</span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">«</span></li>
+                {% endif %}
+
+                {% for page_num in drugs.iter_pages(left_edge=2, right_edge=2, left_current=2, right_current=2) %}
+                {% if page_num %}
+                {% if page_num == drugs.page %}
+                <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                {% else %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('backend_index', page=page_num) }}">{{ page_num }}</a></li>
+                {% endif %}
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endfor %}
+
+                {% if drugs.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('backend_index', page=drugs.next_num) }}" aria-label="Next">
+                        <span aria-hidden="true">»</span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">»</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Interaction Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-danger">Interaction Management</div>
+            <div class="card-body text-center">
+                <a href="/interactions/manage" class="btn btn-danger mx-2">Manage Interactions</a>
+                <a href="/interactions" class="btn btn-secondary mx-2">Basic Interaction Check</a>
+                <a href="/cdss/advanced" class="btn btn-warning mx-2">Advanced Interaction Analysis</a>
+            </div>
+        </div>
+
+        <!-- Detailed Information Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-success">Detailed Information Management</div>
+            <div class="card-body text-center">
+                <a href="/details/add" class="btn btn-success mx-2">Add Details</a>
+                <a href="/details" class="btn btn-info mx-2">View Details</a>
+            </div>
+        </div>
+
+        <!-- Salt Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-warning">Salt Management</div>
+            <div class="card-body text-center">
+                <a href="/salts" class="btn btn-warning mx-2">Add Salt</a>
+                <a href="/matches" class="btn btn-secondary mx-2">Match Drugs and Salts</a>
+            </div>
+        </div>
+
+        <!-- Indication and Target Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-info">Indication and Target Management</div>
+            <div class="card-body text-center">
+                <a href="/indications" class="btn btn-info mx-2">Manage Indications</a>
+                <a href="/targets" class="btn btn-secondary mx-2">Manage Targets</a>
+                <a href="/upload_targets" class="btn btn-secondary mx-2">Upload Targets</a>
+            </div>
+        </div>
+
+        <!-- Side Effect Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-light">Side Effect Management</div>
+            <div class="card-body text-center">
+                <a href="/side_effects" class="btn btn-light mx-2">Manage Side Effects</a>
+                <a href="/side_effects/upload" class="btn btn-light mx-2">Upload Side Effects</a>
+            </div>
+        </div>
+
+        <!-- Route of Administration Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-secondary">Route of Administration Management</div>
+            <div class="card-body text-center">
+                <a href="/routes/manage" class="btn btn-secondary mx-2">Manage Routes</a>
+            </div>
+        </div>
+
+        <!-- Category Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-primary">Category Management</div>
+            <div class="card-body text-center">
+                <a href="/categories" class="btn btn-primary mx-2">Manage Categories</a>
+            </div>
+        </div>
+
+        <!-- Predict Disease -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-warning">Predict Disease</div>
+            <div class="card-body text-center">
+                <a href="/predict_disease" class="btn btn-warning mx-2">Go to Disease Prediction</a>
+            </div>
+        </div>
+
+        <!-- KEGG Pathways Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-info">KEGG Pathways</div>
+            <div class="card-body text-center">
+                <p class="text-muted">Explore and manage KEGG Pathways in the database.</p>
+                <a href="/pathways" class="btn btn-info mx-2">Go to Pathways</a>
+                <a href="/fetch_kegg_pathways" class="btn btn-primary mx-2">Fetch New Pathways</a>
+            </div>
+        </div>
+
+        <!-- NEW: Pharmacokinetics Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-success">Pharmacokinetics Management</div>
+            <div class="card-body text-center">
+                <a href="/pharmacokinetics" class="btn btn-success mx-2">Manage Pharmacokinetics</a>
+                <a href="/pharmacokinetics/upload" class="btn btn-secondary mx-2">Upload PK Data</a>
+            </div>
+        </div>
+
+        <!-- NEW: Metabolism Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-info">Metabolism Management</div>
+            <div class="card-body text-center">
+                <a href="/metabolism" class="btn btn-info mx-2">Manage Metabolism</a>
+                <a href="/metabolism/upload" class="btn btn-secondary mx-2">Upload Metabolism Data</a>
+            </div>
+        </div>
+
+        <!-- PharmGKB Search -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-secondary">Pharmacogenomics</div>
+            <div class="card-body text-center">
+                <a href="/pharmacogenomics/dashboard" class="btn btn-secondary mx-2">Dashboard</a>
+                <a href="/pharmacogenomics/manage" class="btn btn-secondary mx-2">Pharmacogenomics Management</a>
+                <a href="/clinical_annotations" class="btn btn-secondary mx-2">Clinical Annotations</a>
+                <a href="/upload_clinical_annotations" class="btn btn-secondary mx-2">Upload Clinical Annotations</a>
+                <a href="/upload_variant_annotations" class="btn btn-secondary mx-2">Upload Variant Annotations</a>
+                <a href="/upload_relationships" class="btn btn-secondary mx-2">Upload Gene Relationships</a>
+                <a href="/upload_drug_labels" class="btn btn-secondary mx-2">Upload Drug Labels</a>
+                <a href="/upload_clinical_variants" class="btn btn-secondary mx-2">Upload Clinical Variants</a>
+                <a href="/upload_occurrences" class="btn btn-secondary mx-2">Upload Occurrences</a>
+                <a href="/upload_automated_annotations" class="btn btn-secondary mx-2">Upload Automated Annotations</a>
+                <a href="/pharmacogenomics" class="btn btn-secondary mx-2">PGx Explorer</a>
+            </div>
+        </div>
+
+        <!-- Receptor-Ligand Interaction Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-info">Receptor-Ligand Interaction Management</div>
+            <div class="card-body text-center">
+                <a href="/receptors/manage" class="btn btn-info mx-2">Manage Receptors</a>
+                <a href="/receptors/map" class="btn btn-primary mx-2">Receptors Mapping</a>
+                <a href="/interactions/drug-receptor" class="btn btn-secondary mx-2">Manage Drug-Receptor Interactions</a>
+                <a href="/receptor-ligand-dashboard" class="btn btn-dark mx-2">Dashboard</a>
+                <a href="/api/uniprot" class="btn btn-success mx-2">Fetch from UniProt</a>
+                <a href="/api/iuphar" class="btn btn-warning mx-2">Fetch from IUPHAR</a>
+            </div>
+        </div>
+
+        <!-- Interaction Network Visualization -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-primary">Interaction Network Visualization</div>
+            <div class="card-body text-center">
+                <a href="/interactions/network" class="btn btn-primary mx-2">View Interaction Network</a>
+            </div>
+        </div>
+
+        <!-- News Management -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient-primary">News</div>
+            <div class="card-body text-center">
+                <a href="/news/manage" class="btn btn-info">Manage News</a>
+            </div>
+        </div>
+
+        <!-- Advanced Search -->
+        <div class="text-center mt-5">
+            <a href="/search" class="btn btn-primary btn-lg">Advanced Search</a>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

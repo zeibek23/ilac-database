@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receptor-Ligand Interaction Dashboard | Detailed Insights</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <noscript>
+        <div class="alert alert-danger" role="alert">
+            This application requires JavaScript to function properly. Please enable JavaScript in your browser settings.
+        </div>
+    </noscript>
+
+    <!-- Spinner -->
+    <div id="loading-spinner" class="text-center mt-3" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading data, please wait...</p>
+    </div>
+
+    <div class="container mt-5">
+        <h1>Receptor-Ligand Interaction Dashboard</h1>
+
+        <!-- DataTables Section -->
+        <div class="card mt-3">
+            <div class="card-header"><strong>Receptor Details</strong></div>
+            <div class="card-body table-responsive">
+                <table id="receptor-table" class="table table-bordered" aria-label="Receptor Details Table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Molecular Weight</th>
+                            <th>Length</th>
+                            <th>Gene Name</th>
+                            <th>Localization</th>
+                            <th>Function</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><strong>Ligand-Receptor Interactions</strong></div>
+            <div class="card-body table-responsive">
+                <table id="interaction-table" class="table table-bordered" aria-label="Ligand-Receptor Interactions Table">
+                    <thead>
+                        <tr>
+                            <th>Ligand</th>
+                            <th>Receptor</th>
+                            <th>Affinity</th>
+                            <th>Affinity Parameter</th>
+                            <th>Interaction Type</th>
+                            <th>Mechanism</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4>Affinity Distribution</h4>
+            </div>
+            <div class="card-body">
+                <canvas id="affinity-bar-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h4>Interaction Type Distribution</h4>
+            </div>
+            <div class="card-body">
+                <canvas id="interaction-pie-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            const spinner = $('#loading-spinner');
+
+            // Show spinner
+            function showSpinner() {
+                spinner.show();
+            }
+
+            // Hide spinner
+            function hideSpinner() {
+                spinner.hide();
+            }
+
+            // Load Receptor Table
+            const receptorTable = $('#receptor-table').DataTable({
+                serverSide: true,
+                ajax: {
+                    url: '/api/receptor-ligand-dashboard?table_id=receptor-table',
+                    type: 'GET',
+                    beforeSend: showSpinner,
+                    complete: hideSpinner,
+                    error: function (xhr, error, code) {
+                        console.error('Receptor Table Error:', error);
+                    }
+                },
+                columns: [
+                    { data: 'Name' },
+                    { data: 'Type' },
+                    { data: 'Molecular Weight' },
+                    { data: 'Length' },
+                    { data: 'Gene Name' },
+                    { data: 'Localization' },
+                    { data: 'Function' }
+                ]
+            });
+
+            // Load Interaction Table
+            const interactionTable = $('#interaction-table').DataTable({
+                serverSide: true,
+                ajax: {
+                    url: '/api/receptor-ligand-dashboard?table_id=interaction-table',
+                    type: 'GET',
+                    beforeSend: showSpinner,
+                    complete: hideSpinner,
+                    error: function (xhr, error, code) {
+                        console.error('Interaction Table Error:', error);
+                    }
+                },
+                columns: [
+                    { data: 'Ligand' },
+                    { data: 'Receptor' },
+                    { data: 'Affinity' },
+                    { data: 'Affinity Parameter' },
+                    { data: 'Interaction Type' },
+                    { data: 'Mechanism' }
+                ]
+            });
+
+            // Load Bar Chart
+            $.get('/api/affinity-data', function(chartData) {
+                const ctx = document.getElementById('affinity-bar-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{
+                            label: 'Affinity Values',
+                            data: chartData.values,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Affinity'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Ligand (Receptor)'
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Load Pie Chart
+            $.get('/api/interaction-type-distribution', function(chartData) {
+                const ctx = document.getElementById('interaction-pie-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [{
+                            data: chartData.values,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.2)',
+                                'rgba(54, 162, 235, 0.2)',
+                                'rgba(255, 206, 86, 0.2)',
+                                'rgba(75, 192, 192, 0.2)',
+                                'rgba(153, 102, 255, 0.2)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'right'
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

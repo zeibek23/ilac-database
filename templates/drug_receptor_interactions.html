@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drug-Receptor Interactions</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Drug-Receptor Interactions</h1>
+
+        <!-- Form to Add a New Interaction -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">Add New Interaction</div>
+            <div class="card-body">
+                <form action="{{ url_for('manage_drug_receptor_interactions') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="drug_id" class="form-label">Select Drug</label>
+                        <select name="drug_id" id="drug_id" class="form-select" required>
+                            {% for drug in drugs %}
+                            <option value="{{ drug.id }}">{{ drug.name_en }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="receptor_id" class="form-label">Select Receptor</label>
+                        <select name="receptor_id" id="receptor_id" class="form-select" required>
+                            {% for receptor in receptors %}
+                            <option value="{{ receptor.id }}">{{ receptor.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="affinity" class="form-label">Affinity (Kd/Ki value)</label>
+                        <input type="text" name="affinity" id="affinity" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label for="interaction_type" class="form-label">Interaction Type</label>
+                        <input type="text" name="interaction_type" id="interaction_type" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label for="mechanism" class="form-label">Mechanism</label>
+                        <textarea name="mechanism" id="mechanism" class="form-control" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add Interaction</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- List of Existing Interactions -->
+        <h2 class="mb-3">Existing Interactions</h2>
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Drug Name</th>
+                    <th>Receptor Name</th>
+                    <th>Affinity</th>
+                    <th>Affinity Parameter</th>
+                    <th>Interaction Type</th>
+                    <th>Mechanism</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for interaction in interactions %}
+                <tr>
+                    <td>{{ interaction.drug_name }}</td>
+                    <td>{{ interaction.receptor_name }}</td>
+                    <td>{{ interaction.affinity }}</td>
+                    <td>{{ interaction.affinity_parameter }}</td>
+                    <td>{{ interaction.interaction_type }}</td>
+                    <td>{{ interaction.mechanism }}</td>
+                    <td>
+                        <!-- Edit Button -->
+                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ interaction.id }}">Edit</button>
+
+                        <!-- Delete Form -->
+                        <form action="{{ url_for('delete_drug_receptor_interaction', id=interaction.id) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+
+                <!-- Edit Modal -->
+                <div class="modal fade" id="editModal{{ interaction.id }}" tabindex="-1" aria-labelledby="editModalLabel{{ interaction.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="editModalLabel{{ interaction.id }}">Edit Interaction</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <form action="{{ url_for('edit_drug_receptor_interaction', id=interaction.id) }}" method="POST">
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label for="affinity" class="form-label">Affinity</label>
+                                        <input type="text" name="affinity" class="form-control" value="{{ interaction.affinity }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="interaction_type" class="form-label">Interaction Type</label>
+                                        <input type="text" name="interaction_type" class="form-control" value="{{ interaction.interaction_type }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="mechanism" class="form-label">Mechanism</label>
+                                        <textarea name="mechanism" class="form-control" rows="3">{{ interaction.mechanism }}</textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-success">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+        <!-- Initialize Select2 -->
+        <script>
+            $(document).ready(function() {
+                $('#drug_id').select2({
+                    placeholder: "Search for a drug",
+                    allowClear: true
+                });
+    
+                $('#receptor_id').select2({
+                    placeholder: "Search for a receptor",
+                    allowClear: true
+                });
+            });
+        </script>
+</body>
+</html>

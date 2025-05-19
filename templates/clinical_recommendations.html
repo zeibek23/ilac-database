@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Clinical Recommendations</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Bootstrap 5 CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  />
+  <style>
+    body {
+      background-color: #f8f9fa;
+      margin-bottom: 50px;
+    }
+    .header {
+      background: linear-gradient(45deg, #007bff, #0056b3);
+      color: white;
+      padding: 40px 0;
+      margin-bottom: 30px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+    }
+    .header p {
+      font-size: 1.1rem;
+    }
+    .variant-card {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .badge-pill {
+      border-radius: 50rem !important;
+    }
+    .no-results {
+      font-style: italic;
+      color: #6c757d;
+    }
+    .table-hover tbody tr:hover {
+      background-color: #f1f1f1;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Section -->
+  <header class="header text-center">
+    <div class="container">
+      <h1>Clinical Recommendations</h1>
+      <p>Bir genotipe dayalı entegre öneriler (4 veriseti birleşimi)</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Search Form -->
+    <div class="mb-4">
+      <form method="POST" action="{{ url_for('clinical_recommendations') }}">
+        <div class="row g-3">
+          <div class="col-md-10">
+            <input
+              type="text"
+              name="genotype"
+              class="form-control"
+              placeholder="Örn: CYP2D6*4 veya rs11065987"
+              required
+            />
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Ara</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Recommendations Section -->
+    {% if recommendations and recommendations|length > 0 %}
+      {% for rec in recommendations %}
+        {% set varIndex = loop.index0 %}
+        <!-- Card for Each Variant -->
+        <div class="card variant-card">
+          <div class="card-header bg-primary text-white">
+            <strong>Variant:</strong> {{ rec.variant_info.matched_genotype }}
+            &nbsp; | &nbsp;
+            <strong>Gene:</strong> {{ rec.variant_info.gene_name }}
+          </div>
+          <div class="card-body">
+            <!-- Variant-Level Info -->
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>Clinical Annotation ID:</strong> {{ rec.variant_info.clinical_annotation_id }}</p>
+                <p><strong>Variant Annotation ID:</strong> {{ rec.variant_info.variant_annotation_id }}</p>
+                <p><strong>Population:</strong> {{ rec.variant_info.specialty_population }}</p>
+              </div>
+              <div class="col-md-6">
+                <p><strong>Description:</strong> {{ rec.variant_info.variant_description }}</p>
+                <p><strong>Last Updated:</strong> {{ rec.variant_info.latest_history_date }}</p>
+              </div>
+            </div>
+
+            <!-- Drug Recommendations -->
+            <h5 class="mt-4">İlaç Önerileri</h5>
+            {% if rec.drug_recommendations and rec.drug_recommendations|length > 0 %}
+              <!-- Collapsible accordion for each drug -->
+              <div class="accordion" id="drugAccordion_{{ varIndex }}">
+                {% for drugRec in rec.drug_recommendations %}
+                  {% set drugIndex = loop.index0 %}
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading_var{{ varIndex }}_drug{{ drugIndex }}">
+                      <button
+                        class="accordion-button collapsed"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse_var{{ varIndex }}_drug{{ drugIndex }}"
+                        aria-expanded="false"
+                        aria-controls="collapse_var{{ varIndex }}_drug{{ drugIndex }}"
+                      >
+                        {{ drugRec.drug_name }} (Risk: {{ drugRec.risk_level or "Unknown" }})
+                      </button>
+                    </h2>
+                    <div
+                      id="collapse_var{{ varIndex }}_drug{{ drugIndex }}"
+                      class="accordion-collapse collapse"
+                      aria-labelledby="heading_var{{ varIndex }}_drug{{ drugIndex }}"
+                      data-bs-parent="#drugAccordion_{{ varIndex }}"
+                    >
+                      <div class="accordion-body">
+                        <p><strong>Direction of Effect:</strong> {{ drugRec.direction_of_effect }}</p>
+                        <p><strong>Pharmacokinetics (PK):</strong> {{ drugRec.pharmacokinetics }}</p>
+                        <p><strong>Pharmacodynamics (PD):</strong> {{ drugRec.pharmacodynamics }}</p>
+                        <p>
+                          <strong>Clinical Guideline:</strong>
+                          {% if drugRec.clinical_guideline and drugRec.clinical_guideline != "#" %}
+                            <a href="{{ drugRec.clinical_guideline }}" target="_blank">Link</a>
+                          {% else %}
+                            N/A
+                          {% endif %}
+                        </p>
+
+                        <!-- Drug Label Info -->
+                        <h6>Drug Label Bilgileri</h6>
+                        <ul>
+                          <li><strong>Source:</strong> {{ drugRec.drug_label.source }}</li>
+                          <li><strong>Testing Level:</strong> {{ drugRec.drug_label.testing_level }}</li>
+                          <li><strong>Biomarker Flag:</strong> {{ drugRec.drug_label.biomarker_flag }}</li>
+                          <li><strong>Has Prescribing Info:</strong> {{ drugRec.drug_label.has_prescribing_info }}</li>
+                          <li><strong>Has Dosing Info:</strong> {{ drugRec.drug_label.has_dosing_info }}</li>
+                          <li><strong>Alternate Drug:</strong> {{ drugRec.drug_label.has_alternate_drug }}</li>
+                          <li><strong>Other Guidance:</strong> {{ drugRec.drug_label.has_other_prescribing_guidance }}</li>
+                          <li><strong>Cancer Genome:</strong> {{ drugRec.drug_label.cancer_genome }}</li>
+                          <li><strong>Label Updated:</strong> {{ drugRec.drug_label.latest_history_date }}</li>
+                        </ul>
+
+                        <!-- PubMed References -->
+                        {% if drugRec.pubmed_references and drugRec.pubmed_references|length > 0 %}
+                          <h6>PubMed Referansları</h6>
+                          <ul>
+                            {% for ref in drugRec.pubmed_references %}
+                              <li><a href="{{ ref.url }}" target="_blank">{{ ref.pmid }}</a></li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+
+                        <!-- Alternatives -->
+                        {% if drugRec.alternatives and drugRec.alternatives|length > 0 %}
+                          <h6>Alternatif İlaçlar</h6>
+                          <ul>
+                            {% for alt in drugRec.alternatives %}
+                            <li>
+                              {{ alt.name }} 
+                              (Risk: {{ alt.risk_level or "Unknown" }}, 
+                               Etki: {{ alt.direction_of_effect }}, 
+                               Pop: {{ alt.specialty_population }})
+                            </li>
+                            {% endfor %}
+                          </ul>
+                        {% else %}
+                          <p class="text-muted">Alternatif ilaç bulunamadı.</p>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="no-results">Bu varyant için ilaç etkileşimi bulunamadı.</p>
+            {% endif %}
+
+            <!-- Related Diseases -->
+            <h5 class="mt-4">İlgili Hastalıklar</h5>
+            {% if rec.related_diseases and rec.related_diseases|length > 0 %}
+              <table class="table table-hover">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Hastalık</th>
+                    <th>İlişki</th>
+                    <th>PMIDs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for disease in rec.related_diseases %}
+                    <tr>
+                      <td>{{ disease.name }}</td>
+                      <td>{{ disease.association }}</td>
+                      <td>{{ disease.pmids or "None" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="no-results">Bu gen ile ilişkili hastalık bilgisi bulunamadı.</p>
+            {% endif %}
+          </div>
+        </div> <!-- End card -->
+      {% endfor %}
+    {% else %}
+      <div class="alert alert-info text-center mt-4">
+        Hiçbir sonuç bulunamadı.
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

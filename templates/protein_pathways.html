@@ -1,0 +1,19 @@
+<h3>Pathways Linked to Protein: {{ protein }}</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Pathway ID</th>
+            <th>Description</th>
+            <th>Confidence Score</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pathway in pathways %}
+        <tr>
+            <td><a href="https://www.kegg.jp/dbget-bin/www_bget?{{ pathway.term }}" target="_blank">{{ pathway.term }}</a></td>
+            <td>{{ pathway.description }}</td>
+            <td>{{ pathway.score }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
