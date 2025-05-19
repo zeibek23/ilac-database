@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacogenomics Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.blockUI/2.70/jquery.blockUI.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        .dashboard-section { 
+            margin-bottom: 2rem; 
+            padding: 1.5rem; 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .section-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+        }
+        .section-content { 
+            margin-top: 1rem; 
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1rem; 
+            margin-top: 1rem; 
+        }
+        .chart-container { 
+            position: relative; 
+            max-width: 800px; 
+            margin: 1.5rem auto; 
+            padding: 1rem; 
+            background: #f9fafb; 
+            border-radius: 8px; 
+        }
+        .select2-container { width: 100% !important; }
+        .select2-selection__rendered { line-height: 38px !important; }
+        .select2-selection--single { height: 38px !important; border: 1px solid #d1d5db !important; border-radius: 4px !important; }
+        .stats-card { 
+            transition: transform 0.3s, box-shadow 0.3s; 
+            cursor: pointer; 
+            position: relative; 
+            padding: 1rem; 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+        }
+        .stats-card:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
+        }
+        .tooltip { 
+            position: relative; 
+            display: inline-block; 
+        }
+        .tooltip .tooltiptext { 
+            visibility: hidden; 
+            width: 200px; 
+            background-color: #2E7D32; 
+            color: #fff; 
+            text-align: center; 
+            border-radius: 6px; 
+            padding: 5px; 
+            position: absolute; 
+            z-index: 1; 
+            bottom: 125%; 
+            left: 50%; 
+            margin-left: -100px; 
+            opacity: 0; 
+            transition: opacity 0.3s; 
+        }
+        .tooltip:hover .tooltiptext { 
+            visibility: visible; 
+            opacity: 0.9; 
+        }
+        .tooltip .tooltiptext::after { 
+            content: ""; 
+            position: absolute; 
+            top: 100%; 
+            left: 50%; 
+            margin-left: -5px; 
+            border-width: 5px; 
+            border-style: solid; 
+            border-color: #2E7D32 transparent transparent transparent; 
+        }
+        .dark-mode { 
+            background-color: #1f2937; 
+            color: #e5e7eb; 
+        }
+        .dark-mode .dashboard-section { background-color: #374151; }
+        .dark-mode .bg-white { background-color: #374151; }
+        .dark-mode .bg-gray-50 { background-color: #111827; }
+        .dark-mode .bg-f9fafb { background-color: #1f2937; }
+        .dark-mode .text-gray-600 { color: #d1d5db; }
+        .dark-mode .text-gray-700 { color: #e5e7eb; }
+        .dark-mode .bg-green-600 { background-color: #15803d; }
+        .dark-mode .text-green-700 { color: #22c55e; }
+        .dark-mode .border-gray-300 { border-color: #4b5563; }
+        .dark-mode .chart-container { background-color: #1f2937; }
+        .dark-mode .bg-yellow-400 { background-color: #a16207; }
+        .dark-mode .text-green-800 { color: #22c55e; }
+        .error-alert { 
+            background-color: #fee2e2; 
+            color: #b91c1c; 
+            padding: 1rem; 
+            border-radius: 4px; 
+            margin-top: 1rem; 
+            text-align: center; 
+        }
+        .chart-spinner { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            display: none; 
+        }
+        .collapsible-icon { 
+            transition: transform 0.3s; 
+        }
+        .collapsible-open .collapsible-icon { 
+            transform: rotate(180deg); 
+        }
+        @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .chart-container { max-width: 100%; }
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            // Register Chart.js plugins
+            Chart.register(ChartDataLabels); // Register datalabels plugin
+            console.log("jQuery and Select2 loaded:", typeof $, typeof $.fn.select2);
+            console.log("Chart.js version:", Chart.version);
+
+            const initSelect2 = (selector, url, paramName, placeholder) => {
+                $(selector).select2({
+                    ajax: {
+                        url: url,
+                        dataType: 'json',
+                        delay: 250,
+                        data: function(params) {
+                            const query = {};
+                            query[paramName] = params.term || '';
+                            query.page = params.page || 1;
+                            query.limit = 10;
+                            console.log(`Fetching ${selector} with:`, query);
+                            return query;
+                        },
+                        processResults: function(data) {
+                            console.log(`${selector} response:`, data);
+                            if (data.error) {
+                                $(selector).siblings('.select2-error').text(data.error).show();
+                                return { results: [], pagination: { more: false } };
+                            }
+                            return {
+                                results: data.results || [],
+                                pagination: { more: data.pagination && data.pagination.more }
+                            };
+                        },
+                        error: function(xhr, status, error) {
+                            console.error(`${selector} AJAX error:`, error);
+                            $(selector).siblings('.select2-error').text(`Error loading data: ${error}`).show();
+                        },
+                        cache: true
+                    },
+                    placeholder: placeholder,
+                    minimumInputLength: 1,
+                    allowClear: true,
+                    dropdownAutoWidth: true,
+                    width: 'resolve'
+                }).on('change', function() {
+                    console.log(`${selector} changed to:`, $(this).val());
+                    $(selector).siblings('.select2-error').hide();
+                    saveFilters(); // Save filters on change
+                }).on('select2:open', function() {
+                    console.log(`${selector} dropdown opened`);
+                });
+            };
+
+            // Initialize Select2 dropdowns
+            initSelect2('#filterVariant', '/search_variants', 'q', 'Filter by Variant');
+            initSelect2('#filterDrug', '/api/active_ingredients', 'q', 'Filter by Drug');
+            initSelect2('#filterPhenotype', '/search_phenotypes', 'q', 'Filter by Phenotype');
+            initSelect2('#filterGene', '/search_genes', 'q', 'Filter by Gene');
+            initSelect2('#filterLevelOfEvidence', '/search_levels_of_evidence', 'q', 'Filter by Level of Evidence');
+
+            $('#filterVariant, #filterDrug, #filterPhenotype, #filterGene, #filterLevelOfEvidence').each(function() {
+                $(this).after('<div class="select2-error text-red-600 text-sm mt-1"></div>');
+            });
+
+            // Load saved filters from localStorage
+            function loadSavedFilters() {
+                const savedFilters = JSON.parse(localStorage.getItem('dashboardFilters')) || {};
+                $('#filterVariant').val(savedFilters.variant || null).trigger('change');
+                $('#filterDrug').val(savedFilters.drug || null).trigger('change');
+                $('#filterPhenotype').val(savedFilters.phenotype || null).trigger('change');
+                $('#filterGene').val(savedFilters.gene || null).trigger('change');
+                $('#filterLevelOfEvidence').val(savedFilters.level_of_evidence || null).trigger('change');
+            }
+
+            // Save filters to localStorage
+            function saveFilters() {
+                const filters = {
+                    variant: $('#filterVariant').val() || '',
+                    drug: $('#filterDrug').val() || '',
+                    phenotype: $('#filterPhenotype').val() || '',
+                    gene: $('#filterGene').val() || '',
+                    level_of_evidence: $('#filterLevelOfEvidence').val() || ''
+                };
+                localStorage.setItem('dashboardFilters', JSON.stringify(filters));
+            }
+
+            $('#clear-filters').on('click', function() {
+                console.log("Clearing filters");
+                $('#filterVariant, #filterDrug, #filterPhenotype, #filterGene, #filterLevelOfEvidence').val(null).trigger('change');
+                localStorage.removeItem('dashboardFilters');
+                loadDashboard();
+            });
+
+            $('#toggle-dark-mode').on('click', function() {
+                $('body').toggleClass('dark-mode');
+                $(this).text($('body').hasClass('dark-mode') ? 'Light Mode' : 'Dark Mode');
+                updateChartColors();
+            });
+
+            // Collapsible sections
+            $(document).on('click', '.section-header', function() {
+                const section = $(this).closest('.dashboard-section');
+                section.toggleClass('collapsible-open');
+                section.find('.section-content').slideToggle(300);
+            });
+
+            // Load saved filters and dashboard
+            loadSavedFilters();
+            loadDashboard();
+        });
+
+        // Global chart instances
+        const chartInstances = {};
+
+        function updateChartColors() {
+            const isDarkMode = $('body').hasClass('dark-mode');
+            const textColor = isDarkMode ? '#e5e7eb' : '#2E7D32';
+            const gridColor = isDarkMode ? '#4b5563' : '#e5e7eb';
+
+            Object.values(chartInstances).forEach(chart => {
+                if (chart) {
+                    chart.options.plugins.title.color = textColor;
+                    chart.options.scales.x.title.color = textColor;
+                    chart.options.scales.y.title.color = textColor;
+                    chart.options.scales.x.grid.color = gridColor;
+                    chart.options.scales.y.grid.color = gridColor;
+                    chart.options.scales.x.ticks.color = textColor;
+                    chart.options.scales.y.ticks.color = textColor;
+                    chart.options.plugins.legend.labels.color = textColor;
+                    chart.options.plugins.datalabels.color = textColor;
+                    chart.options.plugins.tooltip.titleFont = { ...chart.options.plugins.tooltip.titleFont, color: textColor };
+                    chart.options.plugins.tooltip.bodyFont = { ...chart.options.plugins.tooltip.bodyFont, color: textColor };
+                    chart.update();
+                }
+            });
+        }
+
+        async function loadDashboard() {
+            $.blockUI({ 
+                message: '<div class="loading text-center text-green-700">Loading dashboard...</div>', 
+                css: { border: 'none', backgroundColor: '#fff', padding: '20px', borderRadius: '8px' } 
+            });
+            try {
+                const variant = $('#filterVariant').val() || '';
+                const drugData = $('#filterDrug').select2('data')[0];
+                const drug = drugData ? drugData.text.split(' (')[0] : '';
+                const phenotype = $('#filterPhenotype').val() || '';
+                const gene = $('#filterGene').val() || '';
+                const level_of_evidence = $('#filterLevelOfEvidence').val() || '';
+
+                console.log("Filter values:", { variant, drug, phenotype, gene, level_of_evidence });
+
+                const response = await fetch('/pharmacogenomics/dashboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ variant, drug, phenotype, gene, level_of_evidence })
+                });
+                const data = await response.json();
+                console.log("Dashboard response:", data);
+
+                if (data.status !== "success") {
+                    $('#dashboardResults').html(`<div class="error-alert">${data.error}${data.details ? ': ' + data.details : ''}</div>`);
+                    return;
+                }
+
+                const resultsDiv = document.getElementById('dashboardResults');
+                resultsDiv.innerHTML = `
+                    <!-- Overview Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Overview</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            <div class="stats-card tooltip">
+                                <h3 class="text-lg font-semibold text-green-700">Total Records</h3>
+                                <p class="text-2xl font-bold text-green-800">${
+                                    (data.stats.counts.clinical_annotations || 0) +
+                                    (data.stats.counts.variant_annotations || 0) +
+                                    (data.stats.counts.relationships.total || 0) +
+                                    (data.stats.counts.drug_labels || 0) +
+                                    (data.stats.counts.clinical_variants || 0) +
+                                    (data.stats.counts.occurrences || 0) +
+                                    (data.stats.counts.automated_annotations || 0)
+                                }</p>
+                                <span class="tooltiptext">Total records across all main tables</span>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="overviewChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drug Category Distribution Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Drug Category Distribution</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Drugs by Category</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="drugCategoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Stats Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Main Pharmacogenomics Stats</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            <div class="stats-grid">
+                                <div class="stats-card tooltip" data-type="clinical_annotations">
+                                    <h3 class="text-lg font-semibold text-green-700">Clinical Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.clinical_annotations || 0}</p>
+                                    <span class="tooltiptext">Annotations linking genetic variants to drug responses</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="variant_annotations">
+                                    <h3 class="text-lg font-semibold text-green-700">Variant Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.variant_annotations || 0}</p>
+                                    <span class="tooltiptext">Annotations for genetic variants</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="relationships">
+                                    <h3 class="text-lg font-semibold text-green-700">Relationships</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.relationships.total || 0}</p>
+                                    <span class="tooltiptext">Gene-Gene: ${data.stats.counts.relationships.gene_gene || 0}, Gene-Drug: ${data.stats.counts.relationships.gene_drug || 0}, Drug-Phenotype: ${data.stats.counts.relationships.drug_phenotype || 0}, Other: ${data.stats.counts.relationships.other || 0}</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="drug_labels">
+                                    <h3 class="text-lg font-semibold text-green-700">Drug Labels</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.drug_labels || 0}</p>
+                                    <span class="tooltiptext">Drug labels with pharmacogenomic information</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="clinical_variants">
+                                    <h3 class="text-lg font-semibold text-green-700">Clinical Variants</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.clinical_variants || 0}</p>
+                                    <span class="tooltiptext">Variants with clinical significance</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="occurrences">
+                                    <h3 class="text-lg font-semibold text-green-700">Occurrences</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.occurrences || 0}</p>
+                                    <span class="tooltiptext">Occurrences of entities in literature</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="automated_annotations">
+                                    <h3 class="text-lg font-semibold text-green-700">Automated Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.counts.automated_annotations || 0}</p>
+                                    <span class="tooltiptext">Annotations generated automatically</span>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Relationship Breakdown</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="relationshipChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Genes</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topGenesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Drugs</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topDrugsChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Variants</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topVariantsChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Phenotypes</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topPhenotypesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Alleles</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topAllelesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Sources</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topSourcesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Chemicals</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topChemicalsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trends Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Trends Over Time</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            ${data.stats.trends.annotations_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Annotations Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="trendsAnnotationsChart"></canvas>
+                            </div>` : ''}
+                            ${data.stats.trends.drug_labels_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Drug Labels Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="trendsDrugLabelsChart"></canvas>
+                            </div>` : ''}
+                            ${data.stats.trends.relationships_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Relationships Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="trendsRelationshipsChart"></canvas>
+                            </div>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Child Table Stats Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Child Table Stats</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            <div class="stats-grid">
+                                <div class="stats-card tooltip" data-type="study_parameters">
+                                    <h3 class="text-lg font-semibold text-green-700">Study Parameters</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.child_counts.study_parameters || 0}</p>
+                                    <span class="tooltiptext">Parameters from studies</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="variant_fa_ann">
+                                    <h3 class="text-lg font-semibold text-green-700">Functional Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.child_counts.variant_fa_ann || 0}</p>
+                                    <span class="tooltiptext">Functional annotations for variants</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="variant_drug_ann">
+                                    <h3 class="text-lg font-semibold text-green-700">Drug Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.child_counts.variant_drug_ann || 0}</p>
+                                    <span class="tooltiptext">Drug-related variant annotations</span>
+                                </div>
+                                <div class="stats-card tooltip" data-type="variant_pheno_ann">
+                                    <h3 class="text-lg font-semibold text-green-700">Phenotype Annotations</h3>
+                                    <p class="text-2xl font-bold text-green-800">${data.stats.child_counts.variant_pheno_ann || 0}</p>
+                                    <span class="tooltiptext">Phenotype-related variant annotations</span>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childCountsChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Variants (Child)</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTopVariantsChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Study Types</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topStudyTypesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top FA Sentences</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topFASentencesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Drug Sentences</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="topDrugSentencesChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Top Phenotypes (Child)</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTopPhenotypesChart"></canvas>
+                            </div>
+                            ${data.stats.child_trends.studies_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Studies Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTrendsStudiesChart"></canvas>
+                            </div>` : ''}
+                            ${data.stats.child_trends.fa_annotations_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">FA Annotations Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTrendsFAChart"></canvas>
+                            </div>` : ''}
+                            ${data.stats.child_trends.drug_annotations_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Drug Annotations Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTrendsDrugChart"></canvas>
+                            </div>` : ''}
+                            ${data.stats.child_trends.pheno_annotations_by_year ? `
+                            <div class="chart-container">
+                                <h3 class="text-xl font-semibold text-green-700 mb-4">Phenotype Annotations Over Time</h3>
+                                <div class="chart-spinner text-center text-green-700">Loading...</div>
+                                <canvas id="childTrendsPhenoChart"></canvas>
+                            </div>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Metadata Section -->
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h2 class="text-2xl font-semibold text-green-700">Query Metadata</h2>
+                            <svg class="w-6 h-6 text-green-700 collapsible-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                        <div class="section-content">
+                            <p class="text-gray-700"><strong>Timestamp:</strong> ${data.metadata.timestamp}</p>
+                            <p class="text-gray-700"><strong>Applied Filters:</strong> Variant: ${data.metadata.query.variant || 'None'}, Drug: ${data.metadata.query.drug || 'None'}, Phenotype: ${data.metadata.query.phenotype || 'None'}, Gene: ${data.metadata.query.gene || 'None'}, Level of Evidence: ${data.metadata.query.level_of_evidence || 'None'}</p>
+                        </div>
+                    </div>
+                `;
+
+                // Show spinners while charts load
+                document.querySelectorAll('.chart-spinner').forEach(spinner => {
+                    spinner.style.display = 'block';
+                });
+
+                // Chart colors
+                const isDarkMode = $('body').hasClass('dark-mode');
+                const textColor = isDarkMode ? '#e5e7eb' : '#2E7D32';
+                const gridColor = isDarkMode ? '#4b5563' : '#e5e7eb';
+
+                // Overview Chart
+                const overviewCtx = document.getElementById('overviewChart').getContext('2d');
+                chartInstances.overviewChart = new Chart(overviewCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Clinical Annotations', 'Variant Annotations', 'Relationships', 'Drug Labels', 'Clinical Variants', 'Occurrences', 'Automated Annotations'],
+                        datasets: [{
+                            label: 'Total Counts',
+                            data: [
+                                data.stats.counts.clinical_annotations,
+                                data.stats.counts.variant_annotations,
+                                data.stats.counts.relationships.total,
+                                data.stats.counts.drug_labels,
+                                data.stats.counts.clinical_variants,
+                                data.stats.counts.occurrences,
+                                data.stats.counts.automated_annotations
+                            ],
+                            backgroundColor: ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9', '#E8F5E9', '#F1F8E9'],
+                            borderColor: ['#2E7D32', '#388E3C', '#43A047', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Main Data Source Distribution', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } }, 
+                            x: { title: { display: true, text: 'Data Sources', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        } 
+                    }
+                });
+
+                // Drug Category Chart (Bar)
+                console.log("Drug categories data:", data.stats.drug_categories);
+                const drugCategories = data.stats.drug_categories && data.stats.drug_categories.length > 0
+                    ? data.stats.drug_categories
+                    : [{ name: 'No Data', count: 1 }];
+                const drugCategoryCtx = document.getElementById('drugCategoryChart').getContext('2d');
+                chartInstances.drugCategoryChart = new Chart(drugCategoryCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: drugCategories.map(c => c.name),
+                        datasets: [{
+                            label: 'Drug Categories',
+                            data: drugCategories.map(c => c.count),
+                            backgroundColor: ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', '#C8E6C9'],
+                            borderColor: '#2E7D32',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: 'Drug Category Distribution', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Categories', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } }
+                        }
+                    }
+                });
+
+                // Relationship Chart
+                const relCtx = document.getElementById('relationshipChart').getContext('2d');
+                chartInstances.relationshipChart = new Chart(relCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Gene-Gene', 'Gene-Drug', 'Drug-Phenotype', 'Other'],
+                        datasets: [{ 
+                            data: [data.stats.counts.relationships.gene_gene, data.stats.counts.relationships.gene_drug, data.stats.counts.relationships.drug_phenotype, data.stats.counts.relationships.other], 
+                            backgroundColor: ['#4CAF50', '#FFEB3B', '#2196F3', '#F44336'] 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Relationship Types', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, formatter: (value, ctx) => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        } 
+                    }
+                });
+
+                // Top Genes Chart
+                const genesCtx = document.getElementById('topGenesChart').getContext('2d');
+                chartInstances.topGenesChart = new Chart(genesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.genes.map(g => g.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.genes.map(g => g.count), 
+                            backgroundColor: '#4CAF50', 
+                            borderColor: '#2E7D32', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Genes', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Genes', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const gene = data.stats.top_entities.genes[index].name;
+                                window.location.href = `/gene/${encodeURIComponent(gene)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Drugs Chart
+                const drugsCtx = document.getElementById('topDrugsChart').getContext('2d');
+                chartInstances.topDrugsChart = new Chart(drugsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.drugs.map(d => d.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.drugs.map(d => d.count), 
+                            backgroundColor: '#FFEB3B', 
+                            borderColor: '#F9A825', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Drugs', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Drugs', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const drug = data.stats.top_entities.drugs[index].name;
+                                window.location.href = `/drug/${encodeURIComponent(drug)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Variants Chart
+                const variantsCtx = document.getElementById('topVariantsChart').getContext('2d');
+                chartInstances.topVariantsChart = new Chart(variantsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.variants.map(v => v.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.variants.map(v => v.count), 
+                            backgroundColor: '#2196F3', 
+                            borderColor: '#1976D2', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Variants', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Variants', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const variant = data.stats.top_entities.variants[index].name;
+                                window.location.href = `/variant/${encodeURIComponent(variant)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Phenotypes Chart
+                const phenotypesCtx = document.getElementById('topPhenotypesChart').getContext('2d');
+                chartInstances.topPhenotypesChart = new Chart(phenotypesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.phenotypes.map(p => p.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.phenotypes.map(p => p.count), 
+                            backgroundColor: '#F44336', 
+                            borderColor: '#D32F2F', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Phenotypes', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Phenotypes', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const phenotype = data.stats.top_entities.phenotypes[index].name;
+                                window.location.href = `/phenotype/${encodeURIComponent(phenotype)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Alleles Chart
+                const allelesCtx = document.getElementById('topAllelesChart').getContext('2d');
+                chartInstances.topAllelesChart = new Chart(allelesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.alleles.map(a => a.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.alleles.map(a => a.count), 
+                            backgroundColor: '#FF9800', 
+                            borderColor: '#F57C00', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Alleles', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Alleles', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const allele = data.stats.top_entities.alleles[index].name;
+                                window.location.href = `/allele/${encodeURIComponent(allele)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Sources Chart
+                const sourcesCtx = document.getElementById('topSourcesChart').getContext('2d');
+                chartInstances.topSourcesChart = new Chart(sourcesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.sources.map(s => s.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.sources.map(s => s.count), 
+                            backgroundColor: '#9C27B0', 
+                            borderColor: '#7B1FA2', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Sources', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Sources', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Top Chemicals Chart
+                const chemicalsCtx = document.getElementById('topChemicalsChart').getContext('2d');
+                chartInstances.topChemicalsChart = new Chart(chemicalsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.top_entities.chemicals.map(c => c.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.top_entities.chemicals.map(c => c.count), 
+                            backgroundColor: '#FF9800', 
+                            borderColor: '#F57C00', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Chemicals', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Chemicals', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Annotations Over Time
+                if (data.stats.trends.annotations_by_year) {
+                    const trendsAnnotationsCtx = document.getElementById('trendsAnnotationsChart').getContext('2d');
+                    chartInstances.trendsAnnotationsChart = new Chart(trendsAnnotationsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.trends.annotations_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Annotations', 
+                                data: data.stats.trends.annotations_by_year.map(t => t.count), 
+                                borderColor: '#4CAF50', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Annotations Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Drug Labels Over Time
+                if (data.stats.trends.drug_labels_by_year) {
+                    const trendsDrugLabelsCtx = document.getElementById('trendsDrugLabelsChart').getContext('2d');
+                    chartInstances.trendsDrugLabelsChart = new Chart(trendsDrugLabelsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.trends.drug_labels_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Drug Labels', 
+                                data: data.stats.trends.drug_labels_by_year.map(t => t.count), 
+                                borderColor: '#FFEB3B', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Drug Labels Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Relationships Over Time
+                if (data.stats.trends.relationships_by_year) {
+                    const trendsRelationshipsCtx = document.getElementById('trendsRelationshipsChart').getContext('2d');
+                    chartInstances.trendsRelationshipsChart = new Chart(trendsRelationshipsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.trends.relationships_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Relationships', 
+                                data: data.stats.trends.relationships_by_year.map(t => t.count), 
+                                borderColor: '#2196F3', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Relationships Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Child Counts Chart
+                const childCountsCtx = document.getElementById('childCountsChart').getContext('2d');
+                chartInstances.childCountsChart = new Chart(childCountsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Study Parameters', 'Functional Annotations', 'Drug Annotations', 'Phenotype Annotations'],
+                        datasets: [{
+                            label: 'Total Counts',
+                            data: [
+                                data.stats.child_counts.study_parameters,
+                                data.stats.child_counts.variant_fa_ann,
+                                data.stats.child_counts.variant_drug_ann,
+                                data.stats.child_counts.variant_pheno_ann
+                            ],
+                            backgroundColor: ['#4CAF50', '#66BB6A', '#81C784', '#A5D6A7'],
+                            borderColor: ['#2E7D32', '#388E3C', '#43A047', '#66BB6A'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Child Data Source Distribution', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Data Sources', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        } 
+                    }
+                });
+
+                // Child Top Variants Chart
+                const childVariantsCtx = document.getElementById('childTopVariantsChart').getContext('2d');
+                chartInstances.childTopVariantsChart = new Chart(childVariantsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.child_top_entities.variants.map(v => v.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.child_top_entities.variants.map(v => v.count), 
+                            backgroundColor: '#2196F3', 
+                            borderColor: '#1976D2', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Variants (Child)', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Variants', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        },
+                        onClick: (event, elements) => {
+                            if (elements.length) {
+                                const index = elements[0].index;
+                                const variant = data.stats.child_top_entities.variants[index].name;
+                                window.location.href = `/variant/${encodeURIComponent(variant)}`;
+                            }
+                        }
+                    }
+                });
+
+                // Top Study Types Chart
+                const studyTypesCtx = document.getElementById('topStudyTypesChart').getContext('2d');
+                chartInstances.topStudyTypesChart = new Chart(studyTypesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.child_top_entities.study_types.map(s => s.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.child_top_entities.study_types.map(s => s.count), 
+                            backgroundColor: '#4CAF50', 
+                            borderColor: '#2E7D32', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Study Types', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Study Types', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Top FA Sentences Chart
+                const faSentencesCtx = document.getElementById('topFASentencesChart').getContext('2d');
+                chartInstances.topFASentencesChart = new Chart(faSentencesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.child_top_entities.fa_sentences.map(s => s.name.substring(0, 20) + (s.name.length > 20 ? '...' : '')),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.child_top_entities.fa_sentences.map(s => s.count), 
+                            backgroundColor: '#FFEB3B', 
+                            borderColor: '#F9A825', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 FA Sentences', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Sentences', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Top Drug Sentences Chart
+                const drugSentencesCtx = document.getElementById('topDrugSentencesChart').getContext('2d');
+                chartInstances.topDrugSentencesChart = new Chart(drugSentencesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.child_top_entities.drug_sentences.map(s => s.name.substring(0, 20) + (s.name.length > 20 ? '...' : '')),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.child_top_entities.drug_sentences.map(s => s.count), 
+                            backgroundColor: '#F44336', 
+                            borderColor: '#D32F2F', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Drug Sentences', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Sentences', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Top Phenotypes (Child) Chart
+                const childPhenotypesCtx = document.getElementById('childTopPhenotypesChart').getContext('2d');
+                chartInstances.childTopPhenotypesChart = new Chart(childPhenotypesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.stats.child_top_entities.phenotypes.map(p => p.name),
+                        datasets: [{ 
+                            label: 'Occurrences', 
+                            data: data.stats.child_top_entities.phenotypes.map(p => p.count), 
+                            backgroundColor: '#9C27B0', 
+                            borderColor: '#7B1FA2', 
+                            borderWidth: 1 
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        plugins: { 
+                            title: { display: true, text: 'Top 5 Phenotypes (Child)', color: textColor, font: { size: 18 } },
+                            legend: { labels: { color: textColor } },
+                            datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                            tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                        }, 
+                        scales: { 
+                            y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                            x: { title: { display: true, text: 'Phenotypes', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                        }
+                    }
+                });
+
+                // Child Trends: Studies Over Time
+                if (data.stats.child_trends.studies_by_year) {
+                    const childTrendsStudiesCtx = document.getElementById('childTrendsStudiesChart').getContext('2d');
+                    chartInstances.childTrendsStudiesChart = new Chart(childTrendsStudiesCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.child_trends.studies_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Studies', 
+                                data: data.stats.child_trends.studies_by_year.map(t => t.count), 
+                                borderColor: '#4CAF50', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Studies Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Child Trends: FA Annotations Over Time
+                if (data.stats.child_trends.fa_annotations_by_year) {
+                    const childTrendsFACtx = document.getElementById('childTrendsFAChart').getContext('2d');
+                    chartInstances.childTrendsFAChart = new Chart(childTrendsFACtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.child_trends.fa_annotations_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'FA Annotations', 
+                                data: data.stats.child_trends.fa_annotations_by_year.map(t => t.count), 
+                                borderColor: '#FFEB3B', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'FA Annotations Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Child Trends: Drug Annotations Over Time
+                if (data.stats.child_trends.drug_annotations_by_year) {
+                    const childTrendsDrugCtx = document.getElementById('childTrendsDrugChart').getContext('2d');
+                    chartInstances.childTrendsDrugChart = new Chart(childTrendsDrugCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.child_trends.drug_annotations_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Drug Annotations', 
+                                data: data.stats.child_trends.drug_annotations_by_year.map(t => t.count), 
+                                borderColor: '#F44336', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Drug Annotations Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Child Trends: Phenotype Annotations Over Time
+                if (data.stats.child_trends.pheno_annotations_by_year) {
+                    const childTrendsPhenoCtx = document.getElementById('childTrendsPhenoChart').getContext('2d');
+                    chartInstances.childTrendsPhenoChart = new Chart(childTrendsPhenoCtx, {
+                        type: 'line',
+                        data: {
+                            labels: data.stats.child_trends.pheno_annotations_by_year.map(t => t.year),
+                            datasets: [{ 
+                                label: 'Phenotype Annotations', 
+                                data: data.stats.child_trends.pheno_annotations_by_year.map(t => t.count), 
+                                borderColor: '#9C27B0', 
+                                fill: false 
+                            }]
+                        },
+                        options: { 
+                            responsive: true, 
+                            plugins: { 
+                                title: { display: true, text: 'Phenotype Annotations Over Time', color: textColor, font: { size: 18 } },
+                                legend: { labels: { color: textColor } },
+                                datalabels: { color: textColor, anchor: 'end', align: 'top', formatter: value => value },
+                                tooltip: { titleFont: { color: textColor }, bodyFont: { color: textColor } }
+                            }, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: 'Count', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } },
+                                x: { title: { display: true, text: 'Year', color: textColor }, grid: { color: gridColor }, ticks: { color: textColor } } 
+                            } 
+                        }
+                    });
+                }
+
+                // Hide spinners after charts are rendered
+                document.querySelectorAll('.chart-spinner').forEach(spinner => {
+                    spinner.style.display = 'none';
+                });
+
+                // GSAP animations
+                gsap.utils.toArray(".stats-card").forEach((element, i) => {
+                    gsap.from(element, { duration: 0.5, opacity: 0, y: 20, delay: i * 0.1 });
+                });
+                gsap.from(".chart-container", { duration: 0.8, opacity: 0, y: 30, stagger: 0.2 });
+                gsap.from(".dashboard-section", { duration: 0.8, opacity: 0, y: 30, stagger: 0.3 });
+
+                // Add click handlers for stats cards
+                document.querySelectorAll('.stats-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const type = card.getAttribute('data-type');
+                        window.location.href = `/stats/${encodeURIComponent(type)}`;
+                    });
+                });
+            } catch (error) {
+                $('#dashboardResults').html(`<div class="error-alert">Error: ${error.message}</div>`);
+                console.error("Dashboard error:", error);
+            } finally {
+                $.unblockUI();
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <nav class="bg-green-600 p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-white text-2xl font-bold">Pharmacogenomics Dashboard</h1>
+            <div class="flex space-x-2">
+                <button id="clear-filters" class="bg-yellow-400 text-green-800 px-4 py-2 rounded-md hover:bg-yellow-500 transition transform hover:scale-105">Clear Filters</button>
+                <button id="toggle-dark-mode" class="bg-gray-200 text-green-800 px-4 py-2 rounded-md hover:bg-gray-300 transition transform hover:scale-105">Dark Mode</button>
+            </div>
+        </div>
+    </nav>
+    <div class="container mx-auto p-6">
+        <div class="dashboard-section">
+            <h2 class="text-2xl font-semibold text-green-700 mb-4">Filter Data</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                    <select id="filterVariant" class="w-full"></select>
+                    <div class="select2-error"></div>
+                </div>
+                <div>
+                    <select id="filterDrug" class="w-full"></select>
+                    <div class="select2-error"></div>
+                </div>
+                <div>
+                    <select id="filterPhenotype" class="w-full"></select>
+                    <div class="select2-error"></div>
+                </div>
+                <div>
+                    <select id="filterGene" class="w-full"></select>
+                    <div class="select2-error"></div>
+                </div>
+                <div>
+                    <select id="filterLevelOfEvidence" class="w-full"></select>
+                    <div class="select2-error"></div>
+                </div>
+            </div>
+            <button onclick="loadDashboard()" class="mt-4 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition transform hover:scale-105">Apply Filters</button>
+        </div>
+        <div id="dashboardResults" class="mt-6"></div>
+        <p class="mt-4"><a href="/" class="text-green-600 hover:underline transition hover:scale-105">Go Home</a></p>
+    </div>
+    <footer class="mt-8 bg-yellow-400 text-green-800 p-4 text-center">
+        <p>Powered by DruglyAI © 2025</p>
+    </footer>
+</body>
+</html>

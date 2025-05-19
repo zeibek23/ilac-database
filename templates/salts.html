@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tuzlar</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <!-- Başlık -->
+        <div class="text-center mb-4">
+            <h1 class="display-4">Tuz Listesi</h1>
+            <p class="lead">Mevcut tuzların listesi ve yeni tuz ekleme alanı.</p>
+        </div>
+
+        <!-- Tuz Listesi -->
+        <div class="card mb-5">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h4 mb-0">Tuzlar</h2>
+            </div>
+            <div class="card-body">
+                {% if salts %}
+                <ul class="list-group">
+                    {% for salt in salts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <strong>{{ salt.name_tr }}</strong> 
+                        <span class="text-muted">({{ salt.name_en }})</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">Henüz herhangi bir tuz eklenmedi.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Yeni Tuz Ekleme Formu -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h2 class="h4 mb-0">Yeni Tuz Ekle</h2>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    <div class="mb-3">
+                        <label for="name_tr" class="form-label">Türkçe Tuz İsmi</label>
+                        <input type="text" id="name_tr" name="name_tr" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="name_en" class="form-label">İngilizce Tuz İsmi</label>
+                        <input type="text" id="name_en" name="name_en" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Ekle</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Anasayfa Linki -->
+        <div class="text-center mt-4">
+            <a href="/backend" class="btn btn-secondary">Anasayfa</a>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

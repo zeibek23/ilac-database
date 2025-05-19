@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Arial', sans-serif;
+        }
+        .search-container {
+            margin-top: 50px;
+        }
+        h1 {
+            font-weight: bold;
+            color: #343a40;
+        }
+        .result-section {
+            margin-top: 30px;
+        }
+        .result-section h3 {
+            margin-bottom: 20px;
+            color: #007bff;
+            font-weight: 600;
+        }
+        .card {
+            border: none;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        .card-body {
+            padding: 20px;
+            background-color: white;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .no-results {
+            font-size: 1.2rem;
+            color: #dc3545;
+            font-weight: 600;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container search-container">
+        <h1 class="text-center">Search for Drugs, Diseases, Salts, or More</h1>
+
+        <!-- Search Form -->
+        <form method="POST" class="d-flex my-4">
+            <input class="form-control me-2" type="text" name="query" placeholder="Enter a keyword..." value="{{ query or '' }}">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+
+        {% if query %}
+            <h2 class="mt-4">Results for "{{ query }}"</h2>
+
+            <!-- Display Drugs -->
+            {% if drugs %}
+            <div class="result-section">
+                <h3>Drugs</h3>
+                <div class="row">
+                    {% for drug in drugs %}
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ drug.name_en }}</h5>
+                                <p class="card-text">{{ drug.name_tr or "N/A" }}</p>
+                                <a href="{{ url_for('drug_detail', drug_id=drug.id) }}" class="btn btn-primary">View Details</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p class="no-results">No drugs found.</p>
+            {% endif %}
+
+            <!-- Display Diseases -->
+            {% if diseases %}
+            <div class="result-section">
+                <h3>Diseases</h3>
+                {% for disease in diseases %}
+                <div class="card">
+                    <div class="card-header">
+                        {{ disease.indication.name_en }} ({{ disease.indication.name_tr or "N/A" }})
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text"><strong>Related Drugs:</strong></p>
+                        <ul>
+                            {% for related_drug in disease.related_drugs %}
+                            <li>
+                                <a href="{{ url_for('drug_detail', drug_id=related_drug.drug_id) }}">
+                                    {{ related_drug.drug.name_en }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-results">No diseases found.</p>
+            {% endif %}
+
+            <!-- Display Salts -->
+            {% if salts %}
+            <div class="result-section">
+                <h3>Salts</h3>
+                <div class="row">
+                    {% for salt in salts %}
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ salt.name_en }}</h5>
+                                <p class="card-text">{{ salt.name_tr or "N/A" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <p class="no-results">No salts found.</p>
+            {% endif %}
+
+            <!-- Display Target Molecules -->
+            {% if target_molecules %}
+            <div class="result-section">
+                <h3>Target Molecules</h3>
+                <ul>
+                    {% for target in target_molecules %}
+                    <li>{{ target.name_en }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <p class="no-results">No target molecules found.</p>
+            {% endif %}
+
+            <!-- Display Side Effects -->
+            {% if side_effects %}
+            <div class="result-section">
+                <h3>Side Effects</h3>
+                <ul>
+                    {% for side_effect in side_effects %}
+                    <li>{{ side_effect.name_en }} ({{ side_effect.name_tr or "N/A" }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <p class="no-results">No side effects found.</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>

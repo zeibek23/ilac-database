@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Drug Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet">
+    <!-- Add 3Dmol.js CDN -->
+    <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+            transform: scale(1.05);
+        }
+        .section-icon {
+            margin-right: 8px;
+        }
+        .dataTable thead th {
+            background-color: #4b5563;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .dataTable tbody tr:hover {
+            background-color: #f3f4f6;
+        }
+        .long-text {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .tooltip-text:hover {
+            text-decoration: underline;
+        }
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: linear-gradient(135deg, #ffffff, #f3e8ff);
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #4b5563;
+        }
+        .modal-close:hover {
+            color: #1f2937;
+        }
+        #viewer {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        @media (max-width: 768px) {
+            .table-container {
+                overflow-x: auto;
+            }
+            .modal-content {
+                width: 95%;
+                padding: 15px;
+            }
+            #viewer {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 py-12 max-w-7xl">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
+            <i class="fas fa-capsules section-icon"></i>Comprehensive Drug Details
+        </h1>
+
+        <!-- Search Bar -->
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                    <input type="text" id="searchBox" class="w-full pl-10 pr-4 py-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Search for any drug details...">
+                </div>
+            </div>
+        </section>
+
+        <!-- Details Table -->
+        <section class="fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <div class="table-container">
+                    <table id="detailsTable" class="w-full text-left">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
+                                <th><i class="fas fa-vial section-icon"></i>Salt</th>
+                                <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
+                                <th><i class="fas fa-info-circle section-icon"></i>Warning Details</th>
+                                <th><i class="fas fa-atom section-icon"></i>Molecular Formula</th>
+                                <th><i class="fas fa-image section-icon"></i>Structure</th>
+                                <th><i class="fas fa-cube section-icon"></i>3D Structure</th> <!-- New Column -->
+                                <th><i class="fas fa-weight section-icon"></i>Molecular Weight</th>
+                                <th><i class="fas fa-flask section-icon"></i>Synthesis</th>
+                                <th><i class="fas fa-file-alt section-icon"></i>IUPAC Name</th>
+                                <th><i class="fas fa-code section-icon"></i>SMILES</th>
+                                <th><i class="fas fa-id-card section-icon"></i>CAS ID</th>
+                                <th><i class="fas fa-id-badge section-icon"></i>RXCUI</th>
+                                <th><i class="fas fa-database section-icon"></i>PubChem CID</th>
+                                <th><i class="fas fa-database section-icon"></i>PubChem SID</th>
+                                <th><i class="fas fa-key section-icon"></i>InChIKey</th>
+                                <th><i class="fas fa-id-card-alt section-icon"></i>EC Number</th>
+                                <th><i class="fas fa-id-card section-icon"></i>NCI Code</th>
+                                <th><i class="fas fa-id-badge section-icon"></i>SNOMED ID</th>
+                                <th><i class="fas fa-thermometer section-icon"></i>Boiling Point (°C)</th>
+                                <th><i class="fas fa-thermometer-empty section-icon"></i>Melting Point (°C)</th>
+                                <th><i class="fas fa-cubes section-icon"></i>Density (g/cm³)</th>
+                                <th><i class="fas fa-tint section-icon"></i>Solubility</th>
+                                <th><i class="fas fa-fire section-icon"></i>Flash Point (°C)</th>
+                                <th><i class="fas fa-heartbeat section-icon"></i>Pharmacodynamics</th>
+                                <th><i class="fas fa-clock section-icon"></i>Pharmacokinetics</th>
+                                <th><i class="fas fa-diagnoses section-icon"></i>Indications</th>
+                                <th><i class="fas fa-exclamation-circle section-icon"></i>Side Effects</th>
+                                <th><i class="fas fa-bullseye section-icon"></i>Target Molecules</th>
+                                <th><i class="fas fa-check-circle section-icon"></i>FDA Approved</th>
+                                <th><i class="fas fa-check-circle section-icon"></i>EMA Approved</th>
+                                <th><i class="fas fa-check-circle section-icon"></i>TITCK Approved</th>
+                                <th><i class="fas fa-route section-icon"></i>Routes & Indications</th>
+                                <th><i class="fas fa-cog section-icon"></i>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detail in details %}
+                            <tr>
+                                <td>{{ detail.drug_name }}</td>
+                                <td>{{ detail.salt_name if detail.salt_name else 'N/A' }}</td>
+                                <td>
+                                    {% if detail.black_box_warning %}
+                                    <span class="text-red-500 font-bold">Yes</span>
+                                    {% else %}
+                                    <span class="text-green-500">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.black_box_warning %}
+                                    {{ detail.black_box_details or 'No details available' }}
+                                    {% else %}
+                                    N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ detail.molecular_formula or 'N/A' }}</td>
+                                <td>
+                                    {% if detail.structure %}
+                                    <a href="/static/uploads/{{ detail.structure }}" target="_blank" class="text-indigo-600 hover:underline">View</a>
+                                    {% else %}
+                                    N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.structure_3d %}
+                                    <button class="btn-primary bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 view-3d-btn" data-structure="/static/uploads/{{ detail.structure_3d }}" data-drug="{{ detail.drug_name }}">
+                                        <i class="fas fa-cube mr-1"></i>View 3D
+                                    </button>
+                                    {% else %}
+                                    N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ detail.molecular_weight or 'N/A' }}</td>
+                                <td class="long-text tooltip-text" title="{{ detail.synthesis }}">{{ detail.synthesis or 'N/A' }}</td>
+                                <td>{{ detail.iupac_name or 'N/A' }}</td>
+                                <td class="long-text tooltip-text" title="{{ detail.smiles }}">{{ detail.smiles or 'N/A' }}</td>
+                                <td>{{ detail.cas_id or 'N/A' }}</td>
+                                <td>{{ detail.rxcui or 'N/A' }}</td>
+                                <td>{{ detail.pubchem_cid or 'N/A' }}</td>
+                                <td>{{ detail.pubchem_sid or 'N/A' }}</td>
+                                <td>{{ detail.inchikey or 'N/A' }}</td>
+                                <td>{{ detail.ec_number or 'N/A' }}</td>
+                                <td>{{ detail.nci_code or 'N/A' }}</td>
+                                <td>{{ detail.snomed_id or 'N/A' }}</td>
+                                <td>{{ detail.boiling_point or 'N/A' }}</td>
+                                <td>{{ detail.melting_point or 'N/A' }}</td>
+                                <td>{{ detail.density or 'N/A' }}</td>
+                                <td>{{ detail.solubility or 'N/A' }}</td>
+                                <td>{{ detail.flash_point or 'N/A' }}</td>
+                                <td>{{ detail.pharmacodynamics or 'N/A' }}</td>
+                                <td>{{ detail.pharmacokinetics or 'N/A' }}</td>
+                                <td>
+                                    {% if detail.indications %}
+                                    <ul class="list-disc pl-5">
+                                        {% for indication in detail.indications %}
+                                        <li>{{ indication }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <span class="text-gray-500">No Indications Provided</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.side_effects %}
+                                    <ul class="list-disc pl-5">
+                                        {% for se in detail.side_effects %}
+                                        <li>{{ se.name_en }} ({{ se.name_tr or 'N/A' }})</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <span class="text-gray-500">No side effects listed.</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.target_molecules %}
+                                    <ul class="list-disc pl-5">
+                                        {% for target in detail.target_molecules %}
+                                        <li>{{ target }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <span class="text-gray-500">No target molecules listed.</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.fda_approved %}
+                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    {% else %}
+                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.ema_approved %}
+                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    {% else %}
+                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.titck_approved %}
+                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    {% else %}
+                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if detail.routes %}
+                                    <ul class="list-disc pl-5">
+                                        {% for route in detail.routes %}
+                                        <li>
+                                            <strong>{{ route.name }}</strong><br>
+                                            <span class="text-gray-600"><em>Pharmacodynamics:</em> {{ route.pharmacodynamics or 'N/A' }}</span><br>
+                                            <span class="text-gray-600"><em>Pharmacokinetics:</em> {{ route.pharmacokinetics or 'N/A' }}</span><br>
+                                            <span class="text-gray-600"><em>Indications:</em></span>
+                                            {% if route.indications %}
+                                            <ul class="list-disc pl-5">
+                                                {% for indication in route.indications %}
+                                                <li>{{ indication }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                            {% else %}
+                                            <span class="text-gray-500">No indications listed for this route.</span>
+                                            {% endif %}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    <span class="text-gray-500">No Data</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600">
+                                        <i class="fas fa-edit mr-1"></i>Update
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="34" class="text-center text-gray-500 py-4">No details available.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal for 3D Structure -->
+        <div id="structureModal" class="modal">
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <h2 id="modalTitle" class="text-2xl font-bold text-gray-800 mb-4"></h2>
+                <div id="viewer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            const table = $('#detailsTable').DataTable({
+                paging: true,
+                searching: true,
+                ordering: true,
+                lengthMenu: [10, 25, 50, 100],
+                pageLength: 10,
+                scrollX: true,
+                columnDefs: [
+                    { width: '200px', targets: [26, 27, 28, 32] }, // Adjusted for new column (indications, side effects, targets, routes)
+                    { width: '100px', targets: [8, 10] }, // Synthesis, SMILES
+                    { width: '120px', targets: [6] } // 3D Structure column
+                ]
+            });
+
+            $('#searchBox').on('keyup', function () {
+                table.search(this.value).draw();
+            });
+
+            // Modal handling
+            const modal = $('#structureModal');
+            const modalTitle = $('#modalTitle');
+            const viewerDiv = $('#viewer');
+            let viewer = null;
+
+            $('.view-3d-btn').on('click', function () {
+                const structureUrl = $(this).data('structure');
+                const drugName = $(this).data('drug');
+
+                // Set modal title
+                modalTitle.text(`3D Structure of ${drugName}`);
+
+                // Clear previous viewer
+                viewerDiv.empty();
+
+                // Initialize 3Dmol.js viewer
+                viewer = $3Dmol.createViewer('viewer', {
+                    backgroundColor: 'white'
+                });
+
+                // Fetch and render PDB file
+                $.get(structureUrl, function (data) {
+                    viewer.addModel(data, 'pdb');
+                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
+                    viewer.zoomTo();
+                    viewer.render();
+                }, 'text').fail(function () {
+                    viewerDiv.html('<p class="text-red-500">Error loading 3D structure.</p>');
+                });
+
+                // Show modal
+                modal.css('display', 'flex');
+            });
+
+            // Close modal
+            $('.modal-close').on('click', function () {
+                modal.css('display', 'none');
+                viewerDiv.empty(); // Clear viewer
+            });
+
+            // Close modal when clicking outside
+            modal.on('click', function (e) {
+                if (e.target === modal[0]) {
+                    modal.css('display', 'none');
+                    viewerDiv.empty();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

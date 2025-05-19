@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Variant Annotations</title>
+    <style>
+        .success { color: green; }
+        .danger { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Upload Variant Annotations (4 files)</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul>
+                {% for category, msg in messages %}
+                    <li class="{{ category }}">{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+    <form method="POST" enctype="multipart/form-data">
+        <p>
+            <label>study_parameters.tsv:</label>
+            <input type="file" name="study_parameters" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>var_fa_ann.tsv:</label>
+            <input type="file" name="var_fa_ann" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>var_drug_ann.tsv:</label>
+            <input type="file" name="var_drug_ann" accept=".tsv,.csv"/>
+        </p>
+        <p>
+            <label>var_pheno_ann.tsv:</label>
+            <input type="file" name="var_pheno_ann" accept=".tsv,.csv"/>
+        </p>
+        <input type="submit" value="Upload"/>
+    </form>
+    <p><a href="/">Go Home</a></p>
+</body>
+</html>

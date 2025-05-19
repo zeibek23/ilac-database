@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ pathway.name }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Pathway Title -->
+        <h1 class="my-4">{{ pathway.name }}</h1>
+        <p><strong>Pathway ID:</strong> {{ pathway.pathway_id }}</p>
+        <p><strong>Organism:</strong> {{ pathway.organism }}</p>
+        <p><strong>KEGG URL:</strong> <a href="{{ pathway.url }}" target="_blank">{{ pathway.url }}</a></p>
+
+        <!-- Pathway Details -->
+        <h3 class="mt-4">Pathway Details</h3>
+        {% if kegg_details %}
+        <table class="table table-bordered">
+            {% for key, value in kegg_details.items() %}
+            {% if key != "GENES" and key != "REFERENCES" %}
+            <tr>
+                <th>{{ key }}</th>
+                <td>{{ value }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="text-muted">No details available for this pathway.</p>
+        {% endif %}
+
+        <!-- Linked Genes -->
+        <h3 class="mt-4">Linked Genes</h3>
+        {% if kegg_details.GENES %}
+        <ul class="list-group">
+            {% for gene in kegg_details.GENES %}
+            <li class="list-group-item">{{ gene }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No genes available for this pathway.</p>
+        {% endif %}
+
+        <!-- References -->
+        <h3 class="mt-4">References</h3>
+        {% if kegg_details.REFERENCES %}
+        <ul>
+            {% for ref in kegg_details.REFERENCES %}
+            <li>
+                {{ ref }}
+                {% if "PMID" in ref %}
+                    <a href="https://pubmed.ncbi.nlm.nih.gov/{{ ref.split(':')[1] }}" target="_blank">(PubMed)</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No references available for this pathway.</p>
+        {% endif %}
+
+        <!-- Linked Drugs -->
+        <h3 class="mt-4">Linked Drugs</h3>
+        {% if pathway.drugs %}
+        <ul class="list-group">
+            {% for drug in pathway.drugs %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ drug.name_en }}
+                <form method="POST" action="{{ url_for('unlink_drug_from_pathway') }}" style="display:inline;">
+                    <input type="hidden" name="pathway_id" value="{{ pathway.id }}">
+                    <input type="hidden" name="drug_id" value="{{ drug.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger">Unlink</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No drugs linked to this pathway.</p>
+        {% endif %}
+
+        <!-- Back Button -->
+        <a href="{{ url_for('pathways') }}" class="btn btn-secondary mt-3">Back to Pathways</a>
+    </div>
+</body>
+</html>

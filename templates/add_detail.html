@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Drug Detail</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Add New Drug Detail</h1>
+        <form action="/details/add" method="POST" enctype="multipart/form-data">
+            <!-- Uyarı Mesajı -->
+            {% if error_message %}
+            <div class="alert alert-danger">
+                {{ error_message }}
+            </div>
+            {% endif %}
+
+            <!-- Active Ingredient -->
+            <div class="mb-3">
+                <label for="drug_id" class="form-label">Active Ingredient</label>
+                <select id="drug_id" name="drug_id" class="form-select" required></select>
+            </div>
+
+            <!-- Salt -->
+            <div class="mb-3">
+                <label for="salt_id" class="form-label">Salt (Optional)</label>
+                <select class="form-select" id="salt_id" name="salt_id">
+                    <option value="">No Selection</option>
+                    {% for salt in salts %}
+                        <option value="{{ salt.id }}">{{ salt.name_en }} ({{ salt.name_tr }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Molecular Formula -->
+            <div class="mb-3">
+                <label for="molecular_formula" class="form-label">Molecular Formula</label>
+                <input type="text" class="form-control" id="molecular_formula" name="molecular_formula">
+            </div>
+
+            <div class="form-group">
+                <label for="molecular_weight">Molecular Weight</label>
+                <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" placeholder="Enter molecular weight">
+            </div>
+
+            <!-- Structure (Image) -->
+            <div class="mb-3">
+                <label for="structure" class="form-label">Structure (Image)</label>
+                <input type="file" class="form-control" id="structure" name="structure" accept="image/*">
+            </div>
+
+            <!-- Synthesis -->
+            <div class="mb-3">
+                <label for="synthesis" class="form-label">Synthesis</label>
+                <textarea class="form-control" id="synthesis" name="synthesis" rows="5" placeholder="Enter synthesis details"></textarea>
+            </div>
+
+            <!-- IUPAC Name -->
+            <div class="mb-3">
+                <label for="iupac_name" class="form-label">IUPAC Name</label>
+                <input type="text" class="form-control" id="iupac_name" name="iupac_name">
+            </div>
+
+            <!-- SMILES -->
+            <div class="mb-3">
+                <label for="smiles" class="form-label">SMILES</label>
+                <input type="text" class="form-control" id="smiles" name="smiles">
+            </div>
+
+            <!-- CAS ID, RXCUI, PUBCHEM CID, PUBCHEM SID, INCHI KEY, EC NUMBER, NCI CODE, SNOMED ID -->
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="cas_id" class="form-label">CAS ID</label>
+                    <input type="text" class="form-control" id="cas_id" name="cas_id">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="rxcui" class="form-label">RXCUI</label>
+                    <input type="text" class="form-control" id="rxcui" name="rxcui">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="pubchem_cid" class="form-label">PubChem CID</label>
+                    <input type="text" class="form-control" id="pubchem_cid" name="pubchem_cid">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="pubchem_sid" class="form-label">PubChem SID</label>
+                    <input type="text" class="form-control" id="pubchem_sid" name="pubchem_sid">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="inchikey" class="form-label">InChIKey</label>
+                    <input type="text" class="form-control" id="inchikey" name="inchikey">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="ec_number" class="form-label">EC Number</label>
+                    <input type="text" class="form-control" id="ec_number" name="ec_number">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="nci_code" class="form-label">NCI code</label>
+                    <input type="text" class="form-control" id="nci_code" name="nci_code">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="snomed_id" class="form-label">SNOMED ID</label>
+                    <input type="text" class="form-control" id="snomed_id" name="snomed_id">
+                </div>
+            </div>
+
+            <!-- Physical Properties -->
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="boiling_point" class="form-label">Boiling Point (°C)</label>
+                    <input type="text" class="form-control" id="boiling_point" name="boiling_point">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="melting_point" class="form-label">Melting Point (°C)</label>
+                    <input type="text" class="form-control" id="melting_point" name="melting_point">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="density" class="form-label">Density (g/cm³)</label>
+                    <input type="text" class="form-control" id="density" name="density">
+                </div>
+            </div>
+
+            <!-- Solubility and Flash Point -->
+            <div class="mb-3">
+                <label for="solubility" class="form-label">Solubility</label>
+                <input type="text" class="form-control" id="solubility" name="solubility">
+            </div>
+            <div class="mb-3">
+                <label for="flash_point" class="form-label">Flash Point (°C)</label>
+                <input type="text" class="form-control" id="flash_point" name="flash_point">
+            </div>
+
+            <div class="form-group">
+                <label for="black_box_warning">Contains Black Box Warning</label>
+                <input type="checkbox" id="black_box_warning" name="black_box_warning" onchange="toggleBlackBoxDetails()">
+            </div>
+
+            <div id="black_box_details_container" style="display: none;">
+                <label for="black_box_details">Black Box Warning Details</label>
+                <textarea id="black_box_details" name="black_box_details" class="form-control"></textarea>
+            </div>
+
+            <!-- Pharmacodynamics -->
+            <div class="mb-3">
+                <label for="pharmacodynamics" class="form-label">General Pharmacodynamics</label>
+                <textarea class="form-control" id="pharmacodynamics" name="pharmacodynamics" rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics:</label>
+                <small class="form-text text-muted">Provide pharmacokinetics data such as absorption, distribution, metabolism, and excretion (ADME) that applies to the entire drug.</small>
+                <textarea id="pharmacokinetics" name="pharmacokinetics" rows="5" class="form-control" placeholder="Enter detailed pharmacokinetics information here..."></textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="mechanism_of_action" class="form-label">Mechanism of Action</label>
+                <textarea class="form-control" id="mechanism_of_action" name="mechanism_of_action" rows="5" placeholder="Describe the mechanism of action..."></textarea>
+            </div>
+
+            <!-- Target Molecules -->
+            <div class="form-group">
+                <label for="target_molecules">Target Molecules</label>
+                <input type="text" id="target-search" class="form-control" placeholder="Search target molecules...">
+                <div id="target-results" class="dropdown-menu"></div>
+                <ul id="selected-targets" class="list-group mt-2"></ul>
+                <input type="hidden" id="hidden-target-molecules" name="target_molecules[]">
+            </div>
+
+            <!-- Side Effects -->
+            <div class="mb-3">
+                <label for="side_effects" class="form-label">Side Effects</label>
+                <select id="side_effects" name="side_effects[]" class="form-control" multiple></select>
+            </div>
+
+            <!-- Indications (Diseases) -->
+            <div class="mb-3">
+                <label for="general_indications" class="form-label">General Indications (Diseases)</label>
+                <select id="general_indications" name="indications[]" class="form-select" multiple></select>
+            </div>
+
+            <!-- Approval Status -->
+            <div class="mb-3">
+                <label class="form-label">Approval Status</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="fda_approved" name="fda_approved">
+                    <label class="form-check-label" for="fda_approved">FDA Approved</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="ema_approved" name="ema_approved">
+                    <label class="form-check-label" for="ema_approved">EMA Approved</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="titck_approved" name="titck_approved">
+                    <label class="form-check-label" for="titck_approved">TITCK Approved</label>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="routes" class="form-label">Routes of Administration</label>
+                <select class="form-select" id="routes" name="route_id[]" multiple>
+                    {% for route in routes %}
+                        <option value="{{ route.id }}">{{ route.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Route-Specific Indications -->
+            <div id="route-indications-container">
+                <!-- This will be dynamically populated with route-specific indication selectors -->
+            </div>
+
+            <!-- Pharmacodynamics ve Pharmacokinetics -->
+            <div id="route-effects-container">
+                <!-- Bu alan dinamik olarak doldurulacak -->
+            </div>
+
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentDrugId = null; // Track the current drug ID
+
+        $(document).ready(function () {
+            // Initialize drug_id Select2
+            $('#drug_id').select2({
+                placeholder: "Search by English, Turkish, or Alternative Name...",
+                ajax: {
+                    url: "/api/active_ingredients",
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term,
+                            limit: 10,
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function (data) {
+                        console.log("Drug API Response:", data);
+                        if (data.error) {
+                            console.error("Server error:", data.error);
+                            return { results: [] };
+                        }
+                        if (!data.results || !Array.isArray(data.results)) {
+                            console.error("Invalid API response format:", data);
+                            return { results: [] };
+                        }
+                        return {
+                            results: data.results,
+                            pagination: { more: data.pagination?.more || false }
+                        };
+                    },
+                    error: function (xhr, status, error) {
+                        console.error("Drug AJAX Error:", status, error, xhr.responseText);
+                        return { results: [] };
+                    }
+                },
+                minimumInputLength: 1,
+                allowClear: true,
+                width: '100%'
+            }).on('change', function () {
+                currentDrugId = $(this).val();
+                console.log("Drug ID changed to:", currentDrugId);
+                document.getElementById('routes').dispatchEvent(new Event('change'));
+            });
+
+            // Initialize side_effects Select2
+            $('#side_effects').select2({
+                placeholder: 'Search for side effects',
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/api/side_effects',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            search: params.term,
+                            limit: 10
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function (item) {
+                                return { id: item.id, text: item.text };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                width: '100%'
+            });
+
+            // Initialize general_indications Select2
+            $('#general_indications').select2({
+                placeholder: "Search for Indications (Diseases)...",
+                ajax: {
+                    url: "/indications/search",
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            search: params.term,
+                            limit: 10,
+                            page: params.page || 1,
+                            drug_id: currentDrugId
+                        };
+                    },
+                    processResults: function (data) {
+                        console.log("Indications API Response:", data);
+                        return {
+                            results: data.results,
+                            pagination: { more: data.has_next }
+                        };
+                    },
+                    error: function (xhr, status, error) {
+                        console.error("Indications AJAX Error:", status, error, xhr.responseText);
+                        return { results: [] };
+                    }
+                },
+                minimumInputLength: 2,
+                allowClear: true,
+                multiple: true,
+                width: '100%'
+            }).on('select2:unselect', function (e) {
+                console.log("Removed Indication:", e.params.data);
+            });
+
+            // Initialize target molecules search
+            const searchInput = document.getElementById("target-search");
+            const resultsDropdown = document.getElementById("target-results");
+            const selectedTargets = document.getElementById("selected-targets");
+            const hiddenTargetInput = document.getElementById("hidden-target-molecules");
+            const selectedTargetIds = [];
+
+            searchInput.addEventListener("input", async function () {
+                const query = searchInput.value;
+                if (query.length < 2) {
+                    resultsDropdown.style.display = "none";
+                    return;
+                }
+
+                const response = await fetch(`/api/targets?query=${query}&drug_id=${currentDrugId || ''}`);
+                const targets = await response.json();
+
+                resultsDropdown.innerHTML = "";
+                resultsDropdown.style.display = "block";
+
+                targets.forEach(target => {
+                    const item = document.createElement("div");
+                    item.classList.add("dropdown-item");
+                    item.textContent = target.name_en;
+
+                    item.addEventListener("click", function () {
+                        if (!selectedTargetIds.includes(target.id)) {
+                            selectedTargetIds.push(target.id);
+                            const selectedItem = document.createElement("li");
+                            selectedItem.classList.add("list-group-item", "d-flex", "justify-content-between", "align-items-center");
+                            selectedItem.textContent = target.name_en;
+
+                            const removeBtn = document.createElement("button");
+                            removeBtn.classList.add("btn", "btn-danger", "btn-sm");
+                            removeBtn.textContent = "Remove";
+
+                            removeBtn.addEventListener("click", function () {
+                                const index = selectedTargetIds.indexOf(target.id);
+                                if (index > -1) selectedTargetIds.splice(index, 1);
+                                hiddenTargetInput.value = selectedTargetIds.join(',');
+                                selectedItem.remove();
+                            });
+
+                            selectedItem.appendChild(removeBtn);
+                            selectedTargets.appendChild(selectedItem);
+                        }
+
+                        hiddenTargetInput.value = selectedTargetIds.join(',');
+                        searchInput.value = "";
+                        resultsDropdown.style.display = "none";
+                    });
+
+                    resultsDropdown.appendChild(item);
+                });
+            });
+        });
+
+        // Routes and route-specific indications
+        const routesDropdown = document.getElementById('routes');
+        const effectsContainer = document.getElementById('route-effects-container');
+        const indicationsContainer = document.getElementById('route-indications-container');
+
+        async function fetchExistingRoutes(drugId) {
+            try {
+                const response = await fetch(`/api/drug_routes?drug_id=${drugId}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn("No existing routes found for drug_id:", drugId);
+                        return {};
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const routes = await response.json();
+                return routes.reduce((acc, route) => {
+                    acc[route.route_id] = route;
+                    return acc;
+                }, {});
+            } catch (error) {
+                console.error("Error fetching existing routes:", error);
+                return {};
+            }
+        }
+
+        routesDropdown.addEventListener('change', async () => {
+            if (!currentDrugId) {
+                effectsContainer.innerHTML = '<p>Please select an active ingredient first.</p>';
+                indicationsContainer.innerHTML = '';
+                return;
+            }
+
+            effectsContainer.innerHTML = '';
+            indicationsContainer.innerHTML = '';
+            const existingRoutes = await fetchExistingRoutes(currentDrugId);
+
+            Array.from(routesDropdown.selectedOptions).forEach(option => {
+                const routeId = option.value;
+                const routeName = option.textContent;
+
+                // Route-specific effects
+                const effectsDiv = document.createElement('div');
+                effectsDiv.classList.add('mb-3');
+                effectsDiv.innerHTML = `
+                    <h5 class="mt-3">${routeName}</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label for="absorption_rate_${routeId}" class="form-label">Absorption Rate (%/h)</label>
+                            <input type="text" class="form-control" id="absorption_rate_${routeId}" name="absorption_rate_${routeId}" placeholder="e.g., 10-15 or 12">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="vod_rate_${routeId}" class="form-label">Volume of Distribution (L)</label>
+                            <input type="text" class="form-control" id="vod_rate_${routeId}" name="vod_rate_${routeId}" placeholder="e.g., 20-30 or 25">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="protein_binding_${routeId}" class="form-label">Protein Binding (%)</label>
+                            <input type="text" class="form-control" id="protein_binding_${routeId}" name="protein_binding_${routeId}" placeholder="e.g., 70-80 or 75">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="half_life_${routeId}" class="form-label">Half-Life (hours)</label>
+                            <input type="text" class="form-control" id="half_life_${routeId}" name="half_life_${routeId}" placeholder="e.g., 1-2 or 1.5">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="clearance_rate_${routeId}" class="form-label">Clearance Rate (mL/min)</label>
+                            <input type="text" class="form-control" id="clearance_rate_${routeId}" name="clearance_rate_${routeId}" placeholder="e.g., 50-60 or 55">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="bioavailability_${routeId}" class="form-label">Bioavailability (%)</label>
+                            <input type="text" class="form-control" id="bioavailability_${routeId}" name="bioavailability_${routeId}" placeholder="e.g., 50-70 or 60">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="tmax_${routeId}" class="form-label">Tmax (hours)</label>
+                            <input type="text" class="form-control" id="tmax_${routeId}" name="tmax_${routeId}" placeholder="e.g., 1-2 or 1.5">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label for="cmax_${routeId}" class="form-label">Cmax (mg/L)</label>
+                            <input type="text" class="form-control" id="cmax_${routeId}" name="cmax_${routeId}" placeholder="e.g., 10-20 or 15">
+                        </div>
+                    </div>
+                    <label for="route_pharmacodynamics_${routeId}" class="form-label">Pharmacodynamics</label>
+                    <textarea class="form-control mb-2" id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}" rows="2" placeholder="Additional PD details..."></textarea>
+                    <label for="route_pharmacokinetics_${routeId}" class="form-label">Other Pharmacokinetics</label>
+                    <textarea class="form-control mb-2" id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}" rows="2" placeholder="Additional PK details..."></textarea>
+                    <div class="mb-2">
+                        <label for="metabolism_organs_${routeId}" class="form-label">Metabolism Organs</label>
+                        <select class="form-select" id="metabolism_organs_${routeId}" name="metabolism_organs_${routeId}[]" multiple></select>
+                    </div>
+                    <div class="mb-2">
+                        <label for="metabolism_enzymes_${routeId}" class="form-label">Metabolism Enzymes</label>
+                        <select class="form-select" id="metabolism_enzymes_${routeId}" name="metabolism_enzymes_${routeId}[]" multiple></select>
+                    </div>
+                    <div class="mb-2">
+                        <label for="metabolites_${routeId}" class="form-label">Metabolites</label>
+                        <select class="form-select" id="metabolites_${routeId}" name="metabolites_${routeId}[]" multiple></select>
+                        <div id="metabolite_diagram_${routeId}" class="border p-2 mt-2" style="min-height: 100px;"></div>
+                        <button type="button" class="btn btn-outline-secondary mt-2" onclick="editMetabolites(${routeId})">Edit Metabolites</button>
+                    </div>
+                `;
+                effectsContainer.appendChild(effectsDiv);
+
+                // Route-specific indications
+                const indicationSection = document.createElement('div');
+                indicationSection.classList.add('mb-3');
+                indicationSection.innerHTML = `
+                    <h5>${routeName}</h5>
+                    <label for="route_indications_${routeId}" class="form-label">Indications for ${routeName}</label>
+                    <select class="form-select route-indications" id="route_indications_${routeId}" name="route_indications_${routeId}[]" multiple></select>
+                `;
+                indicationsContainer.appendChild(indicationSection);
+
+                // Initialize Select2 for metabolism dropdowns
+                $(`#metabolism_organs_${routeId}`).select2({
+                    placeholder: "Select organs for this drug...",
+                    ajax: {
+                        url: "/api/metabolism/organs",
+                        dataType: 'json',
+                        delay: 250,
+                        data: params => ({ q: params.term, drug_id: currentDrugId }),
+                        processResults: data => ({ results: data.results })
+                    },
+                    minimumInputLength: 1,
+                    allowClear: true,
+                    width: '100%'
+                });
+
+                $(`#metabolism_enzymes_${routeId}`).select2({
+                    placeholder: "Select enzymes for this drug...",
+                    ajax: {
+                        url: "/api/metabolism/enzymes",
+                        dataType: 'json',
+                        delay: 250,
+                        data: params => ({ q: params.term, drug_id: currentDrugId }),
+                        processResults: data => ({ results: data.results })
+                    },
+                    minimumInputLength: 1,
+                    allowClear: true,
+                    width: '100%'
+                });
+
+                $(`#metabolites_${routeId}`).select2({
+                    placeholder: "Select metabolites for this drug...",
+                    ajax: {
+                        url: "/api/metabolites",
+                        dataType: 'json',
+                        delay: 250,
+                        data: params => ({ q: params.term, drug_id: currentDrugId }),
+                        processResults: data => ({ results: data.results })
+                    },
+                    minimumInputLength: 1,
+                    allowClear: true,
+                    width: '100%'
+                }).on('change', () => renderMetaboliteTree(routeId));
+
+                // Initialize Select2 for route-specific indications
+                $(`#route_indications_${routeId}`).select2({
+                    placeholder: `Search indications for ${routeName}...`,
+                    ajax: {
+                        url: `/indications/search`,
+                        dataType: 'json',
+                        delay: 250,
+                        data: params => ({
+                            search: params.term,
+                            limit: 10,
+                            page: params.page || 1,
+                            drug_id: currentDrugId
+                        }),
+                        processResults: data => ({
+                            results: data.results,
+                            pagination: { more: data.has_next }
+                        }),
+                        error: function (xhr, status, error) {
+                            console.error(`Route Indications AJAX Error for ${routeId}:`, status, error, xhr.responseText);
+                            return { results: [] };
+                        }
+                    },
+                    minimumInputLength: 2,
+                    allowClear: true,
+                    width: '100%'
+                });
+            });
+            console.log("Selected Routes:", Array.from(routesDropdown.selectedOptions).map(opt => opt.value));
+        });
+
+        // Metabolite Editor Modal
+        let currentRouteId = null;
+        function editMetabolites(routeId) {
+            currentRouteId = routeId;
+            const modal = `
+                <div class="modal fade" id="metaboliteModal_${routeId}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Edit Metabolites for ${routesDropdown.options[routesDropdown.selectedIndex].text}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="text" class="form-control mb-2" id="new_metabolite_${routeId}" placeholder="Enter metabolite name">
+                                <select class="form-select mb-2" id="parent_metabolite_${routeId}">
+                                    <option value="">None (Top Level)</option>
+                                </select>
+                                <button type="button" class="btn btn-primary" onclick="addMetabolite(${routeId})">Add Metabolite</button>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modal);
+
+            const parentSelect = document.getElementById(`parent_metabolite_${routeId}`);
+            const currentMetabolites = $(`#metabolites_${routeId}`).select2('data');
+            currentMetabolites.forEach(m => {
+                const option = new Option(m.text, m.id, false, false);
+                parentSelect.appendChild(option);
+            });
+
+            const modalEl = document.getElementById(`metaboliteModal_${routeId}`);
+            const bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+        }
+
+        async function renderMetaboliteTree(routeId) {
+            const select = document.getElementById(`metabolites_${routeId}`);
+            const diagram = document.getElementById(`metabolite_diagram_${routeId}`);
+            if (!select || !diagram) {
+                console.error(`Missing elements for route ${routeId}: select=${!!select}, diagram=${!!diagram}`);
+                return;
+            }
+
+            const selectedIds = $(select).val() || [];
+            if (!selectedIds.length) {
+                diagram.innerHTML = 'No metabolites selected.';
+                return;
+            }
+
+            try {
+                const drugId = currentDrugId;
+                const response = await fetch(`/api/metabolites/full?ids=${selectedIds.join(',')}&drug_id=${drugId}`);
+                if (!response.ok) {
+                    throw new Error(`Fetch failed: ${response.status} - ${response.statusText}`);
+                }
+                const metabolites = await response.json();
+                if (!metabolites || !Array.isArray(metabolites)) {
+                    throw new Error('Invalid response format: Expected an array of metabolites');
+                }
+                diagram.innerHTML = buildTreeHTML(metabolites);
+            } catch (error) {
+                console.error(`Error rendering tree for route ${routeId}:`, error);
+                diagram.innerHTML = `Error loading diagram: ${error.message}`;
+            }
+        }
+
+        function buildTreeHTML(metabolites, parentId = null, prefix = '') {
+            const children = metabolites.filter(m => m.parent_id === parentId);
+            if (!children.length) return '';
+            let html = '';
+            children.forEach(child => {
+                html += `<div>${prefix}${child.name}</div>`;
+                html += buildTreeHTML(metabolites, child.id, `${prefix}  - `);
+            });
+            return html;
+        }
+
+        async function addMetabolite(routeId) {
+            const name = document.getElementById(`new_metabolite_${routeId}`).value.trim();
+            const parentId = document.getElementById(`parent_metabolite_${routeId}`).value || null;
+            if (!name) return;
+
+            try {
+                const drugId = currentDrugId;
+                const response = await fetch('/api/metabolites/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, parent_id: parentId, drug_id: drugId })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to add metabolite: ${response.status} - ${errorText}`);
+                }
+                const newMetabolite = await response.json();
+
+                const select = $(`#metabolites_${routeId}`);
+                select.append(new Option(newMetabolite.name, newMetabolite.id, true, true));
+                select.trigger('change');
+
+                const modalEl = document.getElementById(`metaboliteModal_${routeId}`);
+                bootstrap.Modal.getInstance(modalEl).hide();
+                modalEl.remove();
+            } catch (error) {
+                console.error('Error adding metabolite:', error);
+                alert(`Failed to add metabolite: ${error.message}`);
+            }
+        }
+
+        function toggleBlackBoxDetails() {
+            const checkbox = document.getElementById('black_box_warning');
+            const detailsContainer = document.getElementById('black_box_details_container');
+            detailsContainer.style.display = checkbox.checked ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

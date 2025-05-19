@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Metabolism Data</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4f46e5;
+            transform: scale(1.05);
+        }
+        .section-icon {
+            margin-right: 8px;
+        }
+        .select2-container--default .select2-selection--single {
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            height: 38px;
+            padding: 8px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 22px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 py-12 max-w-5xl">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
+            <i class="fas fa-dna section-icon"></i>Manage Metabolism Data
+        </h1>
+
+        <!-- Add Organ -->
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-lungs section-icon"></i>Add Organ
+                </h3>
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="organ_name" class="block text-gray-600 font-medium mb-2">Organ Name</label>
+                        <input type="text" class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500" id="organ_name" name="organ_name" required>
+                    </div>
+                    <button type="submit" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i>Add Organ
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Add Enzyme -->
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-vial section-icon"></i>Add Enzyme
+                </h3>
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="enzyme_name" class="block text-gray-600 font-medium mb-2">Enzyme Name</label>
+                        <input type="text" class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500" id="enzyme_name" name="enzyme_name" required>
+                    </div>
+                    <button type="submit" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i>Add Enzyme
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Add Metabolite -->
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-capsules section-icon"></i>Add Metabolite
+                </h3>
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="metabolite_name" class="block text-gray-600 font-medium mb-2">Metabolite Name</label>
+                        <input type="text" class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500" id="metabolite_name" name="metabolite_name" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="parent_id" class="block text-gray-600 font-medium mb-2">Parent Metabolite (Optional)</label>
+                        <select class="w-full border-gray-300 rounded-lg p-2 focus:ring-indigo-500 focus:border-indigo-500" id="parent_id" name="parent_id">
+                            <option value="">None</option>
+                            {% for metabolite in metabolites %}
+                            <option value="{{ metabolite.id }}">{{ metabolite.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label for="drug_id" class="block text-gray-600 font-medium mb-2">Parent Drug (Required)</label>
+                        <select class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500" id="drug_id" name="drug_id" required>
+                            <option value="">Select Drug</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-plus mr-2"></i>Add Metabolite
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Lists -->
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-list section-icon"></i>Current Organs
+                </h3>
+                <ul class="list-disc pl-5 space-y-2">
+                    {% for organ in organs %}
+                    <li class="text-gray-600">{{ organ.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-list section-icon"></i>Current Enzymes
+                </h3>
+                <ul class="list-disc pl-5 space-y-2">
+                    {% for enzyme in enzymes %}
+                    <li class="text-gray-600">{{ enzyme.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+
+        <section class="mb-10 fade-in">
+            <div class="card bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">
+                    <i class="fas fa-list section-icon"></i>Current Metabolites
+                </h3>
+                <ul class="list-disc pl-5 space-y-2">
+                    {% for metabolite in metabolites %}
+                    <li class="text-gray-600">{{ metabolite.name }} (Parent: {{ metabolite.parent.name if metabolite.parent else 'None' }})</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#drug_id').select2({
+                placeholder: "Search for a parent drug...",
+                allowClear: true,
+                ajax: {
+                    url: '/api/active_ingredients',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            q: params.term || '',
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.results,
+                            pagination: {
+                                more: data.pagination.more
+                            }
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 1,
+                templateResult: function(drug) {
+                    return drug.text;
+                },
+                templateSelection: function(drug) {
+                    return drug.text || drug.placeholder;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

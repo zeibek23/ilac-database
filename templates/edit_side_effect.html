@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Side Effect</title>
+</head>
+<body>
+    <h1>Edit Side Effect</h1>
+    <form method="post">
+        <label for="name_en">English Name:</label>
+        <input type="text" id="name_en" name="name_en" value="{{ side_effect.name_en }}" required>
+        <br><br>
+        <label for="name_tr">Turkish Name:</label>
+        <input type="text" id="name_tr" name="name_tr" value="{{ side_effect.name_tr }}">
+        <br><br>
+        <button type="submit">Save Changes</button>
+    </form>
+</body>
+</html>

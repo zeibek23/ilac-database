@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Receptor to IUPHAR ID</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Map Receptor to IUPHAR ID</h1>
+
+        <!-- Mevcut eşleşmelerin listesi -->
+        <div class="card mb-5">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0">Existing Receptor-IUPHAR Mappings</h2>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Receptor Name</th>
+                            <th>Gene Name</th>
+                            <th>IUPHAR ID</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for receptor in receptors %}
+                        <tr>
+                            <td>{{ receptor.name }}</td>
+                            <td>{{ receptor.gene_name or "Unknown" }}</td>
+                            <td>{{ receptor.iuphar_id or "Not Assigned" }}</td>
+                            <td>
+                                {% if receptor.iuphar_id %}
+                                <form method="POST" action="/receptors/map" class="d-inline">
+                                    <input type="hidden" name="receptor_id" value="{{ receptor.id }}">
+                                    <div class="input-group">
+                                        <input type="text" name="iuphar_id" class="form-control" placeholder="Update IUPHAR ID" value="{{ receptor.iuphar_id }}">
+                                        <button type="submit" class="btn btn-warning">Update</button>
+                                    </div>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Yeni eşleştirme formu -->
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h2 class="h5 mb-0">Map a New Receptor to IUPHAR ID</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/receptors/map">
+                    <div class="mb-3">
+                        <label for="receptor_id" class="form-label">Select Receptor</label>
+                        <select name="receptor_id" id="receptor_id" class="form-select" required>
+                            {% for receptor in receptors if not receptor.iuphar_id %}
+                            <option value="{{ receptor.id }}">{{ receptor.name }} (Gene: {{ receptor.gene_name or "Unknown" }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="iuphar_id" class="form-label">IUPHAR ID</label>
+                        <input type="text" name="iuphar_id" id="iuphar_id" class="form-control" placeholder="Enter IUPHAR ID" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Map Receptor</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

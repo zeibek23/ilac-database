@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Clinical Annotations</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      margin-bottom: 50px;
+    }
+    .header {
+      background: linear-gradient(45deg, #007bff, #0056b3);
+      color: white;
+      padding: 40px 0;
+      margin-bottom: 30px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+    .header h1 {
+      font-size: 2.2rem;
+      font-weight: 600;
+    }
+    .header p {
+      font-size: 1.1rem;
+      margin-top: 10px;
+    }
+    .search-card {
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    .search-card .card-header {
+      background-color: #343a40;
+      color: #ffffff;
+    }
+    .table thead {
+      background-color: #343a40;
+      color: white;
+    }
+    .table-hover tbody tr:hover {
+      background-color: #f1f1f1;
+    }
+    .badge {
+      font-size: 0.9rem;
+      padding: 0.6em 0.7em;
+    }
+    .tooltip-inner {
+      max-width: 300px;
+      text-align: left;
+    }
+    .pagination .page-link {
+      color: #007bff;
+    }
+    .pagination .page-link:hover {
+      background-color: #e9ecef;
+    }
+    .no-results {
+      color: #6c757d;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Section -->
+  <header class="header text-center">
+    <div class="container">
+      <h1>Clinical Annotations</h1>
+      <p>Explore and search PharmGKB clinical annotation data.</p>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+
+    <!-- Search Form in a Card -->
+    <div class="card search-card mb-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">Search Filters</h5>
+      </div>
+      <div class="card-body">
+        <form method="GET" action="{{ url_for('clinical_annotations') }}">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label for="gene" class="form-label">Gene</label>
+              <input type="text" name="gene" id="gene" class="form-control"
+                     placeholder="e.g. CFTR" value="{{ request.args.get('gene', '') }}">
+            </div>
+            <div class="col-md-3">
+              <label for="drug" class="form-label">Drug</label>
+              <input type="text" name="drug" id="drug" class="form-control"
+                     placeholder="e.g. ivacaftor" value="{{ request.args.get('drug', '') }}">
+            </div>
+            <div class="col-md-3">
+              <label for="population" class="form-label">Specialty Population</label>
+              <input type="text" name="population" id="population" class="form-control"
+                     placeholder="e.g. Pediatric" value="{{ request.args.get('population', '') }}">
+            </div>
+            <div class="col-md-3">
+              <label for="risk_level" class="form-label">Level of Evidence</label>
+              <input type="text" name="risk_level" id="risk_level" class="form-control"
+                     placeholder="e.g. 1A, 1B, 2, 3..." value="{{ request.args.get('risk_level', '') }}">
+            </div>
+          </div>
+
+          <div class="row g-3 mt-3">
+            <div class="col-md-3">
+              <label for="phenotype" class="form-label">Phenotype Category</label>
+              <input type="text" name="phenotype" id="phenotype" class="form-control"
+                     placeholder="e.g. Efficacy, Toxicity..." value="{{ request.args.get('phenotype', '') }}">
+            </div>
+            <div class="col-md-3 align-self-end">
+              <button type="submit" class="btn btn-primary w-100">Search</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Gene</th>
+            <th>Variant/Haplotype</th>
+            <th>Drug</th>
+            <th>Pharmacokinetics</th>
+            <th>Pharmacodynamics</th>
+            <th>Level of Evidence</th>
+            <th>Clinical Guideline</th>
+            <th>Specialty Population</th>
+            <th>Phenotype Category</th>
+            <th>Level Override</th>
+            <th>Level Modifiers</th>
+            <th>Latest History Date</th>
+            <th>PMID Count</th>
+            <th>Evidence Count</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if interactions %}
+            {% for interaction in interactions %}
+            <tr>
+              <!-- Gene Name (handle potential None) -->
+              <td>
+                {% if interaction.variant and interaction.variant.gene %}
+                  {{ interaction.variant.gene.name }}
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <!-- Variant Name -->
+              <td>
+                {% if interaction.variant %}
+                  {{ interaction.variant.name }}
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <!-- Drug Name -->
+              <td>
+                {% if interaction.drug %}
+                  {{ interaction.drug.name_en }}
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <!-- Pharmacokinetics -->
+              <td>{{ interaction.pharmacokinetics or "No data" }}</td>
+              <!-- Pharmacodynamics -->
+              <td>{{ interaction.pharmacodynamics or "No data" }}</td>
+              <!-- Risk Level (renamed to "Level of Evidence") -->
+              <td>
+                <span class="badge 
+                  {% if interaction.risk_level in ['1A', '1B'] %}
+                    bg-danger
+                  {% elif interaction.risk_level in ['2', '3'] %}
+                    bg-warning text-dark
+                  {% else %}
+                    bg-secondary
+                  {% endif %}">
+                  {{ interaction.risk_level or "Unknown" }}
+                </span>
+              </td>
+              <!-- Clinical Guideline Link -->
+              <td>
+                {% if interaction.clinical_guideline %}
+                  <a href="{{ interaction.clinical_guideline }}" target="_blank">
+                    <span class="badge bg-info text-dark">View</span>
+                  </a>
+                {% else %}
+                  <span class="text-muted">N/A</span>
+                {% endif %}
+              </td>
+              <!-- Specialty Population -->
+              <td>{{ interaction.specialty_population or "N/A" }}</td>
+              <!-- Phenotype Category -->
+              <td>{{ interaction.phenotype_category or "N/A" }}</td>
+              <!-- Level Override with Tooltip -->
+              <td>
+                <span data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="{{ interaction.level_override or 'Not specified' }}">
+                  {{ interaction.level_override or 'N/A' }}
+                </span>
+              </td>
+              <!-- Level Modifiers with Tooltip -->
+              <td>
+                <span data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      title="{{ interaction.level_modifiers or 'None' }}">
+                  {{ interaction.level_modifiers or 'N/A' }}
+                </span>
+              </td>
+              <!-- Latest History Date -->
+              <td>{{ interaction.latest_history_date or "N/A" }}</td>
+              <!-- PMID Count -->
+              <td>{{ interaction.pmid_count or 0 }}</td>
+              <!-- Evidence Count -->
+              <td>{{ interaction.evidence_count or 0 }}</td>
+              <!-- Score -->
+              <td>{{ interaction.score or "N/A" }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="15" class="text-center no-results">No results found.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- (Optional) If you are using pagination on the server side, keep this -->
+    <!-- If not using pagination, remove or adapt -->
+    {# Example of pagination usage #}
+    {# 
+    <nav aria-label="Page navigation" class="mt-4">
+      <ul class="pagination justify-content-center">
+        <!-- Implement pagination logic here if desired -->
+      </ul>
+    </nav>
+    #}
+
+  </div> <!-- container -->
+
+  <!-- Bootstrap Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Enable Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacokinetics Module</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.0/dist/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        .select2-container--default .select2-selection--single {
+            height: calc(2.25rem + 2px);
+            padding: 0.375rem 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            background: #fff;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 1.5rem;
+            color: #495057;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            display: none;
+        }
+        .chart-container {
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        .btn-link-metabolism {
+            margin-top: 10px;
+        }
+        .therapeutic-range {
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Pharmacokinetics Module</h1>
+
+        <!-- Drug Search Bar -->
+        <div class="mb-3">
+            <label for="drug_search" class="form-label">Search Drug</label>
+            <select id="drug_search" name="drug_id" class="form-control">
+                {% if selected_drug %}
+                <option value="{{ selected_drug.id }}" selected>
+                    {{ selected_drug.name_en }} ({{ selected_drug.name_tr or "N/A" }})
+                </option>
+                {% endif %}
+            </select>
+        </div>
+
+        <!-- Error Message -->
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <!-- Visualizations -->
+        {% if pk_data %}
+        <div class="row">
+            <div class="col-md-6 chart-container">
+                <h3 class="text-center">PK Profile (Radar)</h3>
+                <canvas id="radarChart"></canvas>
+            </div>
+            <div class="col-md-6 chart-container">
+                <h3 class="text-center">Concentration Over Time</h3>
+                <canvas id="concentrationChart"></canvas>
+                <div class="mt-2 text-center">
+                    <label for="dose">Initial Dose (mg):</label>
+                    <input type="number" id="dose" value="100" min="1" style="width: 80px;">
+                    <button id="optimizeDose" class="btn btn-primary ms-2">Optimize Dosing</button>
+                </div>
+                <div id="dosingRecommendation" class="mt-2 text-center"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12 chart-container">
+                <h3 class="text-center">Bioavailability by Route</h3>
+                <canvas id="bioavailabilityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- PK Data Table -->
+        <div class="table-responsive mt-4">
+            <table class="table table-striped table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Route</th>
+                        <th>Absorption Rate (%/h)</th>
+                        <th>Volume of Distribution (L)</th>
+                        <th>Protein Binding (%)</th>
+                        <th>Half-Life (hours)</th>
+                        <th>Clearance Rate (mL/min)</th>
+                        <th>Bioavailability (%)</th>
+                        <th>Tmax (hours)</th>
+                        <th>Cmax (mg/L)</th>
+                        <th>Pharmacodynamics</th>
+                        <th>Other Pharmacokinetics</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in pk_data %}
+                    <tr>
+                        <td>{{ entry.route_name }}</td>
+                        <td>{{ entry.absorption_rate_min }} - {{ entry.absorption_rate_max }}</td>
+                        <td>{{ entry.vod_rate_min }} - {{ entry.vod_rate_max }}</td>
+                        <td>{{ entry.protein_binding_min }} - {{ entry.protein_binding_max }}</td>
+                        <td>{{ entry.half_life_min }} - {{ entry.half_life_max }}</td>
+                        <td>{{ entry.clearance_rate_min }} - {{ entry.clearance_rate_max }}</td>
+                        <td>{{ entry.bioavailability_min }} - {{ entry.bioavailability_max }}</td>
+                        <td>{{ entry.tmax_min }} - {{ entry.tmax_max }}</td>
+                        <td>{{ entry.cmax_min }} - {{ entry.cmax_max }}</td>
+                        <td>{{ entry.pharmacodynamics }}</td>
+                        <td>{{ entry.pharmacokinetics }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="text-center">
+                <a href="/drug/{{ selected_drug_id }}" class="btn btn-outline-info btn-link-metabolism">View Metabolism Pathway</a>
+            </div>
+        </div>
+        {% elif selected_drug_id %}
+        <div class="alert alert-info">No pharmacokinetic data available for this drug.</div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    $(document).ready(function () {
+        $('#drug_search').select2({
+            placeholder: "Type to search for a drug...",
+            ajax: {
+                url: "/api/active_ingredients",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { q: params.term, limit: 10, page: params.page || 1 };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.results,
+                        pagination: { more: data.pagination?.more || false }
+                    };
+                }
+            },
+            minimumInputLength: 1,
+            allowClear: true,
+            width: '100%',
+            templateResult: function (data) { return data.text; },
+            templateSelection: function (data) { return data.text || "Type to search..."; }
+        }).on('select2:select', function (e) {
+            window.location.href = '/pharmacokinetics?drug_id=' + e.params.data.id;
+        }).on('select2:clear', function () {
+            window.location.href = '/pharmacokinetics';
+        });
+
+        {% if pk_data %}
+        const pkData = {{ pk_data | tojson }};
+        const THERAPEUTIC_MIN = 10; // Example: 10 mg/L
+        const THERAPEUTIC_MAX = 20; // Example: 20 mg/L
+
+        // Radar Chart
+        const radarCtx = document.getElementById('radarChart').getContext('2d');
+        const radarChart = new Chart(radarCtx, {
+            type: 'radar',
+            data: {
+                labels: ['Absorption Rate', 'Volume of Dist.', 'Protein Binding', 'Half-Life', 'Clearance Rate'],
+                datasets: pkData.map((entry, idx) => ({
+                    label: entry.route_name,
+                    data: [
+                        (entry.absorption_rate_min + entry.absorption_rate_max) / 2,
+                        (entry.vod_rate_min + entry.vod_rate_max) / 2,
+                        (entry.protein_binding_min + entry.protein_binding_max) / 2,
+                        (entry.half_life_min + entry.half_life_max) / 2,
+                        (entry.clearance_rate_min + entry.clearance_rate_max) / 2
+                    ],
+                    backgroundColor: `rgba(${idx * 50}, 100, 200, 0.2)`,
+                    borderColor: `rgba(${idx * 50}, 100, 200, 1)`,
+                    borderWidth: 1
+                }))
+            },
+            options: {
+                scales: { r: { beginAtZero: true } }
+            }
+        });
+
+        // Concentration Chart
+        const concentrationCtx = document.getElementById('concentrationChart').getContext('2d');
+        const concentrationChart = new Chart(concentrationCtx, {
+            type: 'line',
+            data: {
+                labels: Array.from({ length: 48 }, (_, i) => i / 2), // 0-24 hours, 30-min intervals
+                datasets: []
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Time (hours)' } },
+                    y: { title: { display: true, text: 'Concentration (mg/L)' }, beginAtZero: true }
+                },
+                plugins: {
+                    annotation: {
+                        annotations: [{
+                            type: 'box',
+                            yMin: THERAPEUTIC_MIN,
+                            yMax: THERAPEUTIC_MAX,
+                            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                            borderColor: 'rgba(0, 255, 0, 0.5)',
+                            label: { content: 'Therapeutic Range', enabled: true }
+                        }]
+                    }
+                }
+            }
+        });
+
+        // Bioavailability Chart
+        const bioCtx = document.getElementById('bioavailabilityChart').getContext('2d');
+        const bioavailabilityChart = new Chart(bioCtx, {
+            type: 'bar',
+            data: {
+                labels: pkData.map(entry => entry.route_name),
+                datasets: [{
+                    label: 'Bioavailability (%)',
+                    data: pkData.map(entry => (entry.bioavailability_min + entry.bioavailability_max) / 2),
+                    backgroundColor: pkData.map((_, idx) => `rgba(${idx * 50}, 100, 200, 0.6)`),
+                    borderColor: pkData.map((_, idx) => `rgba(${idx * 50}, 100, 200, 1)`),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, max: 100, title: { display: true, text: 'Bioavailability (%)' } },
+                    x: { title: { display: true, text: 'Route' } }
+                }
+            }
+        });
+
+        function simulateSteadyState(dose, interval, entry) {
+            const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
+            const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
+            const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
+            const ke = Math.log(2) / halfLife;
+            const time = concentrationChart.data.labels;
+            const doses = Math.ceil(time[time.length - 1] / interval);
+            let concentrations = Array(time.length).fill(0);
+
+            for (let d = 0; d < doses; d++) {
+                const doseTime = d * interval;
+                const c0 = (dose * bio) / vod;
+                time.forEach((t, i) => {
+                    if (t >= doseTime) {
+                        concentrations[i] += c0 * Math.exp(-ke * (t - doseTime));
+                    }
+                });
+            }
+            return concentrations;
+        }
+
+        function optimizeDosing(entry) {
+            const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
+            const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
+            const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
+            const ke = Math.log(2) / halfLife;
+
+            // Target steady-state average concentration within therapeutic range
+            const targetCss = (THERAPEUTIC_MIN + THERAPEUTIC_MAX) / 2;
+            const clearance = ((entry.clearance_rate_min + entry.clearance_rate_max) / 2) * 0.06; // mL/min to L/h
+            let interval = halfLife; // Start with half-life as dosing interval
+            let dose = (targetCss * clearance * interval) / bio; // Dose = Css * CL * tau / F
+
+            // Adjust dose to stay within range
+            let CssMin, CssMax;
+            do {
+                const Css = simulateSteadyState(dose, interval, entry);
+                CssMin = Math.min(...Css.slice(-24)); // Last 12 hours
+                CssMax = Math.max(...Css.slice(-24));
+                if (CssMax > THERAPEUTIC_MAX) dose *= 0.9;
+                if (CssMin < THERAPEUTIC_MIN) dose *= 1.1;
+            } while (CssMin < THERAPEUTIC_MIN || CssMax > THERAPEUTIC_MAX);
+
+            return { dose: dose.toFixed(2), interval: interval.toFixed(1), concentrations: simulateSteadyState(dose, interval, entry) };
+        }
+
+        function updateConcentrationChart(dose, optimize = false) {
+            const datasets = [];
+            const annotations = [];
+
+            pkData.forEach((entry, idx) => {
+                const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
+                const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
+                const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
+                const ke = Math.log(2) / halfLife;
+                const tmax = (entry.tmax_min + entry.tmax_max) / 2 || 1;
+                const cmax = (entry.cmax_min + entry.cmax_max) / 2 || ((dose * bio) / vod);
+                const time = concentrationChart.data.labels;
+
+                // Parent drug concentration
+                let parentConcentrations;
+                if (optimize) {
+                    const { concentrations, dose: optDose, interval } = optimizeDosing(entry);
+                    parentConcentrations = concentrations;
+                    document.getElementById('dosingRecommendation').innerHTML = 
+                        `Optimal Dosing for ${entry.route_name}: ${optDose} mg every ${interval} hours`;
+                } else {
+                    parentConcentrations = time.map(t => (dose * bio) / vod * Math.exp(-ke * t));
+                    document.getElementById('dosingRecommendation').innerHTML = '';
+                }
+                
+                datasets.push({
+                    label: `${entry.route_name} (Parent)`,
+                    data: parentConcentrations,
+                    borderColor: `rgba(${idx * 50}, 100, 200, 1)`,
+                    fill: false,
+                    tension: 0.1
+                });
+
+                // Tmax/Cmax annotation
+                annotations.push({
+                    type: 'point',
+                    xValue: tmax,
+                    yValue: cmax,
+                    backgroundColor: `rgba(${idx * 50}, 100, 200, 1)`,
+                    radius: 5,
+                    label: { content: `${entry.route_name}: Tmax=${tmax}h, Cmax=${cmax.toFixed(2)}mg/L`, enabled: true }
+                });
+
+                // Metabolite overlay
+                entry.metabolites.forEach((met, mIdx) => {
+                    const metC0 = parentConcentrations[0] * 0.5;
+                    const metKe = ke * 0.8;
+                    const metDelay = tmax + 1;
+                    const metConcentrations = time.map(t => t < metDelay ? 0 : metC0 * Math.exp(-metKe * (t - metDelay)));
+                    datasets.push({
+                        label: `${met.name} (via ${entry.route_name})`,
+                        data: metConcentrations,
+                        borderColor: `rgba(${idx * 50 + mIdx * 20}, 150, 100, 1)`,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.1
+                    });
+                });
+            });
+
+            concentrationChart.data.datasets = datasets;
+            concentrationChart.options.plugins.annotation.annotations = [
+                concentrationChart.options.plugins.annotation.annotations[0], // Therapeutic range
+                ...annotations
+            ];
+            concentrationChart.update();
+        }
+
+        const doseInput = document.getElementById('dose');
+        const optimizeButton = document.getElementById('optimizeDose');
+        if (doseInput && optimizeButton) {
+            doseInput.addEventListener('input', () => {
+                const dose = parseFloat(doseInput.value) || 100;
+                updateConcentrationChart(dose, false);
+            });
+            optimizeButton.addEventListener('click', () => {
+                const dose = parseFloat(doseInput.value) || 100;
+                updateConcentrationChart(dose, true);
+            });
+            updateConcentrationChart(100, false); // Initial call
+        }
+        {% endif %}
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fetch UniProt Data</title>
+</head>
+<body>
+    <form action="{{ url_for('fetch_uniprot_data') }}" method="POST">
+        <label for="receptor_name">Receptor Name:</label>
+        <input type="text" id="receptor_name" name="receptor_name" required>
+        <button type="submit">Fetch Data</button>
+    </form>
+</body>
+</html>

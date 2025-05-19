@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Routes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .description-text {
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Manage Routes</h1>
+
+        <!-- Yeni Route Ekleme -->
+        <div class="card p-3 mb-4 shadow-sm">
+            <h4 class="card-title">Add New Route</h4>
+            <form method="POST" action="/routes/manage">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Route Name</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="e.g., Oral" required>
+                </div>
+                <div class="mb-3">
+                    <label for="type" class="form-label">Route Type</label>
+                    <select id="type" name="type" class="form-select" required>
+                        <option value="" disabled selected>Select a type</option>
+                        <option value="Systemic">Systemic</option>
+                        <option value="Local">Local</option>
+                        <option value="Both">Both</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description (Optional)</label>
+                    <textarea id="description" name="description" class="form-control" rows="3" placeholder="e.g., Absorbed via GI tract"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="parent_id" class="form-label">Parent Route (Optional)</label>
+                    <select id="parent_id" name="parent_id" class="form-select">
+                        <option value="">No Parent</option>
+                        {% for route in routes %}
+                        <option value="{{ route.id }}">{{ route.name }} ({{ route.type }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Route</button>
+            </form>
+        </div>
+
+        <!-- Mevcut Route'ları Listeleme -->
+        <div class="card p-3 shadow-sm">
+            <h4 class="card-title">Existing Routes</h4>
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Route Name</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Parent Route</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for route in routes %}
+                    <tr>
+                        <td>{{ route.name }}</td>
+                        <td>{{ route.type }}</td>
+                        <td class="description-text">{{ route.description if route.description else 'N/A' }}</td>
+                        <td>{{ route.parent.name if route.parent else 'None' }}</td>
+                        <td>
+                            <!-- Update Button with Modal Trigger -->
+                            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#updateModal{{ route.id }}">Update</button>
+                            <!-- Delete Button -->
+                            <form action="/routes/delete/{{ route.id }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ route.name }}?');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Update Modals (One per Route) -->
+    {% for route in routes %}
+    <div class="modal fade" id="updateModal{{ route.id }}" tabindex="-1" aria-labelledby="updateModalLabel{{ route.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateModalLabel{{ route.id }}">Update {{ route.name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="/routes/update/{{ route.id }}">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="name{{ route.id }}" class="form-label">Route Name</label>
+                            <input type="text" id="name{{ route.id }}" name="name" class="form-control" value="{{ route.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="type{{ route.id }}" class="form-label">Route Type</label>
+                            <select id="type{{ route.id }}" name="type" class="form-select" required>
+                                <option value="Systemic" {% if route.type == "Systemic" %}selected{% endif %}>Systemic</option>
+                                <option value="Local" {% if route.type == "Local" %}selected{% endif %}>Local</option>
+                                <option value="Both" {% if route.type == "Both" %}selected{% endif %}>Both</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description{{ route.id }}" class="form-label">Description (Optional)</label>
+                            <textarea id="description{{ route.id }}" name="description" class="form-control" rows="3">{{ route.description if route.description else '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="parent_id{{ route.id }}" class="form-label">Parent Route (Optional)</label>
+                            <select id="parent_id{{ route.id }}" name="parent_id" class="form-select">
+                                <option value="">No Parent</option>
+                                {% for parent_route in routes %}
+                                {% if parent_route.id != route.id %}  <!-- Prevent self-referencing -->
+                                <option value="{{ parent_route.id }}" {% if route.parent_id == parent_route.id %}selected{% endif %}>
+                                    {{ parent_route.name }} ({{ parent_route.type }})
+                                </option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Büyük ve gereksiz dosyalar
+*.csv
+*.pyc
+__pycache__/
+*.log
+*.bak
+*.swp
+*.sdf
+*.pdb
+*.db
+*.sqlite3
+
+# NLTK verileri
+nltk_data/
+
+# Büyük statik dosyalar
+static/ligand_*.pdb
+static/uploads/*.sdf
+static/uploads/*.svg
+
+# Eğitim ve test script’leri
+alternativestraining.py
+enestrainingdeneme.py
+train_lab_model.py
+train_model_predicted_severity.py
+update_predictions.py
+pharmgkb_routes.py
+
+# Diğer gereksiz dosyalar
+predicted_interactions.csv
+predicted_results.csv
+receptors.csv
+receptors_and_iuphar_id.csv
+side_effects.csv
+targets.csv
+targets_and_families.csv

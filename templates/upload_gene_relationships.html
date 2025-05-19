@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gene Relationships Yükleme</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Gene Relationships Yükleme</h1>
+        <p class="text-center text-muted">PharmGKB'nin `relationships.tsv` dosyasını yükleyin.</p>
+
+        <!-- Uyarılar -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Dosya Yükleme Formu -->
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">Dosya Seçin (TSV Formatında)</label>
+                <input type="file" id="file" name="file" class="form-control" accept=".tsv" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Yükle</button>
+        </form>
+    </div>
+</body>
+</html>

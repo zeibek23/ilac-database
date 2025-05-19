@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualize Interaction</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/ngl@2.0.0-dev.35/dist/ngl.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Visualize Receptor-Ligand Interaction</h1>
+        <div id="viewport" style="width: 100%; height: 500px; border: 1px solid #ddd;"></div>
+    </div>
+
+    <script>
+        // Load PDB file into NGL Viewer
+        const stage = new NGL.Stage("viewport");
+        stage.loadFile("{{ url_for('static', filename='uploads/' + pdb_file) }}")
+            .then(function (component) {
+                component.addRepresentation("cartoon");
+                component.autoView();
+            });
+    </script>
+</body>
+</html>
