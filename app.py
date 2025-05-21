@@ -76,7 +76,7 @@ from rdkit.Chem import AllChem
 app = Flask(__name__)
 # Flask uygulamasını oluştur
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[Alnesuse200824_]@db.enrowjcfkauuutemluhd.supabase.co:5432/postgres').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.enrowjcfkauuutemluhd:[Alnesuse200824_]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
 
@@ -854,10 +854,10 @@ print("Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 #    print("Tables created successfully.")
 
 
-with app.app_context():
-    inspector = inspect(db.engine)
-    tables = inspector.get_table_names()
-    print("Existing Tables:", tables)
+#with app.app_context():
+#    inspector = inspect(db.engine)
+#    tables = inspector.get_table_names()
+#    print("Existing Tables:", tables)
 
 
 def login_required(f):
