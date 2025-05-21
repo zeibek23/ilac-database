@@ -67,7 +67,7 @@ from datetime import datetime, date
 from scipy.integrate import odeint
 from functools import wraps
 import sqlalchemy
-from sqlalchemy import and_, or_, nullslast, extract
+from sqlalchemy import and_, or_, nullslast, extract, inspect
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -76,7 +76,7 @@ from rdkit.Chem import AllChem
 app = Flask(__name__)
 # Flask uygulamasını oluştur
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://localhost/drug_database').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[Alnesuse200824_]@db.enrowjcfkauuutemluhd.supabase.co:5432/postgres').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
 
@@ -845,13 +845,13 @@ with app.app_context():
 print("Current Working Directory:", os.getcwd())
 print("Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 
-from sqlalchemy import inspect
 
 
-with app.app_context():
-    print("Creating tables...")
-    db.create_all()
-    print("Tables created successfully.")
+
+#with app.app_context():
+#    print("Creating tables...")
+#    db.create_all()
+#    print("Tables created successfully.")
 
 
 with app.app_context():
