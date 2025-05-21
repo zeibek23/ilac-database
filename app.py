@@ -1,3 +1,7 @@
+from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
 import matplotlib.pyplot as plt
@@ -44,7 +48,6 @@ nltk.data.path.append(os.environ.get('NLTK_DATA', '/app/nltk_data'))
 if os.getcwd() != 'C:\\Users\\ENES\\Desktop\\ilac-database':
     os.chdir('C:\\Users\\ENES\\Desktop\\ilac-database')
 
-from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory
 from textblob import TextBlob
 from dash import Dash, dcc, html, Input, Output
 from sqlalchemy.sql import text, func
@@ -55,7 +58,6 @@ from io import BytesIO
 from Bio import Entrez
 from flask_login import UserMixin
 from flask_login import current_user
-from flask_bcrypt import Bcrypt
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List
 from http import HTTPStatus
@@ -64,10 +66,8 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, date
 from scipy.integrate import odeint
 from functools import wraps
-from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy
 from sqlalchemy import and_, or_, nullslast, extract
-from flask_migrate import Migrate
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -78,11 +78,12 @@ app = Flask(__name__)
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://localhost/drug_database').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
 
 
 # SQLAlchemy nesnesini oluştur ve uygulamaya bağla
 db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
 
 # Logging setup
