@@ -76,7 +76,7 @@ from rdkit.Chem import AllChem
 app = Flask(__name__)
 # Flask uygulamasını oluştur
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.enrowjcfkauuutemluhd:[Alnesuse200824_]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[Alnesuse200824_]@db.enrowjcfkauuutemluhd.supabase.co:5432/postgres').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'super-secret-key-123')
 
@@ -3100,8 +3100,8 @@ def get_interactions():
 
 
 # Model ve scaler'ı yükle
-model = joblib.load('lab_model.pkl')
-scaler = joblib.load('lab_scaler.pkl')
+#model = joblib.load('lab_model.pkl')
+#scaler = joblib.load('lab_scaler.pkl')
 
 @app.route('/predict_disease', methods=['GET', 'POST'])
 def predict_disease():
