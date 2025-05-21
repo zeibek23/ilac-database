@@ -2961,8 +2961,8 @@ def delete_interaction(interaction_id):
 import joblib
 
 # Model ve vektörleştiriciyi yükleyin
-model = joblib.load('interaction_model.pkl')
-vectorizer = joblib.load('interaction_vectorizer.pkl')
+#model = joblib.load('interaction_model.pkl')
+#vectorizer = joblib.load('interaction_vectorizer.pkl')
 
 
 from flask import Flask, request, jsonify
