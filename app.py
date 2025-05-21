@@ -78,7 +78,7 @@ app = Flask(__name__)
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.enrowjcfkauuutemluhd:[Alnesuse200824_]@aws-0-eu-central-1.pooler.supabase.com:5432/postgres').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'super-secret-key-123')
 
 
 # SQLAlchemy nesnesini oluştur ve uygulamaya bağla
@@ -2297,13 +2297,13 @@ def delete_drug(drug_id):
     return redirect(url_for('index'))
 
 
-with app.app_context():
-    drug_routes = DrugRoute.query.all()
-    if not drug_routes:
-        print("DrugRoute tablosunda hiç kayıt yok.")
-    else:
-        for route in drug_routes:
-            print(f"DrugRoute ID: {route.id}, DrugDetail ID: {route.drug_detail_id}, Route ID: {route.route_id}")
+#with app.app_context():
+ #   drug_routes = DrugRoute.query.all()
+ #   if not drug_routes:
+ #       print("DrugRoute tablosunda hiç kayıt yok.")
+ #   else:
+ #       for route in drug_routes:
+ #           print(f"DrugRoute ID: {route.id}, DrugDetail ID: {route.drug_detail_id}, Route ID: {route.route_id}")
 
 @app.route('/drug/<int:drug_id>')
 def drug_detail(drug_id):
