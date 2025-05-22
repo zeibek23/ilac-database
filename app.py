@@ -42,11 +42,17 @@ except AttributeError:
 else:
     ssl._create_default_https_context = _create_unverified_https_context
 
-nltk.download('brown', download_dir=os.environ.get('NLTK_DATA', '/app/nltk_data'))
-nltk.download('punkt', download_dir=os.environ.get('NLTK_DATA', '/app/nltk_data'))
-nltk.data.path.append(os.environ.get('NLTK_DATA', '/app/nltk_data'))
+# NLTK veri seti dizini
+NLTK_DATA_DIR = os.environ.get('NLTK_DATA', '/tmp/nltk_data' if os.environ.get('RENDER') == 'true' else 'C:\\Users\\ENES\\nltk_data')
+nltk.data.path.append(NLTK_DATA_DIR)
 
-if os.getcwd() != 'C:\\Users\\ENES\\Desktop\\ilac-database':
+# Render ortamında NLTK veri setlerini indirme, yerel ortamda indir
+if os.environ.get('RENDER') != 'true':
+    nltk.download('brown', download_dir=NLTK_DATA_DIR)
+    nltk.download('punkt', download_dir=NLTK_DATA_DIR)
+
+# Çalışma dizinini kontrol et (yerel ortam için)
+if os.getcwd() != 'C:\\Users\\ENES\\Desktop\\ilac-database' and os.environ.get('RENDER') != 'true':
     os.chdir('C:\\Users\\ENES\\Desktop\\ilac-database')
 
 from textblob import TextBlob
