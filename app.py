@@ -1,6 +1,7 @@
 from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
+from dotenv import load_dotenv
 from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
@@ -72,14 +73,16 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 
-
+load_dotenv()
 app = Flask(__name__)
 # Flask uygulamasını oluştur
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres:[Alnesuse200824_]@db.enrowjcfkauuutemluhd.supabase.co:5432/postgres').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'super-secret-key-123')
 
+# Debug: Kullanılan DATABASE_URI’yi yazdır
+print("DATABASE_URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 
 # SQLAlchemy nesnesini oluştur ve uygulamaya bağla
 db = SQLAlchemy(app)
