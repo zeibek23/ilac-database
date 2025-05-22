@@ -869,6 +869,7 @@ print("Database URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 #    print("Existing Tables:", tables)
 
 
+# Dekoratörler
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -882,27 +883,42 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash("You must log in to access this page.", "warning")
+            flash("Giriş yap!", "warning")
             return redirect(url_for('login'))
-
-        # Check if the user is an admin
         user = User.query.get(session['user_id'])
         if not user or not user.is_admin:
-            flash("You do not have permission to access this page.", "danger")
+            flash("Admin değilsin!", "danger")
             return redirect(url_for('home'))
-        
         return f(*args, **kwargs)
     return decorated_function
 
-# Backend Page
+#Anasayfa
+@app.route('/')
+def home():
+    announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
+    updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    return render_template(
+        'home.html',
+        announcements=announcements,
+        updates=updates,
+        user_email=user_email,
+        user=user
+    )
+
+# Backend rotası
 @app.route('/backend')
 @admin_required
 def backend_index():
-    query = request.args.get('q', '').strip()  # Get the search query
-    page = request.args.get('page', 1, type=int)  # Get the current page number
-    per_page = 20  # Number of items per page
-
-    if query:  # If there is a search query
+    query = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    if query:
         drugs = Drug.query.filter(
             db.or_(
                 Drug.name_en.ilike(f'%{query}%'),
@@ -912,36 +928,15 @@ def backend_index():
         ).paginate(page=page, per_page=per_page)
     else:
         drugs = Drug.query.paginate(page=page, per_page=per_page)
-
     salts = Salt.query.all()
     details = DrugDetail.query.all()
     return render_template('index.html', drugs=drugs, salts=salts, details=details, query=query)
 
-#Homepage
-@app.route('/')
-def home():
-    announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
-    updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
-    
-    user = None
-    user_email = None
-
-    # If user is logged in, fetch from DB
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        if user:
-            user_email = user.email
-
-    # Pass 'user' and 'user_email' to the template
-    return render_template(
-        'home.html',
-        announcements=announcements,
-        updates=updates,
-        user_email=user_email,
-        user=user  # <-- Here is the important part
-    )
-
-
+# backend.drugly.ai için kök rota
+@app.route('/', host='backend.drugly.ai')
+@admin_required
+def backend_root():
+    return redirect(url_for('backend_index'))
 
 
 @app.route('/register', methods=['GET', 'POST'])
