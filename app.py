@@ -133,8 +133,8 @@ class DrugCategory(db.Model):
 class Drug(db.Model):
     __tablename__ = 'drug'
     id = db.Column(db.Integer, primary_key=True)
-    name_tr = db.Column(db.String(100), nullable=False)
-    name_en = db.Column(db.String(100), nullable=False)
+    name_tr = db.Column(db.String(255), nullable=False)
+    name_en = db.Column(db.String(255), nullable=False)
     alternative_names = db.Column(db.Text, nullable=True)
     salts = db.relationship('Salt', secondary='drug_salt', backref='drugs', lazy='dynamic')
     fda_approved = db.Column(db.Boolean, nullable=False, default=False)
