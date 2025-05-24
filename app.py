@@ -2783,10 +2783,9 @@ def upload_drugs():
         # Check file extension
         if file.filename.endswith('.xlsx'):
             try:
-                # Read Excel file with minimal memory usage
                 data = pd.read_excel(file, dtype=str)
                 logger.info(f"Loaded Excel file with {len(data)} rows")
-                if len(data) > 20000:  # Arbitrary limit to prevent overload
+                if len(data) > 20000:
                     return "Excel file exceeds 20,000 rows. Please split into smaller files.", 400
             except Exception as e:
                 logger.error(f"Error reading Excel file: {e}")
@@ -2802,19 +2801,23 @@ def upload_drugs():
             return f"The file must contain a 'name_en' column. Found columns: {data.columns.tolist()}", 400
 
         # Process rows in batches
-        batch_size = 50    # Commit 50 drugs at a time
-        chunk_size = 500   # Process 500 rows at a time in memory
+        batch_size = 50
+        chunk_size = 500
         new_drugs = []
         total_processed = 0
 
         for start in range(0, len(data), chunk_size):
             chunk = data[start:start + chunk_size]
             logger.info(f"Processing chunk of {len(chunk)} rows (rows {start + 1} to {start + len(chunk)})")
-            
+
+            # Batch check for duplicates
+            name_en_list = chunk['name_en'].dropna().str.strip().tolist()
+            with db.session.no_autoflush:
+                existing_drugs = {d.name_en for d in Drug.query.filter(Drug.name_en.in_(name_en_list)).all()}
+
             for index, row in chunk.iterrows():
                 name_en = row.get('name_en')
                 
-                # Ensure 'name_en' is a valid string
                 if pd.isna(name_en) or not str(name_en).strip():
                     logger.error(f"Invalid 'name_en' in row {index + 2}")
                     return f"Invalid 'name_en' value in row {index + 2}.", 400
@@ -2824,18 +2827,14 @@ def upload_drugs():
                     logger.error(f"Drug name too long in row {index + 2}: {name_en}")
                     return f"Drug name '{name_en}' in row {index + 2} exceeds maximum length of 255 characters.", 400
 
-                # Assign name_tr the same value as name_en if not provided
                 name_tr = row.get('name_tr', name_en)
                 name_tr = str(name_tr).strip() if pd.notna(name_tr) else name_en
                 if len(name_tr) > 255:
                     logger.error(f"Drug name (TR) too long in row {index + 2}: {name_tr}")
                     return f"Drug name (TR) '{name_tr}' in row {index + 2} exceeds maximum length of 255 characters.", 400
 
-                # Check for duplicates
-                logger.debug(f"Checking duplicate for: {name_en}")
-                with db.session.no_autoflush:
-                    existing_drug = Drug.query.filter_by(name_en=name_en).first()
-                if existing_drug:
+                # Skip duplicates
+                if name_en in existing_drugs:
                     logger.debug(f"Skipping duplicate drug: {name_en}")
                     continue
 
@@ -2847,7 +2846,6 @@ def upload_drugs():
                 else:
                     alt_names_str = None
 
-                # Create new drug object
                 new_drug = Drug(
                     name_en=name_en,
                     name_tr=name_tr,
@@ -2856,7 +2854,6 @@ def upload_drugs():
                 )
                 new_drugs.append(new_drug)
 
-                # Commit in batches
                 if len(new_drugs) >= batch_size:
                     logger.info(f"Committing batch of {len(new_drugs)} drugs")
                     db.session.add_all(new_drugs)
@@ -2871,7 +2868,6 @@ def upload_drugs():
 
             total_processed += len(chunk)
 
-        # Commit any remaining drugs
         if new_drugs:
             logger.info(f"Committing final batch of {len(new_drugs)} drugs")
             db.session.add_all(new_drugs)
