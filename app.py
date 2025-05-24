@@ -2784,86 +2784,103 @@ def upload_drugs():
         # Check file extension
         if file.filename.endswith('.xlsx'):
             try:
-                # Read Excel file with minimal memory usage
-                data = pd.read_excel(file, dtype=str, nrows=1000)  # Limit to 1000 rows
-                if len(data) == 1000:
-                    return "Excel file exceeds 1000 rows. Please upload a smaller file.", 400
+                # Estimate file size by checking row count
+                test_df = pd.read_excel(file, nrows=1)
+                file.seek(0)  # Reset file pointer
             except Exception as e:
                 logger.error(f"Error reading Excel file: {e}")
                 return f"Error reading Excel file: {e}", 400
         else:
             return "Unsupported file format. Please upload an Excel (.xlsx) file.", 400
 
-        # Clean column names
-        data.columns = data.columns.str.strip()
-
-        # Check if 'name_en' column exists
-        if 'name_en' not in data.columns:
-            return f"The file must contain a 'name_en' column. Found columns: {data.columns.tolist()}", 400
-
-        # Insert drugs into the database
-        batch_size = 50  # Smaller batch size to reduce memory
+        # Process Excel file in chunks
+        chunk_size = 500  # Process 500 rows at a time
+        batch_size = 50   # Commit 50 drugs at a time
         new_drugs = []
-        for index, row in data.iterrows():
-            name_en = row.get('name_en')
-            
-            # Ensure 'name_en' is a valid string
-            if pd.isna(name_en) or not str(name_en).strip():
-                logger.error(f"Invalid 'name_en' in row {index + 2}")
-                return f"Invalid 'name_en' value in row {index + 2}.", 400
+        total_processed = 0
 
-            name_en = str(name_en).strip()
-            if len(name_en) > 255:
-                logger.error(f"Drug name too long in row {index + 2}: {name_en}")
-                return f"Drug name '{name_en}' in row {index + 2} exceeds maximum length of 255 characters.", 400
+        for chunk in pd.read_excel(file, dtype=str, chunksize=chunk_size):
+            logger.info(f"Processing chunk of {len(chunk)} rows")
+            chunk.columns = chunk.columns.str.strip()
 
-            # Assign name_tr the same value as name_en if not provided
-            name_tr = row.get('name_tr', name_en)
-            name_tr = str(name_tr).strip() if pd.notna(name_tr) else name_en
-            if len(name_tr) > 255:
-                logger.error(f"Drug name (TR) too long in row {index + 2}: {name_tr}")
-                return f"Drug name (TR) '{name_tr}' in row {index + 2} exceeds maximum length of 255 characters.", 400
+            # Check if 'name_en' column exists
+            if 'name_en' not in chunk.columns:
+                return f"The file must contain a 'name_en' column. Found columns: {chunk.columns.tolist()}", 400
 
-            # Check for duplicates
-            logger.info(f"Checking duplicate for: {name_en}")
-            with db.session.no_autoflush:
-                existing_drug = Drug.query.filter_by(name_en=name_en).first()
-            if existing_drug:
-                logger.info(f"Skipping duplicate drug: {name_en}")
-                continue
+            for index, row in chunk.iterrows():
+                name_en = row.get('name_en')
+                
+                # Ensure 'name_en' is a valid string
+                if pd.isna(name_en) or not str(name_en).strip():
+                    logger.error(f"Invalid 'name_en' in row {index + 2 + total_processed}")
+                    return f"Invalid 'name_en' value in row {index + 2 + total_processed}.", 400
 
-            # Handle optional fields
-            alt_names = row.get('alternative_names', None)
-            if pd.notna(alt_names):
-                alt_names = str(alt_names).split(" | ")
-                alt_names_str = ", ".join(alt_names)
-            else:
-                alt_names_str = None
+                name_en = str(name_en).strip()
+                if len(name_en) > 255:
+                    logger.error(f"Drug name too long in row {index + 2 + total_processed}: {name_en}")
+                    return f"Drug name '{name_en}' in row {index + 2 + total_processed} exceeds maximum length of 255 characters.", 400
 
-            # Create new drug object
-            new_drug = Drug(
-                name_en=name_en,
-                name_tr=name_tr,
-                alternative_names=alt_names_str,
-                fda_approved=False
-            )
-            new_drugs.append(new_drug)
+                # Assign name_tr the same value as name_en if not provided
+                name_tr = row.get('name_tr', name_en)
+                name_tr = str(name_tr).strip() if pd.notna(name_tr) else name_en
+                if len(name_tr) > 255:
+                    logger.error(f"Drug name (TR) too long in row {index + 2 + total_processed}: {name_tr}")
+                    return f"Drug name (TR) '{name_tr}' in row {index + 2 + total_processed} exceeds maximum length of 255 characters.", 400
 
-            # Commit in batches
-            if len(new_drugs) >= batch_size or index == len(data) - 1:
-                logger.info(f"Committing batch of {len(new_drugs)} drugs")
-                db.session.add_all(new_drugs)
-                try:
-                    db.session.commit()
-                    logger.info(f"Committed {len(new_drugs)} drugs")
-                    new_drugs = []
-                except Exception as e:
-                    db.session.rollback()
-                    logger.error(f"Error committing drugs: {e}")
-                    return f"Error saving drugs: {e}", 500
+                # Check for duplicates
+                logger.debug(f"Checking duplicate for: {name_en}")
+                with db.session.no_autoflush:
+                    existing_drug = Drug.query.filter_by(name_en=name_en).first()
+                if existing_drug:
+                    logger.debug(f"Skipping duplicate drug: {name_en}")
+                    continue
 
-        logger.info("Upload completed successfully")
-        return "Drugs uploaded successfully, duplicates were skipped!", 200
+                # Handle optional fields
+                alt_names = row.get('alternative_names', None)
+                if pd.notna(alt_names):
+                    alt_names = str(alt_names).split(" | ")
+                    alt_names_str = ", ".join(alt_names)
+                else:
+                    alt_names_str = None
+
+                # Create new drug object
+                new_drug = Drug(
+                    name_en=name_en,
+                    name_tr=name_tr,
+                    alternative_names=alt_names_str,
+                    fda_approved=False
+                )
+                new_drugs.append(new_drug)
+
+                # Commit in batches
+                if len(new_drugs) >= batch_size:
+                    logger.info(f"Committing batch of {len(new_drugs)} drugs")
+                    db.session.add_all(new_drugs)
+                    try:
+                        db.session.commit()
+                        logger.info(f"Committed {len(new_drugs)} drugs")
+                        new_drugs = []
+                    except Exception as e:
+                        db.session.rollback()
+                        logger.error(f"Error committing drugs: {e}")
+                        return f"Error saving drugs: {e}", 500
+
+            total_processed += len(chunk)
+
+        # Commit any remaining drugs
+        if new_drugs:
+            logger.info(f"Committing final batch of {len(new_drugs)} drugs")
+            db.session.add_all(new_drugs)
+            try:
+                db.session.commit()
+                logger.info(f"Committed {len(new_drugs)} drugs")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error committing drugs: {e}")
+                return f"Error saving drugs: {e}", 500
+
+        logger.info(f"Upload completed successfully. Processed {total_processed} rows.")
+        return f"Drugs uploaded successfully, duplicates were skipped! Processed {total_processed} rows.", 200
 
     return render_template('upload.html')
 
