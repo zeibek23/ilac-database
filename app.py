@@ -129,6 +129,32 @@ drug_route_metabolite = db.Table(
     extend_existing=True
 )
 
+# Many-to-Many İlişkisi için Ara Tablo
+drug_salt = db.Table(
+    'drug_salt',
+    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    db.Column('salt_id', db.Integer, db.ForeignKey('public.salt.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
+)
+
+# Many-to-Many ilişki tablosu
+detail_side_effect = db.Table(
+    'detail_side_effect',
+    db.Column('detail_id', db.Integer, db.ForeignKey('public.drug_detail.id'), primary_key=True),
+    db.Column('side_effect_id', db.Integer, db.ForeignKey('public.side_effect.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
+)
+
+pathway_drug = db.Table(
+    'pathway_drug',
+    db.Column('pathway_id', db.Integer, db.ForeignKey('public.pathway.id'), primary_key=True),
+    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
+)
+
 # Veritabanı Modeli
 class DrugCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -136,6 +162,12 @@ class DrugCategory(db.Model):
     name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., "Cholinergic Agonists"
     parent_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)  # Self-referential FK
     parent = db.relationship('DrugCategory', remote_side=[id], backref='children')  # Parent-child relationship
+
+class Salt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    name_tr = db.Column(db.String(100), nullable=False)
+    name_en = db.Column(db.String(100), nullable=False)    
 
 class Drug(db.Model):
     __tablename__ = 'drug'
@@ -161,22 +193,6 @@ class Drug(db.Model):
     drug_labels = db.relationship('DrugLabelDrug', back_populates='drug')
     clinical_variants = db.relationship('ClinicalVariantDrug', back_populates='drug')
     variant_annotations = db.relationship('VariantAnnotationDrug', back_populates='drug')
-
-class Salt(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    __table_args__ = {'schema': 'public', 'extend_existing': True}
-    name_tr = db.Column(db.String(100), nullable=False)
-    name_en = db.Column(db.String(100), nullable=False)
-
-# Many-to-Many İlişkisi için Ara Tablo
-drug_salt = db.Table(
-    'drug_salt',
-    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
-    db.Column('salt_id', db.Integer, db.ForeignKey('public.salt.id'), primary_key=True),
-    schema='public',
-    extend_existing=True
-)
-
 
 
 
@@ -428,24 +444,7 @@ class Pathway(db.Model):
     url = db.Column(db.String(255), nullable=True)  # KEGG pathway görseli URL'si
     drugs = db.relationship('Drug', secondary='pathway_drug', backref='pathways', lazy='dynamic')
 
-pathway_drug = db.Table(
-    'pathway_drug',
-    db.Column('pathway_id', db.Integer, db.ForeignKey('public.pathway.id'), primary_key=True),
-    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
-    schema='public',
-    extend_existing=True
-)
 
-
-
-# Many-to-Many ilişki tablosu
-detail_side_effect = db.Table(
-    'detail_side_effect',
-    db.Column('detail_id', db.Integer, db.ForeignKey('public.drug_detail.id'), primary_key=True),
-    db.Column('side_effect_id', db.Integer, db.ForeignKey('public.side_effect.id'), primary_key=True),
-    schema='public',
-    extend_existing=True
-)
 
 class MetabolismOrgan(db.Model):
     __tablename__ = 'metabolism_organ'
