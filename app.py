@@ -959,8 +959,13 @@ def admin_required(f):
 #Anasayfa
 @app.route('/')
 def home():
-    announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
-    updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
+    try:
+        announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
+        updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
+    except Exception as e:
+        print(f"Oops, toy box problem: {e}")
+        announcements = []
+        updates = []
     user = None
     user_email = None
     if 'user_id' in session:
