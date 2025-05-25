@@ -1564,17 +1564,18 @@ def find_column(df, possible_names):
 
 def import_icd11_mms_from_file(file_path):
     file_ext = os.path.splitext(file_path)[1].lower()
+    chunk_size = 5000  # Process 5,000 rows at a time
+    batch_size = 500   # Commit categories every 500 records (same as original)
+
+    # Initialize reader for chunked processing
     if file_ext == '.xlsx':
-        df = pd.read_excel(file_path, dtype=str)
+        reader = pd.read_excel(file_path, dtype=str, chunksize=chunk_size)
     elif file_ext in ['.txt', '.tsv']:
-        df = pd.read_csv(file_path, sep='\t', dtype=str, encoding='utf-8')
+        reader = pd.read_csv(file_path, sep='\t', dtype=str, encoding='utf-8', chunksize=chunk_size)
     else:
         raise ValueError(f"Unsupported file type: {file_ext}")
 
-    df = df.fillna('')
-    total_rows = len(df)
-
-    # Column mapping
+    # Column mapping (unchanged)
     required_columns = {
         'Foundation URI': ['Foundation URI', 'FoundationURI', 'Foundation_URI'],
         'Linearization URI': ['Linearization URI', 'LinearizationURI', 'Linearization_URI'],
@@ -1593,121 +1594,60 @@ def import_icd11_mms_from_file(file_path):
         'isLeaf': ['isLeaf'],
     }
 
-    found_columns = {}
-    missing_columns = []
-    for col, variations in required_columns.items():
-        found_col = find_column(df, variations)
-        if found_col:
-            found_columns[col] = found_col
-        else:
-            missing_columns.append(col)
-
-    if missing_columns:
-        if 'Linearization URI' in missing_columns and 'Foundation URI' not in missing_columns:
-            missing_columns.remove('Linearization URI')
-        if missing_columns:
-            raise ValueError(f"Missing columns: {missing_columns}")
-
-    # Dictionaries to track entities
+    # Initialize tracking variables
     uri_to_id = {}
     code_to_id = {}
     block_to_id = {}
     chapter_to_id = {}
     added_count = {'chapter': 0, 'block': 0, 'category': 0, 'other': 0}
     skipped_rows = []
-    batch_size = 500
+    total_rows = 0
 
-    # Separate entries into chapters, blocks, and categories
-    chapters = []
-    blocks = []
-    categories = []
-    for index, row in df.iterrows():
-        class_kind = row[found_columns['ClassKind']] or 'unknown'
-        name_en = clean_title(row[found_columns['Title']])
-        code = row[found_columns['Code']] or None
-        safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
-        print(f"Row {index}: class_kind={class_kind}, name_en={safe_name_en}, code={code}")
-        if class_kind == 'chapter':
-            chapters.append((index, row))
-        elif class_kind == 'block':
-            blocks.append((index, row))
-        elif class_kind == 'category':
-            categories.append((index, row))
-        else:
-            skipped_rows.append(f"Row {index}: Unknown class_kind '{class_kind}'")
+    # Process each chunk
+    for chunk_idx, df in enumerate(reader):
+        df = df.fillna('')
+        total_rows += len(df)
+        print(f"Processing chunk {chunk_idx + 1} (rows {chunk_idx * chunk_size + 1} to {chunk_idx * chunk_size + len(df)})")
 
-    print(f"Processing {len(chapters)} chapters, {len(blocks)} blocks, {len(categories)} categories")
+        # Column validation (unchanged)
+        found_columns = {}
+        missing_columns = []
+        for col, variations in required_columns.items():
+            found_col = find_column(df, variations)
+            if found_col:
+                found_columns[col] = found_col
+            else:
+                missing_columns.append(col)
 
-    # Process chapters first
-    for index, row in chapters:
-        foundation_uri = row[found_columns['Foundation URI']] or None
-        disease_id_base = row.get(found_columns.get('Linearization URI'), foundation_uri) or None
-        code = row[found_columns['Code']] or None
-        disease_id = f"{index}_{disease_id_base}" if disease_id_base else str(index)
-        block_id = row.get(found_columns['BlockId'], '') or None
-        name_en = clean_title(row[found_columns['Title']])
-        class_kind = row[found_columns['ClassKind']] or 'unknown'
-        depth = int(row[found_columns['DepthInKind']])
-        is_residual = row.get(found_columns['IsResidual'], 'False') == 'True'
-        is_leaf = row.get(found_columns['isLeaf'], 'False') == 'True'
-        chapter_no = row.get(found_columns['ChapterNo'], '') or None
+        if missing_columns:
+            if 'Linearization URI' in missing_columns and 'Foundation URI' not in missing_columns:
+                missing_columns.remove('Linearization URI')
+            if missing_columns:
+                raise ValueError(f"Missing columns: {missing_columns}")
 
-        safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
-        print(f"Processing chapter: {safe_name_en} (disease_id: {disease_id}, chapter_no: {chapter_no})")
+        # Separate entries into chapters, blocks, and categories (unchanged)
+        chapters = []
+        blocks = []
+        categories = []
+        for index, row in df.iterrows():
+            class_kind = row[found_columns['ClassKind']] or 'unknown'
+            name_en = clean_title(row[found_columns['Title']])
+            code = row[found_columns['Code']] or None
+            safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
+            print(f"Row {index}: class_kind={class_kind}, name_en={safe_name_en}, code={code}")
+            if class_kind == 'chapter':
+                chapters.append((index, row))
+            elif class_kind == 'block':
+                blocks.append((index, row))
+            elif class_kind == 'category':
+                categories.append((index, row))
+            else:
+                skipped_rows.append(f"Row {index}: Unknown class_kind '{class_kind}'")
 
-        if not name_en:
-            skipped_rows.append(f"Row {index}: Missing name_en")
-            continue
-        if class_kind == 'chapter' and not chapter_no:
-            skipped_rows.append(f"Row {index}: Missing ChapterNo for chapter")
-            continue
+        print(f"Chunk {chunk_idx + 1}: {len(chapters)} chapters, {len(blocks)} blocks, {len(categories)} categories")
 
-        parent_id = None  # Chapters have no parent
-
-        existing = Indication.query.filter_by(disease_id=disease_id).first()
-        if not existing:
-            new_indication = Indication(
-                foundation_uri=foundation_uri,
-                disease_id=disease_id,
-                name_en=name_en,
-                code=code,
-                class_kind=class_kind,
-                depth=depth,
-                parent_id=parent_id,
-                is_residual=is_residual,
-                is_leaf=is_leaf,
-                chapter_no=chapter_no,
-                BlockId=block_id
-            )
-            db.session.add(new_indication)
-            db.session.flush()
-            uri_to_id[disease_id] = new_indication.id
-            if code:
-                code_to_id[code] = new_indication.id
-            if class_kind == 'chapter' and chapter_no:
-                chapter_to_id[chapter_no] = new_indication.id
-            if block_id:
-                block_to_id[block_id] = new_indication.id
-            added_count['chapter'] += 1
-        else:
-            uri_to_id[disease_id] = existing.id
-            if code:
-                code_to_id[code] = existing.id
-            if class_kind == 'chapter' and chapter_no:
-                chapter_to_id[chapter_no] = existing.id
-            if block_id:
-                block_to_id[block_id] = existing.id
-
-    # Process blocks in hierarchical order
-    block_depths = {}
-    for index, row in blocks:
-        depth = int(row[found_columns['DepthInKind']])
-        if depth not in block_depths:
-            block_depths[depth] = []
-        block_depths[depth].append((index, row))
-
-    for depth in sorted(block_depths.keys()):
-        for index, row in block_depths[depth]:
+        # Process chapters (unchanged)
+        for index, row in chapters:
             foundation_uri = row[found_columns['Foundation URI']] or None
             disease_id_base = row.get(found_columns.get('Linearization URI'), foundation_uri) or None
             code = row[found_columns['Code']] or None
@@ -1721,17 +1661,16 @@ def import_icd11_mms_from_file(file_path):
             chapter_no = row.get(found_columns['ChapterNo'], '') or None
 
             safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
-            print(f"Processing block (depth {depth}): {safe_name_en} (block_id: {block_id}, chapter_no: {chapter_no})")
+            print(f"Processing chapter: {safe_name_en} (disease_id: {disease_id}, chapter_no: {chapter_no})")
 
             if not name_en:
                 skipped_rows.append(f"Row {index}: Missing name_en")
                 continue
-
-            parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
-
-            if parent_id is None and depth > 1:
-                skipped_rows.append(f"Row {index}: No parent found for block '{safe_name_en}' (depth {depth})")
+            if class_kind == 'chapter' and not chapter_no:
+                skipped_rows.append(f"Row {index}: Missing ChapterNo for chapter")
                 continue
+
+            parent_id = None  # Chapters have no parent
 
             existing = Indication.query.filter_by(disease_id=disease_id).first()
             if not existing:
@@ -1757,7 +1696,7 @@ def import_icd11_mms_from_file(file_path):
                     chapter_to_id[chapter_no] = new_indication.id
                 if block_id:
                     block_to_id[block_id] = new_indication.id
-                added_count['block'] += 1
+                added_count['chapter'] += 1
             else:
                 uri_to_id[disease_id] = existing.id
                 if code:
@@ -1767,84 +1706,156 @@ def import_icd11_mms_from_file(file_path):
                 if block_id:
                     block_to_id[block_id] = existing.id
 
-    print(f"block_to_id after processing blocks: {block_to_id}")
-
-    # Process categories in hierarchical order
-    category_depths = {}
-    for index, row in categories:
-        depth = int(row[found_columns['DepthInKind']])
-        if depth not in category_depths:
-            category_depths[depth] = []
-        category_depths[depth].append((index, row))
-
-    for depth in sorted(category_depths.keys()):
-        # Sort categories within each depth by code to ensure base categories (e.g., KA45) are processed before subcategories (e.g., KA45.0)
-        sorted_categories = sorted(category_depths[depth], key=lambda x: x[1][found_columns['Code']] or '')
-        for index, row in sorted_categories:
-            foundation_uri = row[found_columns['Foundation URI']] or None
-            disease_id_base = row.get(found_columns.get('Linearization URI'), foundation_uri) or None
-            code = row[found_columns['Code']] or None
-            disease_id = f"{index}_{disease_id_base}" if disease_id_base else str(index)
-            block_id = row.get(found_columns['BlockId'], '') or None
-            name_en = clean_title(row[found_columns['Title']])
-            class_kind = row[found_columns['ClassKind']] or 'unknown'
+        # Process blocks in hierarchical order (unchanged)
+        block_depths = {}
+        for index, row in blocks:
             depth = int(row[found_columns['DepthInKind']])
-            is_residual = row.get(found_columns['IsResidual'], 'False') == 'True'
-            is_leaf = row.get(found_columns['isLeaf'], 'False') == 'True'
-            chapter_no = row.get(found_columns['ChapterNo'], '') or None
+            if depth not in block_depths:
+                block_depths[depth] = []
+            block_depths[depth].append((index, row))
 
-            safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
-            print(f"Processing category (depth {depth}): {safe_name_en} (code: {code}, chapter_no: {chapter_no})")
+        for depth in sorted(block_depths.keys()):
+            for index, row in block_depths[depth]:
+                foundation_uri = row[found_columns['Foundation URI']] or None
+                disease_id_base = row.get(found_columns.get('Linearization URI'), foundation_uri) or None
+                code = row[found_columns['Code']] or None
+                disease_id = f"{index}_{disease_id_base}" if disease_id_base else str(index)
+                block_id = row.get(found_columns['BlockId'], '') or None
+                name_en = clean_title(row[found_columns['Title']])
+                class_kind = row[found_columns['ClassKind']] or 'unknown'
+                depth = int(row[found_columns['DepthInKind']])
+                is_residual = row.get(found_columns['IsResidual'], 'False') == 'True'
+                is_leaf = row.get(found_columns['isLeaf'], 'False') == 'True'
+                chapter_no = row.get(found_columns['ChapterNo'], '') or None
 
-            if not name_en:
-                skipped_rows.append(f"Row {index}: Missing name_en")
-                continue
+                safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
+                print(f"Processing block (depth {depth}): {safe_name_en} (block_id: {block_id}, chapter_no: {chapter_no})")
 
-            parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
+                if not name_en:
+                    skipped_rows.append(f"Row {index}: Missing name_en")
+                    continue
 
-            if parent_id is None and depth > 1:
-                skipped_rows.append(f"Row {index}: No parent found for category '{safe_name_en}' (depth {depth})")
-                continue
+                parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
 
-            existing = Indication.query.filter_by(disease_id=disease_id).first()
-            if not existing:
-                new_indication = Indication(
-                    foundation_uri=foundation_uri,
-                    disease_id=disease_id,
-                    name_en=name_en,
-                    code=code,
-                    class_kind=class_kind,
-                    depth=depth,
-                    parent_id=parent_id,
-                    is_residual=is_residual,
-                    is_leaf=is_leaf,
-                    chapter_no=chapter_no,
-                    BlockId=block_id
-                )
-                db.session.add(new_indication)
-                db.session.flush()
-                uri_to_id[disease_id] = new_indication.id
-                if code:
-                    code_to_id[code] = new_indication.id
-                if class_kind == 'chapter' and chapter_no:
-                    chapter_to_id[chapter_no] = new_indication.id
-                if block_id:
-                    block_to_id[block_id] = new_indication.id
-                added_count['category'] += 1
-                if (added_count['category'] % batch_size) == 0:
-                    db.session.commit()
-            else:
-                uri_to_id[disease_id] = existing.id
-                if code:
-                    code_to_id[code] = existing.id
-                if class_kind == 'chapter' and chapter_no:
-                    chapter_to_id[chapter_no] = existing.id
-                if block_id:
-                    block_to_id[block_id] = existing.id
+                if parent_id is None and depth > 1:
+                    skipped_rows.append(f"Row {index}: No parent found for block '{safe_name_en}' (depth {depth})")
+                    continue
 
+                existing = Indication.query.filter_by(disease_id=disease_id).first()
+                if not existing:
+                    new_indication = Indication(
+                        foundation_uri=foundation_uri,
+                        disease_id=disease_id,
+                        name_en=name_en,
+                        code=code,
+                        class_kind=class_kind,
+                        depth=depth,
+                        parent_id=parent_id,
+                        is_residual=is_residual,
+                        is_leaf=is_leaf,
+                        chapter_no=chapter_no,
+                        BlockId=block_id
+                    )
+                    db.session.add(new_indication)
+                    db.session.flush()
+                    uri_to_id[disease_id] = new_indication.id
+                    if code:
+                        code_to_id[code] = new_indication.id
+                    if class_kind == 'chapter' and chapter_no:
+                        chapter_to_id[chapter_no] = new_indication.id
+                    if block_id:
+                        block_to_id[block_id] = new_indication.id
+                    added_count['block'] += 1
+                else:
+                    uri_to_id[disease_id] = existing.id
+                    if code:
+                        code_to_id[code] = existing.id
+                    if class_kind == 'chapter' and chapter_no:
+                        chapter_to_id[chapter_no] = existing.id
+                    if block_id:
+                        block_to_id[block_id] = existing.id
+
+        print(f"Chunk {chunk_idx + 1} block_to_id: {block_to_id}")
+
+        # Process categories in hierarchical order (unchanged)
+        category_depths = {}
+        for index, row in categories:
+            depth = int(row[found_columns['DepthInKind']])
+            if depth not in category_depths:
+                category_depths[depth] = []
+            category_depths[depth].append((index, row))
+
+        for depth in sorted(category_depths.keys()):
+            sorted_categories = sorted(category_depths[depth], key=lambda x: x[1][found_columns['Code']] or '')
+            for index, row in sorted_categories:
+                foundation_uri = row[found_columns['Foundation URI']] or None
+                disease_id_base = row.get(found_columns.get('Linearization URI'), foundation_uri) or None
+                code = row[found_columns['Code']] or None
+                disease_id = f"{index}_{disease_id_base}" if disease_id_base else str(index)
+                block_id = row.get(found_columns['BlockId'], '') or None
+                name_en = clean_title(row[found_columns['Title']])
+                class_kind = row[found_columns['ClassKind']] or 'unknown'
+                depth = int(row[found_columns['DepthInKind']])
+                is_residual = row.get(found_columns['IsResidual'], 'False') == 'True'
+                is_leaf = row.get(found_columns['isLeaf'], 'False') == 'True'
+                chapter_no = row.get(found_columns['ChapterNo'], '') or None
+
+                safe_name_en = name_en.encode('ascii', 'replace').decode('ascii')
+                print(f"Processing category (depth {depth}): {safe_name_en} (code: {code}, chapter_no: {chapter_no})")
+
+                if not name_en:
+                    skipped_rows.append(f"Row {index}: Missing name_en")
+                    continue
+
+                parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
+
+                if parent_id is None and depth > 1:
+                    skipped_rows.append(f"Row {index}: No parent found for category '{safe_name_en}' (depth {depth})")
+                    continue
+
+                existing = Indication.query.filter_by(disease_id=disease_id).first()
+                if not existing:
+                    new_indication = Indication(
+                        foundation_uri=foundation_uri,
+                        disease_id=disease_id,
+                        name_en=name_en,
+                        code=code,
+                        class_kind=class_kind,
+                        depth=depth,
+                        parent_id=parent_id,
+                        is_residual=is_residual,
+                        is_leaf=is_leaf,
+                        chapter_no=chapter_no,
+                        BlockId=block_id
+                    )
+                    db.session.add(new_indication)
+                    db.session.flush()
+                    uri_to_id[disease_id] = new_indication.id
+                    if code:
+                        code_to_id[code] = new_indication.id
+                    if class_kind == 'chapter' and chapter_no:
+                        chapter_to_id[chapter_no] = new_indication.id
+                    if block_id:
+                        block_to_id[block_id] = new_indication.id
+                    added_count['category'] += 1
+                    if (added_count['category'] % batch_size) == 0:
+                        db.session.commit()
+                else:
+                    uri_to_id[disease_id] = existing.id
+                    if code:
+                        code_to_id[code] = existing.id
+                    if class_kind == 'chapter' and chapter_no:
+                        chapter_to_id[chapter_no] = existing.id
+                    if block_id:
+                        block_to_id[block_id] = existing.id
+
+        db.session.commit()
+        print(f"Committed chunk {chunk_idx + 1}")
+
+    # Final commit (unchanged)
     db.session.commit()
 
-    # Validate hierarchy
+    # Validate hierarchy (unchanged)
     total_added = sum(added_count.values())
     orphaned = Indication.query.filter(Indication.parent_id.is_(None), Indication.depth > 1, Indication.class_kind != 'chapter').count()
     if orphaned > 0:
