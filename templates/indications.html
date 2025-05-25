@@ -3,52 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICD-11 Veri Yükleme</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
+    <title>ICD-11 Veri Yansı</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" integrity="sha512-iecdLmaskl7CVkqk1wZxL+h7yBzvj8z3jI9zL8zL7Q2z6L5f5l8zL8z3jI9zL8zL7Q2z6L5f5l8z3jI9zL8z3j" crossorigin="anonymous">
     <style>
         body {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             font-family: 'Inter', sans-serif;
+            min-height: 100vh;
         }
         .container {
             max-width: 1200px;
         }
         h1, h2 {
-            color: #2c3e50;
+            color: #1a3c5e;
             font-weight: 700;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         .form-section, .tree-section {
             background: #ffffff;
-            border-radius: 10px;
-            padding: 2rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border-radius: 15px;
+            padding: 2.5rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
             margin-bottom: 2rem;
+            transition: transform 0.3s ease;
+        }
+        .form-section:hover, .tree-section:hover {
+            transform: translateY(-5px);
         }
         .btn-primary {
-            background-color: #007bff;
+            background: linear-gradient(45deg, #007bff, #00d4ff);
             border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
             font-weight: 600;
-            transition: background-color 0.2s;
+            transition: all 0.3s;
         }
         .btn-primary:hover {
-            background-color: #0056b3;
+            background: linear-gradient(45deg, #0056b3, #00aaff);
+            transform: scale(1.05);
         }
         .btn-danger {
-            background-color: #dc3545;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
+            background: linear-gradient(45deg, #dc3545, #ff6b6b);
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
             font-weight: 600;
+            transition: all 0.3s;
         }
         .btn-danger:hover {
-            background-color: #a71d2a;
+            background: linear-gradient(45deg, #a71d2a, #ff4d4d);
+            transform: scale(1.05);
+        }
+        .btn-outline-secondary {
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        .btn-outline-secondary:hover {
+            background-color: #e9ecef;
         }
         .alert {
+            border-radius: 10px;
             margin-top: 1rem;
         }
         #loading {
+            display: none;
+            margin-top: 1rem;
+        }
+        .upload-progress {
             display: none;
             margin-top: 1rem;
         }
@@ -63,11 +84,13 @@
         .tree .node {
             display: flex;
             align-items: center;
-            padding: 5px 0;
+            padding: 8px 0;
             cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.2s;
         }
         .tree .node:hover {
-            background-color: #e9ecef;
+            background-color: #f1f3f5;
         }
         .tree .node .children {
             display: none;
@@ -76,69 +99,93 @@
             display: block;
         }
         .tree .toggle {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-            font-size: 14px;
-            line-height: 20px;
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            font-size: 16px;
+            line-height: 24px;
             text-align: center;
             cursor: pointer;
             color: #495057;
         }
         .tree .toggle::before {
-            content: "▷";
+            content: "\f054"; /* Font Awesome chevron-right */
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
         }
         .tree .node.expanded .toggle::before {
-            content: "▽";
+            content: "\f078"; /* Chevron-down */
         }
         .tree .leaf .toggle::before {
             content: "";
         }
         .tree .node-details .label {
-            font-size: 1rem;
+            font-size: 15px;
             color: #333;
         }
         .tree .node-details .label.chapter {
             font-weight: bold;
-            color: #2c3e50;
+            color: #1a3c5e;
         }
-        .tree .node-details .label.block {
+        .tree .node-details .block {
             font-weight: 500;
             color: #34495e;
         }
-        .tree .node-details .label.category {
+        .tree .node-details .category {
             font-weight: normal;
             color: #495057;
         }
+        .tree .node-details .badge {
+            font-size: 12px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .tree .node-actions {
+            margin-left: 10px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .tree .node:hover .node-actions {
+            opacity: 1;
+        }
         .search-bar {
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
             position: relative;
         }
         #tree-search {
-            padding: 8px 35px 8px 12px;
+            padding: 10px 40px 10px 15px;
             border-radius: 8px;
+            box-shadow: inset;
         }
         .search-bar .clear-search {
             position: absolute;
-            right: 12px;
+            right: 15px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             color: #6c757d;
-            font-size: 18px;
+            font-size: 20px;
             display: none;
         }
         .search-bar .clear-search:hover {
             color: #dc3545;
         }
-        .ram-monitor {
-            font-size: 0.9rem;
-            color: #495057;
+        .ram-card {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             margin-top: 1rem;
         }
-        .ram-monitor .progress {
-            height: 20px;
+        .ram-card .progress {
+            height: 25px;
             border-radius: 8px;
+        }
+        .view-toggle .btn {
+            font-weight: 600;
+        }
+        .table-view {
+            display: none;
         }
         .tree .node-level-0 { margin-left: 0px !important; }
         .tree .node-level-1 { margin-left: 20px !important; }
@@ -153,15 +200,19 @@
                 padding: 1.5rem;
             }
             .btn-primary, .btn-danger {
-                padding: 0.5rem 1rem;
+                padding: 0.6rem 1.2rem;
+            }
+            .ram-card {
+                padding: 0.75rem;
             }
         }
     </style>
 </head>
 <body>
 <div class="container my-5">
-    <h1 class="text-center mb-5">ICD-11 Veri Yükleme</h1>
+    <h1 class="text-center mb-5">ICD-11 Veri Yansı</h1>
 
+    <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     {% for category, message in messages %}
@@ -173,87 +224,185 @@
     {% endif %}
     {% endwith %}
 
+    <!-- Upload Form -->
     <div class="form-section">
         <h2 class="text-center mb-4">ICD-11 Dosyası Yükle</h2>
         <form id="uploadForm" method="post" enctype="multipart/form-data">
             <div class="mb-4">
                 <label for="file" class="form-label fw-bold">Dosya Seç (.txt, .tsv, .xlsx):</label>
-                <input type="file" class="form-control" id="file" name="file" accept=".txt,.tsv,.xlsx" required>
+                <input type="file" class="form-control" id="file" name="file" accept=".txt,.tsv,.xlsx" required aria-describedby="fileHelp">
+                <div id="fileHelp" class="form-text">ICD-11 verilerini içeren bir dosyayı seçin (maks. 50 MB).</div>
             </div>
             <div class="text-center">
-                <button type="submit" class="btn btn-primary">Yükle ve İçe Aktar</button>
+                <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Dosyayı yükler ve endikasyonları içe aktarır">Yükle ve İçe Aktar</button>
             </div>
             <div id="loading" class="text-center">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Yükleniyor...</span>
                 </div>
-                <p>Yükleme devam ediyor, lütfen bekleyin...</p>
+                <p>Yükleme devam ediyor...</p>
+            </div>
+            <div class="upload-progress">
+                <p>İlerleme: <span id="upload-progress-text">0%</span></p>
+                <div class="progress">
+                    <div id="upload-progress-bar" class="progress-bar bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
             </div>
         </form>
     </div>
 
+    <!-- Add Indication Form -->
     <div class="form-section">
         <h2 class="text-center mb-4">Yeni Endikasyon Ekle</h2>
-        <form action="{{ url_for('manage_indications') }}" method="post">
+        <form id="addIndicationForm" action="{{ url_for('manage_indications') }}" method="post" novalidate>
             <div class="mb-4">
                 <label for="name_en" class="form-label fw-bold">İsim (EN):</label>
-                <input type="text" class="form-control" id="name_en" name="name_en" required>
+                <input type="text" class="form-control" id="name_en" name="name_en" required aria-describedby="nameEnHelp">
+                <div id="nameEnHelp" class="form-text">Endikasyonun İngilizce adı (örn: Dengue).</div>
+                <div class="invalid-feedback">Lütfen İngilizce isim girin.</div>
             </div>
             <div class="mb-4">
                 <label for="name_tr" class="form-label fw-bold">İsim (TR):</label>
-                <input type="text" class="form-control" id="name_tr" name="name_tr">
+                <input type="text" class="form-control" id="name_tr" name="name_tr" aria-describedby="nameTrHelp">
+                <div id="nameTrHelp" class="form-text">Endikasyonun Türkçe adı (isteğe bağlı).</div>
             </div>
             <div class="mb-4">
                 <label for="description" class="form-label fw-bold">Açıklama:</label>
-                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                <textarea class="form-control" id="description" name="description" rows="3" aria-describedby="descHelp"></textarea>
+                <div id="descHelp" class="form-text">Endikasyon hakkında detaylı bilgi (isteğe bağlı).</div>
             </div>
             <div class="mb-4">
-                <label for="synonyms" class="form-label fw-bold">Eş Anlamlılar (virgülle ayrılmış):</label>
-                <input type="text" class="form-control" id="synonyms" name="synonyms">
+                <label for="synonyms" class="form-label fw-bold">Eş Anlamlılar:</label>
+                <input type="text" class="form-control" id="synonyms" name="synonyms" aria-describedby="synonymsHelp">
+                <div id="synonymsHelp" class="form-text">Virgülle ayrılmış eş anlamlılar (örn: Fever, Rash).</div>
             </div>
             <div class="mb-4">
                 <label for="code" class="form-label fw-bold">ICD-11 Kodu:</label>
-                <input type="text" class="form-control" id="code" name="code" required>
+                <input type="text" class="form-control" id="code" name="code" required pattern="[A-Za-z0-9\-]+" aria-describedby="codeHelp">
+                <div id="codeHelp" class="form-text">Geçerli bir ICD-11 kodu (örn: 1A2Z, EH61).</div>
+                <div class="invalid-feedback">Lütfen geçerli bir ICD-11 kodu girin (harf ve rakamlardan oluşmalı).</div>
             </div>
             <div class="text-center">
-                <button type="submit" class="btn btn-primary">Endikasyon Ekle</button>
+                <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Yeni endikasyonu kaydeder">Endikasyon Ekle</button>
             </div>
         </form>
     </div>
 
+    <!-- Hierarchy Section -->
     <div class="tree-section">
         <h2 class="text-center mb-4">ICD-11 Hiyerarşisi</h2>
+        <div class="d-flex justify-content-between mb-4">
+            <div class="view-toggle btn-group">
+                <button class="btn btn-outline-secondary active" id="tree-view-btn">Ağaç Görünümü</button>
+                <button class="btn btn-outline-secondary" id="table-view-btn">Tablo Görünümü</button>
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary" id="export-btn" data-bs-toggle="tooltip" title="ICD-11 verilerini CSV olarak dışa aktar">
+                    <i class="fas fa-download"></i> Dışa Aktar
+                </button>
+            </div>
+        </div>
         <div class="clear-button text-center mb-4">
-            <form action="{{ url_for('clear_indications') }}" method="post" onsubmit="return confirm('Tüm endikasyonları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!');">
-                <button type="submit" class="btn btn-danger">Tüm Endikasyonları Temizle</button>
-            </form>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearConfirmModal">Tüm Endikasyonları Temizle</button>
         </div>
         <div class="search-bar">
-            <input type="text" class="form-control" id="tree-search" placeholder="Aramaya başlamak için yazın...">
-            <span class="clear-search">×</span>
-            <span class="loading">Yükleniyor...</span>
+            <input type="text" class="form-control" id="tree-search" placeholder="Endikasyon ara (örn: Dengue, 1A2Z)" aria-label="Endikasyon ara">
+            <span class="clear-search" role="button" aria-label="Aramayı temizle">×</span>
+            <span class="loading" aria-hidden="true">Yükleniyor...</span>
         </div>
-        <div class="ram-monitor">
-            <p>RAM Kullanımı: <span id="ram-usage">Yükleniyor...</span> MB</p>
+        <div class="ram-card">
+            <p class="mb-2">RAM Kullanımı: <span id="ram-usage">Yükleniyor...</span></p>
             <div class="progress">
                 <div id="ram-progress" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="2048"></div>
             </div>
         </div>
-        <ul class="tree">
+        <!-- Tree View -->
+        <ul class="tree view-active">
             <li>
-                <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="">
-                    <span class="toggle"></span>
+                <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="" aria-expanded="false">
+                    <span class="toggle" aria-hidden="true"></span>
                     <div class="node-details">
-                        <span class="label">ICD-11 for Mortality and Morbidity Statistics</span>
+                        <span class="label"><i class="fas fa-book-medical me-2"></i>ICD-11 for Mortality and Morbidity Statistics</span>
                     </div>
                     <ul class="children" data-loaded="false"></ul>
                 </div>
             </li>
         </ul>
+        <!-- Table View -->
+        <div class="table-view">
+            <table class="table table-hover table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>Kod</th>
+                        <th>İsim (EN)</th>
+                        <th>İsim (TR)</th>
+                        <th>Tür</th>
+                        <th>İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody id="indication-table"></tbody>
+            </table>
+            <div class="text-center" id="table-loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Yükleniyor...</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Clear Confirmation Modal -->
+<div class="modal fade" id="clearConfirmModal" tabindex="-1" aria-labelledby="clearConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clearConfirmModalLabel">Endikasyonları Temizle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Tüm endikasyonları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                <form action="{{ url_for('clear_indications') }}" method="post">
+                    <button type="submit" class="btn btn-danger">Temizle</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Indication Modal -->
+<div class="modal fade" id="editIndicationModal" tabindex="-1" aria-labelledby="editIndicationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editIndicationModalLabel">Endikasyon Düzenle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editIndicationForm" method="post">
+                    <input type="hidden" id="edit-id" name="id">
+                    <div class="mb-3">
+                        <label for="edit-name_en" class="form-label">İsim (EN):</label>
+                        <input type="text" class="form-control" id="edit-name_en" name="name_en" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-name_tr" class="form-label">İsim (TR):</label>
+                        <input type="text" class="form-control" id="edit-name_tr" name="name_tr">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-code" class="form-label">ICD-11 Kodu:</label>
+                        <input type="text" class="form-control" id="edit-code" name="code" required pattern="[A-Za-z0-9\-]+">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const searchInput = document.getElementById('tree-search');
@@ -261,12 +410,66 @@
         const loadingIndicator = document.querySelector('.loading');
         const rootNode = document.querySelector('.tree .node[data-id="0"]');
         const uploadForm = document.getElementById('uploadForm');
+        const addForm = document.getElementById('addIndicationForm');
         const ramUsageSpan = document.getElementById('ram-usage');
         const ramProgress = document.getElementById('ram-progress');
+        const treeView = document.querySelector('.tree');
+        const tableView = document.querySelector('.table-view');
+        const treeViewBtn = document.getElementById('tree-view-btn');
+        const tableViewBtn = document.getElementById('table-view-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const tableBody = document.getElementById('indication-table');
+        const tableLoading = document.getElementById('table-loading');
 
-        // Show loading spinner during upload
-        uploadForm.addEventListener('submit', function() {
+        // Initialize tooltips
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+        // Upload Progress
+        uploadForm.addEventListener('submit', function(e) {
             document.getElementById('loading').style.display = 'block';
+            const fileInput = document.getElementById('file');
+            if (fileInput.files.length === 0) return;
+            const file = fileInput.files[0];
+            const formData = new FormData(uploadForm);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', uploadForm.action, true);
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    const progressBar = document.getElementById('upload-progress-bar');
+                    const progressText = document.getElementById('upload-progress-text');
+                    document.querySelector('.upload-progress').style.display = 'block';
+                    progressBar.style.width = `${percent}%`;
+                    progressBar.setAttribute('aria-valuenow', percent);
+                    progressText.textContent = `${percent}%`;
+                }
+            };
+            xhr.onload = function() {
+                document.getElementById('loading').style.display = 'none';
+                document.querySelector('.upload-progress').style.display = 'none';
+                if (xhr.status === 200) {
+                    location.reload(); // Refresh to show flash messages
+                } else {
+                    alert('Dosya yükleme başarısız: ' + xhr.statusText);
+                }
+            };
+            xhr.onerror = function() {
+                document.getElementById('loading').style.display = 'none';
+                document.querySelector('.upload-progress').style.display = 'none';
+                alert('Dosya yükleme sırasında hata oluştu.');
+            };
+            xhr.send(formData);
+            e.preventDefault();
+        });
+
+        // Form Validation
+        addForm.addEventListener('submit', function(e) {
+            if (!addForm.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+                addForm.classList.add('was-validated');
+            }
         });
 
         // RAM Usage Monitoring
@@ -275,7 +478,7 @@
                 .then(response => response.json())
                 .then(data => {
                     const usageMB = (data.rss / 1024 / 1024).toFixed(2);
-                    const totalMB = 2048; // Render Standard package: 2GB
+                    const totalMB = 2048; // Adjust for your Render plan
                     const percentage = (data.rss / (totalMB * 1024 * 1024) * 100).toFixed(2);
                     ramUsageSpan.textContent = `${usageMB} / ${totalMB} MB (${percentage}%)`;
                     ramProgress.style.width = `${percentage}%`;
@@ -293,7 +496,29 @@
                 });
         }
         updateRamUsage();
-        setInterval(updateRamUsage, 5000); // Update every 5 seconds
+        setInterval(updateRamUsage, 5000);
+
+        // View Toggle
+        treeViewBtn.addEventListener('click', function() {
+            treeView.classList.add('view-active');
+            tableView.classList.remove('view-active');
+            treeViewBtn.classList.add('active');
+            tableViewBtn.classList.remove('active');
+        });
+        tableViewBtn.addEventListener('click', function() {
+            treeView.classList.remove('view-active');
+            tableView.classList.add('view-active');
+            treeViewBtn.classList.remove('active');
+            tableViewBtn.classList.add('active');
+            if (!tableBody.hasChildNodes()) {
+                loadTableData();
+            }
+        });
+
+        // Export Data
+        exportBtn.addEventListener('click', function() {
+            window.location.href = '/indications/export';
+        });
 
         // Tree View Logic
         function attachToggleListeners() {
@@ -301,6 +526,12 @@
             toggles.forEach(toggle => {
                 toggle.removeEventListener('click', toggleHandler);
                 toggle.addEventListener('click', toggleHandler);
+                toggle.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleHandler.call(this, e);
+                    }
+                });
             });
         }
 
@@ -319,11 +550,13 @@
 
             if (node.classList.contains('expanded')) {
                 node.classList.remove('expanded');
+                node.setAttribute('aria-expanded', 'false');
             } else {
                 if (!isLoaded) {
                     fetchChildren(nodeId, 1, childrenUl, node, level);
                 } else {
                     node.classList.add('expanded');
+                    node.setAttribute('aria-expanded', 'true');
                 }
             }
         }
@@ -342,13 +575,20 @@
                         const hasChildren = child.has_children;
                         const isLeaf = child.is_leaf && !hasChildren;
                         const className = hasChildren ? 'collapsed' : 'leaf';
+                        const icon = child.class_kind === 'chapter' ? 'fa-book' : child.class_kind === 'block' ? 'fa-cubes' : 'fa-leaf';
                         li.innerHTML = `
-                            <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}">
-                                <span class="toggle"></span>
+                            <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}" aria-expanded="false">
+                                <span class="toggle" tabindex="0" aria-hidden="true"></span>
                                 <div class="node-details">
                                     <span class="label ${child.class_kind}">
+                                        <i class="fas ${icon} me-2"></i>
                                         ${child.chapter_no && child.class_kind === 'chapter' ? `${child.chapter_no} ${child.name_en}` : (child.code ? `${child.code} ${child.name_en}` : child.name_en)}
+                                        <span class="badge bg-${child.class_kind === 'chapter' ? 'primary' : child.class_kind === 'block' ? 'info' : 'secondary'}">${child.class_kind}</span>
                                     </span>
+                                </div>
+                                <div class="node-actions">
+                                    <button class="btn btn-sm btn-outline-primary edit-btn" data-id="${child.id}" data-bs-toggle="modal" data-bs-target="#editIndicationModal" aria-label="Düzenle"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${child.id}" aria-label="Sil"><i class="fas fa-trash"></i></button>
                                 </div>
                                 <ul class="children" data-loaded="false"></ul>
                             </div>
@@ -357,8 +597,10 @@
                     });
                     childrenUl.setAttribute('data-loaded', 'true');
                     node.classList.add('expanded');
+                    node.setAttribute('aria-expanded', 'true');
                     if (!data.children.length) node.classList.add('leaf');
                     attachToggleListeners();
+                    attachActionListeners();
                     if (data.has_next) {
                         fetchChildren(nodeId, page + 1, childrenUl, node, level);
                     }
@@ -367,15 +609,79 @@
                 .catch(error => {
                     console.error(`Error fetching children for node ID: ${nodeId}:`, error);
                     loadingIndicator.style.display = 'none';
-                    alert(`Failed to load children: ${error.message}`);
+                    alert(`Çocuk düğümleri yüklenemedi: ${error.message}`);
                 });
         }
 
-        attachToggleListeners();
-        fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
+        // Table View Data
+        function loadTableData() {
+            tableLoading.style.display = 'block';
+            fetch('/indications/all')
+                .then(response => response.json())
+                .then(data => {
+                    tableBody.innerHTML = '';
+                    data.indications.forEach(ind => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${ind.code || '-'}</td>
+                            <td>${ind.name_en}</td>
+                            <td>${ind.name_tr || '-'}</td>
+                            <td>${ind.class_kind}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary edit-btn" data-id="${ind.id}" data-bs-toggle="modal" data-bs-target="#editIndicationModal" aria-label="Düzenle"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${ind.id}" aria-label="Sil"><i class="fas fa-trash"></i></button>
+                            </td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                    tableLoading.style.display = 'none';
+                    attachActionListeners();
+                })
+                .catch(error => {
+                    console.error('Error loading table data:', error);
+                    tableLoading.style.display = 'none';
+                    alert('Tablo verileri yüklenemedi.');
+                });
+        }
 
+        // Action Buttons
+        function attachActionListeners() {
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    fetch(`/indications/${id}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('edit-id').value = data.id;
+                            document.getElementById('edit-name_en').value = data.name_en;
+                            document.getElementById('edit-name_tr').value = data.name_tr || '';
+                            document.getElementById('edit-code').value = data.code || '';
+                        })
+                        .catch(error => console.error('Error loading indication:', error));
+                });
+            });
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (confirm('Bu endikasyonu silmek istediğinizden emin misiniz?')) {
+                        const id = this.getAttribute('data-id');
+                        fetch(`/indications/${id}/delete`, { method: 'POST' })
+                            .then(response => {
+                                if (response.ok) {
+                                    location.reload();
+                                } else {
+                                    alert('Silme başarısız.');
+                                }
+                            })
+                            .catch(error => console.error('Error deleting indication:', error));
+                    }
+                });
+            });
+        }
+
+        // Debounced Search
+        let searchTimeout;
         if (searchInput && clearSearch) {
-            searchInput.addEventListener('input', function () {
+            searchInput.addEventListener('input', function() {
                 const query = this.value.trim().toLowerCase();
                 clearSearch.style.display = query ? 'block' : 'none';
 
@@ -386,32 +692,35 @@
 
                 if (query.length < 3) return;
 
-                loadingIndicator.style.display = 'inline';
-                fetch(`/indications/search?search=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const allNodes = document.querySelectorAll('.tree .node');
-                        allNodes.forEach(node => {
-                            node.closest('li').style.display = 'none';
-                        });
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    loadingIndicator.style.display = 'inline';
+                    fetch(`/indications/search?search=${encodeURIComponent(query)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const allNodes = document.querySelectorAll('.tree .node');
+                            allNodes.forEach(node => {
+                                node.closest('li').style.display = 'none';
+                            });
 
-                        data.results.forEach(result => {
-                            let node = document.querySelector(`.node[data-id="${result.id}"]`);
-                            if (!node && result.depth > 1) {
-                                loadAncestors(result.id, result);
-                            } else if (node) {
-                                expandToNode(node);
-                            }
+                            data.results.forEach(result => {
+                                let node = document.querySelector(`.node[data-id="${result.id}"]`);
+                                if (!node && result.depth > 1) {
+                                    loadAncestors(result.id, result);
+                                } else if (node) {
+                                    expandToNode(node);
+                                }
+                            });
+                            loadingIndicator.style.display = 'none';
+                        })
+                        .catch(error => {
+                            console.error('Error searching:', error);
+                            loadingIndicator.style.display = 'none';
                         });
-                        loadingIndicator.style.display = 'none';
-                    })
-                    .catch(error => {
-                        console.error('Error searching:', error);
-                        loadingIndicator.style.display = 'none';
-                    });
+                }, 300); // 300ms debounce
             });
 
-            clearSearch.addEventListener('click', function () {
+            clearSearch.addEventListener('click', function() {
                 searchInput.value = '';
                 clearSearch.style.display = 'none';
                 resetTree();
@@ -424,6 +733,7 @@
                 node.closest('li').style.display = 'list-item';
                 if (node.getAttribute('data-id') === '0') {
                     node.classList.remove('expanded');
+                    node.setAttribute('aria-expanded', 'false');
                     const childrenUl = node.querySelector('.children');
                     if (childrenUl) {
                         childrenUl.setAttribute('data-loaded', 'false');
@@ -432,6 +742,7 @@
                     fetchChildren('0', 1, childrenUl, node, 0);
                 } else {
                     node.classList.remove('expanded');
+                    node.setAttribute('aria-expanded', 'false');
                     const childrenUl = node.querySelector('.children');
                     if (childrenUl) {
                         childrenUl.setAttribute('data-loaded', 'false');
@@ -446,9 +757,11 @@
             const li = node.closest('li');
             li.style.display = 'list-item';
             node.classList.add('expanded');
+            node.setAttribute('aria-expanded', 'true');
             let parent = node.parentElement.closest('.node');
             while (parent) {
                 parent.classList.add('expanded');
+                parent.setAttribute('aria-expanded', 'true');
                 parent.closest('li').style.display = 'list-item';
                 parent = parent.parentElement.closest('.node');
             }
@@ -475,6 +788,11 @@
                 })
                 .catch(error => console.error('Error loading ancestors:', error));
         }
-    </script>
+
+        // Initialize tree
+        attachToggleListeners();
+        fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
+    });
+</script>
 </body>
 </html>
