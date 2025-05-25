@@ -3,63 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICD-11 for Mortality and Morbidity Statistics</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>ICD-11 Veri Yükleme</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: 'Arial', sans-serif;
             background-color: #f8f9fa;
-            color: #333;
-            padding: 20px;
-            margin: 0;
+            font-family: 'Inter', sans-serif;
         }
         .container {
             max-width: 1200px;
-            margin: 0 auto;
         }
-        h1 {
-            text-align: left;
-            margin-bottom: 20px;
+        h1, h2 {
             color: #2c3e50;
-            font-size: 1.5rem;
-            font-weight: bold;
+            font-weight: 700;
         }
         .form-section, .tree-section {
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
-            margin-bottom: 15px;
-        }
-        .form-section h2 {
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-            color: #34495e;
-            font-weight: 600;
-        }
-        .form-label {
-            font-weight: 500;
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
         }
         .btn-primary {
             background-color: #007bff;
             border: none;
-            padding: 6px 12px;
-            font-size: 0.9rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.2s;
         }
         .btn-primary:hover {
             background-color: #0056b3;
         }
         .btn-danger {
             background-color: #dc3545;
-            padding: 6px 12px;
-            font-size: 0.9rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
         }
         .btn-danger:hover {
             background-color: #a71d2a;
         }
         .alert {
-            margin-bottom: 15px;
-            border-radius: 5px;
+            margin-top: 1rem;
+        }
+        #loading {
+            display: none;
+            margin-top: 1rem;
         }
         .tree {
             list-style: none;
@@ -72,7 +63,7 @@
         .tree .node {
             display: flex;
             align-items: center;
-            padding: 2px 0;
+            padding: 5px 0;
             cursor: pointer;
         }
         .tree .node:hover {
@@ -85,11 +76,11 @@
             display: block;
         }
         .tree .toggle {
-            width: 16px;
-            height: 16px;
-            margin-right: 5px;
-            font-size: 12px;
-            line-height: 16px;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            font-size: 14px;
+            line-height: 20px;
             text-align: center;
             cursor: pointer;
             color: #495057;
@@ -103,18 +94,8 @@
         .tree .leaf .toggle::before {
             content: "";
         }
-        .tree .children {
-            list-style: none;
-            padding-left: 0;
-            margin: 0;
-        }
-        .tree .node-details {
-            display: flex;
-            flex-grow: 1;
-            align-items: center;
-        }
         .tree .node-details .label {
-            font-size: 0.9rem;
+            font-size: 1rem;
             color: #333;
         }
         .tree .node-details .label.chapter {
@@ -130,339 +111,370 @@
             color: #495057;
         }
         .search-bar {
-            margin-bottom: 15px;
+            margin-bottom: 1rem;
             position: relative;
         }
         #tree-search {
-            padding: 6px 30px 6px 10px;
-            font-size: 0.9rem;
-            border-radius: 3px;
-            width: 100%;
-            box-sizing: border-box;
+            padding: 8px 35px 8px 12px;
+            border-radius: 8px;
         }
         .search-bar .clear-search {
             position: absolute;
-            right: 10px;
+            right: 12px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             color: #6c757d;
-            font-size: 16px;
+            font-size: 18px;
             display: none;
         }
         .search-bar .clear-search:hover {
             color: #dc3545;
         }
-        .clear-button {
-            margin-bottom: 10px;
-        }
-        .loading {
-            color: #007bff;
-            font-style: italic;
-            margin-left: 10px;
-            display: none;
+        .ram-monitor {
             font-size: 0.9rem;
+            color: #495057;
+            margin-top: 1rem;
         }
-        /* Enhanced styles for hierarchical indentation with higher specificity */
-        .tree .node.node-level-0 { margin-left: 0px !important; }
-        .tree .node.node-level-1 { margin-left: 20px !important; }
-        .tree .node.node-level-2 { margin-left: 40px !important; }
-        .tree .node.node-level-3 { margin-left: 60px !important; }
-        .tree .node.node-level-4 { margin-left: 80px !important; }
-        .tree .node.node-level-5 { margin-left: 100px !important; }
-        .tree .node.node-level-6 { margin-left: 120px !important; }
-        .tree .node.node-level-7 { margin-left: 140px !important; }
+        .ram-monitor .progress {
+            height: 20px;
+            border-radius: 8px;
+        }
+        .tree .node-level-0 { margin-left: 0px !important; }
+        .tree .node-level-1 { margin-left: 20px !important; }
+        .tree .node-level-2 { margin-left: 40px !important; }
+        .tree .node-level-3 { margin-left: 60px !important; }
+        .tree .node-level-4 { margin-left: 80px !important; }
+        .tree .node-level-5 { margin-left: 100px !important; }
+        .tree .node-level-6 { margin-left: 120px !important; }
+        .tree .node-level-7 { margin-left: 140px !important; }
+        @media (max-width: 576px) {
+            .form-section, .tree-section {
+                padding: 1.5rem;
+            }
+            .btn-primary, .btn-danger {
+                padding: 0.5rem 1rem;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>ICD-11 for Mortality and Morbidity Statistics</h1>
+<div class="container my-5">
+    <h1 class="text-center mb-5">ICD-11 Veri Yükleme</h1>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'warning' }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
 
-        <div class="form-section">
-            <form action="{{ url_for('manage_indications') }}" method="post" enctype="multipart/form-data">
-                <h2>Upload ICD-11 MMS File</h2>
-                <div class="mb-3">
-                    <label for="file" class="form-label">Select File (.txt, .tsv, or .xlsx):</label>
-                    <input type="file" class="form-control" id="file" name="file" accept=".txt,.tsv,.xlsx" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Upload and Import</button>
-            </form>
-        </div>
-
-        <div class="form-section">
-            <form action="{{ url_for('manage_indications') }}" method="post">
-                <h2>Add New Indication</h2>
-                <div class="mb-3">
-                    <label for="name_en" class="form-label">Name (EN):</label>
-                    <input type="text" class="form-control" id="name_en" name="name_en" required>
-                </div>
-                <div class="mb-3">
-                    <label for="name_tr" class="form-label">Name (TR):</label>
-                    <input type="text" class="form-control" id="name_tr" name="name_tr">
-                </div>
-                <div class="mb-3">
-                    <label for="description" class="form-label">Description:</label>
-                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                </div>
-                <div class="mb-3">
-                    <label for="synonyms" class="form-label">Synonyms (comma-separated):</label>
-                    <input type="text" class="form-control" id="synonyms" name="synonyms">
-                </div>
-                <div class="mb-3">
-                    <label for="code" class="form-label">ICD-11 Code:</label>
-                    <input type="text" class="form-control" id="code" name="code" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Add Indication</button>
-            </form>
-        </div>
-
-        <div class="tree-section">
-            <div class="clear-button">
-                <form action="{{ url_for('clear_indications') }}" method="post" onsubmit="return confirm('Are you sure you want to clear all indications? This cannot be undone!');">
-                    <button type="submit" class="btn btn-danger">Clear All Indications</button>
-                </form>
+    <div class="form-section">
+        <h2 class="text-center mb-4">ICD-11 Dosyası Yükle</h2>
+        <form id="uploadForm" method="post" enctype="multipart/form-data">
+            <div class="mb-4">
+                <label for="file" class="form-label fw-bold">Dosya Seç (.txt, .tsv, .xlsx):</label>
+                <input type="file" class="form-control" id="file" name="file" accept=".txt,.tsv,.xlsx" required>
             </div>
-            <div class="search-bar">
-                <input type="text" class="form-control" id="tree-search" placeholder="Type for starting the search">
-                <span class="clear-search">×</span>
-                <span class="loading">Loading...</span>
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">Yükle ve İçe Aktar</button>
             </div>
-            <ul class="tree">
-                <li>
-                    <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="">
-                        <span class="toggle"></span>
-                        <div class="node-details">
-                            <span class="label">ICD-11 for Mortality and Morbidity Statistics</span>
-                        </div>
-                        <ul class="children" data-loaded="false"></ul>
-                    </div>
-                </li>
-            </ul>
-        </div>
+            <div id="loading" class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Yükleniyor...</span>
+                </div>
+                <p>Yükleme devam ediyor, lütfen bekleyin...</p>
+            </div>
+        </form>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const searchInput = document.getElementById('tree-search');
-            const clearSearch = document.querySelector('.clear-search');
-            const loadingIndicator = document.querySelector('.loading');
-            const rootNode = document.querySelector('.tree .node[data-id="0"]');
+    <div class="form-section">
+        <h2 class="text-center mb-4">Yeni Endikasyon Ekle</h2>
+        <form action="{{ url_for('manage_indications') }}" method="post">
+            <div class="mb-4">
+                <label for="name_en" class="form-label fw-bold">İsim (EN):</label>
+                <input type="text" class="form-control" id="name_en" name="name_en" required>
+            </div>
+            <div class="mb-4">
+                <label for="name_tr" class="form-label fw-bold">İsim (TR):</label>
+                <input type="text" class="form-control" id="name_tr" name="name_tr">
+            </div>
+            <div class="mb-4">
+                <label for="description" class="form-label fw-bold">Açıklama:</label>
+                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            </div>
+            <div class="mb-4">
+                <label for="synonyms" class="form-label fw-bold">Eş Anlamlılar (virgülle ayrılmış):</label>
+                <input type="text" class="form-control" id="synonyms" name="synonyms">
+            </div>
+            <div class="mb-4">
+                <label for="code" class="form-label fw-bold">ICD-11 Kodu:</label>
+                <input type="text" class="form-control" id="code" name="code" required>
+            </div>
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">Endikasyon Ekle</button>
+            </div>
+        </form>
+    </div>
 
-            function attachToggleListeners() {
-                console.log('Attaching toggle listeners...');
-                const toggles = document.querySelectorAll('.tree .toggle');
-                console.log(`Found ${toggles.length} toggle elements`);
-                toggles.forEach(toggle => {
-                    toggle.removeEventListener('click', toggleHandler); // Prevent duplicate listeners
-                    toggle.addEventListener('click', toggleHandler);
-                });
-            }
+    <div class="tree-section">
+        <h2 class="text-center mb-4">ICD-11 Hiyerarşisi</h2>
+        <div class="clear-button text-center mb-4">
+            <form action="{{ url_for('clear_indications') }}" method="post" onsubmit="return confirm('Tüm endikasyonları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!');">
+                <button type="submit" class="btn btn-danger">Tüm Endikasyonları Temizle</button>
+            </form>
+        </div>
+        <div class="search-bar">
+            <input type="text" class="form-control" id="tree-search" placeholder="Aramaya başlamak için yazın...">
+            <span class="clear-search">×</span>
+            <span class="loading">Yükleniyor...</span>
+        </div>
+        <div class="ram-monitor">
+            <p>RAM Kullanımı: <span id="ram-usage">Yükleniyor...</span> MB</p>
+            <div class="progress">
+                <div id="ram-progress" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="2048"></div>
+            </div>
+        </div>
+        <ul class="tree">
+            <li>
+                <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="">
+                    <span class="toggle"></span>
+                    <div class="node-details">
+                        <span class="label">ICD-11 for Mortality and Morbidity Statistics</span>
+                    </div>
+                    <ul class="children" data-loaded="false"></ul>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
 
-            function toggleHandler(e) {
-                e.stopPropagation();
-                const node = this.parentElement;
-                const childrenUl = node.querySelector('.children');
-                const nodeId = node.getAttribute('data-id');
-                const level = parseInt(node.className.match(/node-level-(\d+)/)?.[1] || 0);
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('tree-search');
+        const clearSearch = document.querySelector('.clear-search');
+        const loadingIndicator = document.querySelector('.loading');
+        const rootNode = document.querySelector('.tree .node[data-id="0"]');
+        const uploadForm = document.getElementById('uploadForm');
+        const ramUsageSpan = document.getElementById('ram-usage');
+        const ramProgress = document.getElementById('ram-progress');
 
-                if (!childrenUl) {
-                    console.error(`No childrenUl found for node ID: ${nodeId}`);
-                    return;
-                }
+        // Show loading spinner during upload
+        uploadForm.addEventListener('submit', function() {
+            document.getElementById('loading').style.display = 'block';
+        });
 
-                const isLoaded = childrenUl.getAttribute('data-loaded') === 'true';
-
-                console.log(`Toggle clicked for node ID: ${nodeId}, Loaded: ${isLoaded}, Level: ${level}`);
-
-                if (node.classList.contains('leaf')) {
-                    console.log(`Node ID: ${nodeId} is a leaf, no action taken`);
-                    return;
-                }
-
-                if (node.classList.contains('expanded')) {
-                    node.classList.remove('expanded');
-                    console.log(`Collapsed node ID: ${nodeId}`);
-                } else {
-                    if (!isLoaded) {
-                        fetchChildren(nodeId, 1, childrenUl, node, level);
-                    } else {
-                        node.classList.add('expanded');
-                        console.log(`Expanded node ID: ${nodeId}`);
+        // RAM Usage Monitoring
+        function updateRamUsage() {
+            fetch('/monitor/ram')
+                .then(response => response.json())
+                .then(data => {
+                    const usageMB = (data.rss / 1024 / 1024).toFixed(2);
+                    const totalMB = 2048; // Render Standard package: 2GB
+                    const percentage = (data.rss / (totalMB * 1024 * 1024) * 100).toFixed(2);
+                    ramUsageSpan.textContent = `${usageMB} / ${totalMB} MB (${percentage}%)`;
+                    ramProgress.style.width = `${percentage}%`;
+                    ramProgress.setAttribute('aria-valuenow', percentage);
+                    ramProgress.classList.remove('bg-warning', 'bg-danger');
+                    if (percentage > 80) {
+                        ramProgress.classList.add('bg-danger');
+                    } else if (percentage > 60) {
+                        ramProgress.classList.add('bg-warning');
                     }
+                })
+                .catch(error => {
+                    console.error('Error fetching RAM usage:', error);
+                    ramUsageSpan.textContent = 'Hata';
+                });
+        }
+        updateRamUsage();
+        setInterval(updateRamUsage, 5000); // Update every 5 seconds
+
+        // Tree View Logic
+        function attachToggleListeners() {
+            const toggles = document.querySelectorAll('.tree .toggle');
+            toggles.forEach(toggle => {
+                toggle.removeEventListener('click', toggleHandler);
+                toggle.addEventListener('click', toggleHandler);
+            });
+        }
+
+        function toggleHandler(e) {
+            e.stopPropagation();
+            const node = this.parentElement;
+            const childrenUl = node.querySelector('.children');
+            const nodeId = node.getAttribute('data-id');
+            const level = parseInt(node.className.match(/node-level-(\d+)/)?.[1] || 0);
+
+            if (!childrenUl) return;
+
+            const isLoaded = childrenUl.getAttribute('data-loaded') === 'true';
+
+            if (node.classList.contains('leaf')) return;
+
+            if (node.classList.contains('expanded')) {
+                node.classList.remove('expanded');
+            } else {
+                if (!isLoaded) {
+                    fetchChildren(nodeId, 1, childrenUl, node, level);
+                } else {
+                    node.classList.add('expanded');
                 }
             }
+        }
 
-            function fetchChildren(nodeId, page, childrenUl, node, level) {
-                console.log(`Fetching children for node ID: ${nodeId}, page: ${page}, level: ${level}`);
-                loadingIndicator.style.display = 'inline';
-                fetch(`/indications/children/${nodeId}?page=${page}`)
-                    .then(response => {
-                        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log(`Received ${data.children.length} children for node ID: ${nodeId}`);
-                        if (page === 1) childrenUl.innerHTML = '';
-                        data.children.forEach(child => {
-                            console.log(`Rendering child: ${child.name_en} (ID: ${child.id}, Code: ${child.code}, HasChildren: ${child.has_children}, IsLeaf: ${child.is_leaf}, Level: ${level + 1})`);
-                            const li = document.createElement('li');
-                            const hasChildren = child.has_children;
-                            const isLeaf = child.is_leaf && !hasChildren;
-                            const className = hasChildren ? 'collapsed' : 'leaf';
-                            li.innerHTML = `
-                                <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}">
-                                    <span class="toggle"></span>
-                                    <div class="node-details">
-                                        <span class="label ${child.class_kind}">
-                                            ${child.chapter_no && child.class_kind === 'chapter' ? `${child.chapter_no} ${child.name_en}` : (child.code ? `${child.code} ${child.name_en}` : child.name_en)}
-                                        </span>
-                                    </div>
-                                    <ul class="children" data-loaded="false"></ul>
+        function fetchChildren(nodeId, page, childrenUl, node, level) {
+            loadingIndicator.style.display = 'inline';
+            fetch(`/indications/children/${nodeId}?page=${page}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    if (page === 1) childrenUl.innerHTML = '';
+                    data.children.forEach(child => {
+                        const li = document.createElement('li');
+                        const hasChildren = child.has_children;
+                        const isLeaf = child.is_leaf && !hasChildren;
+                        const className = hasChildren ? 'collapsed' : 'leaf';
+                        li.innerHTML = `
+                            <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}">
+                                <span class="toggle"></span>
+                                <div class="node-details">
+                                    <span class="label ${child.class_kind}">
+                                        ${child.chapter_no && child.class_kind === 'chapter' ? `${child.chapter_no} ${child.name_en}` : (child.code ? `${child.code} ${child.name_en}` : child.name_en)}
+                                    </span>
                                 </div>
-                            `;
-                            childrenUl.appendChild(li);
+                                <ul class="children" data-loaded="false"></ul>
+                            </div>
+                        `;
+                        childrenUl.appendChild(li);
+                    });
+                    childrenUl.setAttribute('data-loaded', 'true');
+                    node.classList.add('expanded');
+                    if (!data.children.length) node.classList.add('leaf');
+                    attachToggleListeners();
+                    if (data.has_next) {
+                        fetchChildren(nodeId, page + 1, childrenUl, node, level);
+                    }
+                    loadingIndicator.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error(`Error fetching children for node ID: ${nodeId}:`, error);
+                    loadingIndicator.style.display = 'none';
+                    alert(`Failed to load children: ${error.message}`);
+                });
+        }
+
+        attachToggleListeners();
+        fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
+
+        if (searchInput && clearSearch) {
+            searchInput.addEventListener('input', function () {
+                const query = this.value.trim().toLowerCase();
+                clearSearch.style.display = query ? 'block' : 'none';
+
+                if (!query) {
+                    resetTree();
+                    return;
+                }
+
+                if (query.length < 3) return;
+
+                loadingIndicator.style.display = 'inline';
+                fetch(`/indications/search?search=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const allNodes = document.querySelectorAll('.tree .node');
+                        allNodes.forEach(node => {
+                            node.closest('li').style.display = 'none';
                         });
-                        childrenUl.setAttribute('data-loaded', 'true');
-                        node.classList.add('expanded');
-                        if (!data.children.length) node.classList.add('leaf');
-                        attachToggleListeners();
-                        if (data.has_next) {
-                            fetchChildren(nodeId, page + 1, childrenUl, node, level);
-                        }
+
+                        data.results.forEach(result => {
+                            let node = document.querySelector(`.node[data-id="${result.id}"]`);
+                            if (!node && result.depth > 1) {
+                                loadAncestors(result.id, result);
+                            } else if (node) {
+                                expandToNode(node);
+                            }
+                        });
                         loadingIndicator.style.display = 'none';
                     })
                     .catch(error => {
-                        console.error(`Error fetching children for node ID: ${nodeId}:`, error);
+                        console.error('Error searching:', error);
                         loadingIndicator.style.display = 'none';
-                        alert(`Failed to load children: ${error.message}`);
                     });
-            }
+            });
 
-            console.log('Initializing tree...');
-            attachToggleListeners();
+            clearSearch.addEventListener('click', function () {
+                searchInput.value = '';
+                clearSearch.style.display = 'none';
+                resetTree();
+            });
+        }
 
-            // Auto-expand root node on load
-            console.log('Root node found, fetching children...');
-            fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
-
-            if (searchInput && clearSearch) {
-                searchInput.addEventListener('input', function () {
-                    const query = this.value.trim().toLowerCase();
-                    clearSearch.style.display = query ? 'block' : 'none';
-
-                    if (!query) {
-                        resetTree();
-                        return;
+        function resetTree() {
+            const allNodes = document.querySelectorAll('.tree .node');
+            allNodes.forEach(node => {
+                node.closest('li').style.display = 'list-item';
+                if (node.getAttribute('data-id') === '0') {
+                    node.classList.remove('expanded');
+                    const childrenUl = node.querySelector('.children');
+                    if (childrenUl) {
+                        childrenUl.setAttribute('data-loaded', 'false');
+                        childrenUl.innerHTML = '';
                     }
-
-                    if (query.length < 3) return;
-
-                    loadingIndicator.style.display = 'inline';
-                    fetch(`/indications/search?q=${encodeURIComponent(query)}`)
-                        .then(response => response.json())
-                        .then(results => {
-                            console.log(`Search returned ${results.length} results`);
-                            const allNodes = document.querySelectorAll('.tree .node');
-                            allNodes.forEach(node => {
-                                node.closest('li').style.display = 'none';
-                            });
-
-                            results.forEach(result => {
-                                let node = document.querySelector(`.node[data-id="${result.id}"]`);
-                                if (!node && result.depth > 1) {
-                                    loadAncestors(result.id, result);
-                                } else if (node) {
-                                    expandToNode(node);
-                                }
-                            });
-                            loadingIndicator.style.display = 'none';
-                        })
-                        .catch(error => {
-                            console.error('Error searching:', error);
-                            loadingIndicator.style.display = 'none';
-                        });
-                });
-
-                clearSearch.addEventListener('click', function () {
-                    searchInput.value = '';
-                    clearSearch.style.display = 'none';
-                    resetTree();
-                });
-            }
-
-            function resetTree() {
-                console.log('Resetting tree...');
-                const allNodes = document.querySelectorAll('.tree .node');
-                allNodes.forEach(node => {
-                    node.closest('li').style.display = 'list-item';
-                    if (node.getAttribute('data-id') === '0') {
-                        node.classList.remove('expanded');
-                        const childrenUl = node.querySelector('.children');
-                        if (childrenUl) {
-                            childrenUl.setAttribute('data-loaded', 'false');
-                            childrenUl.innerHTML = '';
-                        }
-                        fetchChildren('0', 1, childrenUl, node, 0); // Reload chapters
-                    } else {
-                        node.classList.remove('expanded');
-                        const childrenUl = node.querySelector('.children');
-                        if (childrenUl) {
-                            childrenUl.setAttribute('data-loaded', 'false');
-                            childrenUl.innerHTML = '';
-                        }
+                    fetchChildren('0', 1, childrenUl, node, 0);
+                } else {
+                    node.classList.remove('expanded');
+                    const childrenUl = node.querySelector('.children');
+                    if (childrenUl) {
+                        childrenUl.setAttribute('data-loaded', 'false');
+                        childrenUl.innerHTML = '';
                     }
-                });
-                loadingIndicator.style.display = 'none';
-            }
-
-            function expandToNode(node) {
-                console.log(`Expanding to node ID: ${node.getAttribute('data-id')}`);
-                const li = node.closest('li');
-                li.style.display = 'list-item';
-                node.classList.add('expanded');
-                let parent = node.parentElement.closest('.node');
-                while (parent) {
-                    parent.classList.add('expanded');
-                    parent.closest('li').style.display = 'list-item';
-                    parent = parent.parentElement.closest('.node');
                 }
-            }
+            });
+            loadingIndicator.style.display = 'none';
+        }
 
-            function loadAncestors(nodeId, result) {
-                console.log(`Loading ancestors for node ID: ${nodeId}`);
-                fetch(`/indications/children/${nodeId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.children && data.children.length > 0) {
-                            let parentNode = document.querySelector(`.node[data-id="${data.children[0].parent_id}"]`);
-                            if (!parentNode && data.children[0].parent_id) {
-                                loadAncestors(data.children[0].parent_id, result);
-                            } else if (parentNode) {
-                                const childrenUl = parentNode.querySelector('.children');
-                                const level = parseInt(parentNode.className.match(/node-level-(\d+)/)?.[1] || 0);
-                                fetchChildren(parentNode.getAttribute('data-id'), 1, childrenUl, parentNode, level);
-                                setTimeout(() => {
-                                    const node = document.querySelector(`.node[data-id="${nodeId}"]`);
-                                    if (node) expandToNode(node);
-                                }, 100);
-                            }
-                        }
-                    })
-                    .catch(error => console.error('Error loading ancestors:', error));
+        function expandToNode(node) {
+            const li = node.closest('li');
+            li.style.display = 'list-item';
+            node.classList.add('expanded');
+            let parent = node.parentElement.closest('.node');
+            while (parent) {
+                parent.classList.add('expanded');
+                parent.closest('li').style.display = 'list-item';
+                parent = parent.parentElement.closest('.node');
             }
-        });
+        }
+
+        function loadAncestors(nodeId, result) {
+            fetch(`/indications/children/${nodeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.children && data.children.length > 0) {
+                        let parentNode = document.querySelector(`.node[data-id="${data.children[0].parent_id}"]`);
+                        if (!parentNode && data.children[0].parent_id) {
+                            loadAncestors(data.children[0].parent_id, result);
+                        } else if (parentNode) {
+                            const childrenUl = parentNode.querySelector('.children');
+                            const level = parseInt(parentNode.className.match(/node-level-(\d+)/)?.[1] || 0);
+                            fetchChildren(parentNode.getAttribute('data-id'), 1, childrenUl, parentNode, level);
+                            setTimeout(() => {
+                                const node = document.querySelector(`.node[data-id="${nodeId}"]`);
+                                if (node) expandToNode(node);
+                            }, 100);
+                        }
+                    }
+                })
+                .catch(error => console.error('Error loading ancestors:', error));
+        }
     </script>
 </body>
 </html>
