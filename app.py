@@ -1569,9 +1569,15 @@ def import_icd11_mms_from_file(file_path):
 
     # Initialize reader for chunked processing
     if file_ext == '.xlsx':
-        reader = pd.read_excel(file_path, dtype=str, chunksize=chunk_size)
+        # Count total rows to determine chunks
+        total_rows_excel = pd.read_excel(file_path, usecols=[0]).shape[0]
+        chunks = []
+        for start in range(0, total_rows_excel, chunk_size):
+            df_chunk = pd.read_excel(file_path, dtype=str, skiprows=start, nrows=chunk_size)
+            chunks.append(df_chunk)
     elif file_ext in ['.txt', '.tsv']:
         reader = pd.read_csv(file_path, sep='\t', dtype=str, encoding='utf-8', chunksize=chunk_size)
+        chunks = reader
     else:
         raise ValueError(f"Unsupported file type: {file_ext}")
 
@@ -1604,7 +1610,7 @@ def import_icd11_mms_from_file(file_path):
     total_rows = 0
 
     # Process each chunk
-    for chunk_idx, df in enumerate(reader):
+    for chunk_idx, df in enumerate(chunks):
         df = df.fillna('')
         total_rows += len(df)
         print(f"Processing chunk {chunk_idx + 1} (rows {chunk_idx * chunk_size + 1} to {chunk_idx * chunk_size + len(df)})")
