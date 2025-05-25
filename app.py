@@ -12,6 +12,8 @@ import plotly.graph_objects as go
 import pandas as pd
 import seaborn as sns
 import requests
+import smtplib
+from email.mime.text import MIMEText
 import uuid  # Import the uuid library for generating unique file names
 import subprocess
 import os
@@ -176,7 +178,7 @@ class Drug(db.Model):
     name_tr = db.Column(db.String(255), nullable=False)
     name_en = db.Column(db.String(255), nullable=False)
     alternative_names = db.Column(db.Text, nullable=True)
-    salts = db.relationship('Salt', secondary='drug_salt', backref='drugs', lazy='dynamic')
+    salts = db.relationship('Salt', secondary=drug_salt, backref='drugs', lazy='dynamic')
     fda_approved = db.Column(db.Boolean, nullable=False, default=False)
     indications = db.Column(db.Text, nullable=True)
     chembl_id = db.Column(db.String(50), nullable=True)
@@ -403,9 +405,9 @@ class DrugRoute(db.Model):
 
     route = db.relationship("RouteOfAdministration")
     drug_detail = db.relationship("DrugDetail", back_populates="routes")
-    metabolism_organs = db.relationship('MetabolismOrgan', secondary='drug_route_metabolism_organ', backref='drug_routes')
-    metabolism_enzymes = db.relationship('MetabolismEnzyme', secondary='drug_route_metabolism_enzyme', backref='drug_routes')
-    metabolites = db.relationship('Metabolite', secondary='drug_route_metabolite', backref='routes')    
+    metabolism_organs = db.relationship('MetabolismOrgan', secondary=drug_route_metabolism_organ, backref='drug_routes')
+    metabolism_enzymes = db.relationship('MetabolismEnzyme', secondary=drug_route_metabolism_enzyme, backref='drug_routes')
+    metabolites = db.relationship('Metabolite', secondary=drug_route_metabolite, backref='routes')    
 
     route_indications = db.relationship(
         "RouteIndication",
@@ -432,7 +434,7 @@ class SideEffect(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name_en = db.Column(db.String(100), nullable=False)  # İngilizce adı
     name_tr = db.Column(db.String(100), nullable=True)   # Türkçe adı (opsiyonel)
-    details = db.relationship('DrugDetail', secondary='detail_side_effect', backref='side_effects', lazy='dynamic')
+    details = db.relationship('DrugDetail', secondary=detail_side_effect, backref='side_effects', lazy='dynamic')
 
 class Pathway(db.Model):
     __table_args__ = {'schema': 'public', 'extend_existing': True}
@@ -442,7 +444,7 @@ class Pathway(db.Model):
     description = db.Column(db.Text, nullable=True)  # Pathway açıklaması
     organism = db.Column(db.String(50), nullable=False)  # Organism (örn: hsa, mmu)
     url = db.Column(db.String(255), nullable=True)  # KEGG pathway görseli URL'si
-    drugs = db.relationship('Drug', secondary='pathway_drug', backref='pathways', lazy='dynamic')
+    drugs = db.relationship('Drug', secondary=pathway_drug, backref='pathways', lazy='dynamic')
 
 
 
@@ -467,7 +469,7 @@ class Metabolite(db.Model):
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=True)  # Link to the parent drug
     parent = db.relationship("Metabolite", remote_side=[id], backref="children")
     drug = db.relationship("Drug", backref="metabolites")  # Link to the drug
-    drug_routes = db.relationship('DrugRoute', secondary='drug_route_metabolite', backref='metabolite_routes')  
+    drug_routes = db.relationship('DrugRoute', secondary=drug_route_metabolite, backref='metabolite_routes')  
 
 # PharmGKB için database modelleri:
 # Clinical Annotations
@@ -1001,18 +1003,38 @@ def backend_index():
     details = DrugDetail.query.all()
     return render_template('index.html', drugs=drugs, salts=salts, details=details, query=query)
 
-@app.route('/contact')
+# Updated Contact route
+@app.route('/contact', methods=['GET', 'POST'])
 def contact():
-    return render_template('contact.html')
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    return render_template('contact.html', user_email=user_email, user=user)
 
+# Updated About route
 @app.route('/about')
 def about():
-    return render_template('about.html')
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    return render_template('about.html', user_email=user_email, user=user)
 
+# Updated Terms route
 @app.route('/terms')
 def terms():
-    return render_template('terms.html')
-
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    return render_template('terms.html', user_email=user_email, user=user)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
