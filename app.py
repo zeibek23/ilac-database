@@ -2472,10 +2472,15 @@ def drug_detail(drug_id):
         print(f"DEBUG: Enriching detail ID {detail.id}, structure_3d: {detail.structure_3d}")
         routes_info = []
         for route in detail.routes:
+            # Query RouteIndication directly with drug_detail_id and route_id
             route_indications = [
                 f"{ri.indication.name_en} ({ri.indication.name_tr})" if ri.indication.name_tr else ri.indication.name_en
-                for ri in route.route_indications
+                for ri in RouteIndication.query.filter_by(
+                    drug_detail_id=detail.id,
+                    route_id=route.route_id
+                ).all()
             ]
+            print(f"DEBUG: Route ID {route.route_id}, Indications: {route_indications}")  # Debug log
             routes_info.append({
                 'name': route.route.name,
                 'pharmacodynamics': route.pharmacodynamics,
@@ -2538,7 +2543,7 @@ def drug_detail(drug_id):
         ]
 
         enriched_details.append({
-            'id': detail.id,  # Added to ensure detail['id'] works
+            'id': detail.id,
             'drug_name': drug.name_en,
             'mechanism_of_action': detail.mechanism_of_action,
             'salt_name': detail.salt.name_en if detail.salt else None,
