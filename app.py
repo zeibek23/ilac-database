@@ -1565,8 +1565,8 @@ def find_column(df, possible_names):
 
 def import_icd11_mms_from_file(file_path):
     file_ext = os.path.splitext(file_path)[1].lower()
-    chunk_size = 1000  # Process 1,000 rows at a time to reduce memory
-    batch_size = 500   # Commit categories every 500 records (same as original)
+    chunk_size = 500   # Process 500 rows at a time to minimize memory
+    batch_size = 250   # Commit categories every 250 records to reduce transaction size
 
     # Initialize reader for chunked processing
     if file_ext == '.xlsx':
@@ -1613,6 +1613,7 @@ def import_icd11_mms_from_file(file_path):
     added_count = {'chapter': 0, 'block': 0, 'category': 0, 'other': 0}
     skipped_rows = []
     total_rows = 0
+    parent_id_cache = {}  # Cache parent IDs to reduce database queries
 
     # Process each chunk
     for chunk_idx, df in enumerate(chunks):
@@ -1818,7 +1819,13 @@ def import_icd11_mms_from_file(file_path):
                     skipped_rows.append(f"Row {index}: Missing name_en")
                     continue
 
-                parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
+                # Use cached parent_id if available
+                cache_key = f"{code}_{depth}_{chapter_no}"
+                if cache_key in parent_id_cache:
+                    parent_id = parent_id_cache[cache_key]
+                else:
+                    parent_id = get_parent_id(row, depth, chapter_no, code_to_id, block_to_id, chapter_to_id, found_columns)
+                    parent_id_cache[cache_key] = parent_id
 
                 if parent_id is None and depth > 1:
                     skipped_rows.append(f"Row {index}: No parent found for category '{safe_name_en}' (depth {depth})")
