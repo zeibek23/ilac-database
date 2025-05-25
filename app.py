@@ -107,31 +107,39 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # Define junction tables globally
 drug_route_metabolism_organ = db.Table(
     'drug_route_metabolism_organ',
-    db.Column('drug_route_id', db.Integer, db.ForeignKey('drug_route.id'), primary_key=True),
-    db.Column('metabolism_organ_id', db.Integer, db.ForeignKey('metabolism_organ.id'), primary_key=True)
+    db.Column('drug_route_id', db.Integer, db.ForeignKey('public.drug_route.id'), primary_key=True),
+    db.Column('metabolism_organ_id', db.Integer, db.ForeignKey('public.metabolism_organ.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 drug_route_metabolism_enzyme = db.Table(
     'drug_route_metabolism_enzyme',
-    db.Column('drug_route_id', db.Integer, db.ForeignKey('drug_route.id'), primary_key=True),
-    db.Column('metabolism_enzyme_id', db.Integer, db.ForeignKey('metabolism_enzyme.id'), primary_key=True)
+    db.Column('drug_route_id', db.Integer, db.ForeignKey('public.drug_route.id'), primary_key=True),
+    db.Column('metabolism_enzyme_id', db.Integer, db.ForeignKey('public.metabolism_enzyme.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 drug_route_metabolite = db.Table(
     'drug_route_metabolite',
-    db.Column('drug_route_id', db.Integer, db.ForeignKey('drug_route.id'), primary_key=True),
-    db.Column('metabolite_id', db.Integer, db.ForeignKey('metabolite.id'), primary_key=True)
+    db.Column('drug_route_id', db.Integer, db.ForeignKey('public.drug_route.id'), primary_key=True),
+    db.Column('metabolite_id', db.Integer, db.ForeignKey('public.metabolite.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 # Veritabanı Modeli
 class DrugCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., "Cholinergic Agonists"
-    parent_id = db.Column(db.Integer, db.ForeignKey('drug_category.id'), nullable=True)  # Self-referential FK
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)  # Self-referential FK
     parent = db.relationship('DrugCategory', remote_side=[id], backref='children')  # Parent-child relationship
 
 class Drug(db.Model):
     __tablename__ = 'drug'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name_tr = db.Column(db.String(255), nullable=False)
     name_en = db.Column(db.String(255), nullable=False)
@@ -140,7 +148,7 @@ class Drug(db.Model):
     fda_approved = db.Column(db.Boolean, nullable=False, default=False)
     indications = db.Column(db.Text, nullable=True)
     chembl_id = db.Column(db.String(50), nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('drug_category.id'), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)
     category = db.relationship('DrugCategory', backref='drugs')
     drug_details = db.relationship(
         'DrugDetail',
@@ -156,14 +164,17 @@ class Drug(db.Model):
 
 class Salt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     name_tr = db.Column(db.String(100), nullable=False)
     name_en = db.Column(db.String(100), nullable=False)
 
 # Many-to-Many İlişkisi için Ara Tablo
 drug_salt = db.Table(
     'drug_salt',
-    db.Column('drug_id', db.Integer, db.ForeignKey('drug.id'), primary_key=True),
-    db.Column('salt_id', db.Integer, db.ForeignKey('salt.id'), primary_key=True)
+    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    db.Column('salt_id', db.Integer, db.ForeignKey('public.salt.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 
@@ -171,14 +182,15 @@ drug_salt = db.Table(
 
 class DrugDetail(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    drug_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=False)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     parent_drug = db.relationship(
         'Drug',
         back_populates='drug_details',
         overlaps="details,drug"
     ) 
     routes = db.relationship("DrugRoute", back_populates="drug_detail", cascade="all, delete-orphan")
-    salt_id = db.Column(db.Integer, db.ForeignKey('salt.id'), nullable=True)  # Opsiyonel
+    salt_id = db.Column(db.Integer, db.ForeignKey('public.salt.id'), nullable=True)  # Opsiyonel
     molecular_formula = db.Column(db.String(100), nullable=True)
     synthesis = db.Column(db.Text, nullable=True)
     structure = db.Column(db.String(200), nullable=True)     # manuel yüklenilen
@@ -222,6 +234,7 @@ class DrugDetail(db.Model):
 # Database Model for Indication
 class Indication(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     foundation_uri = db.Column(db.String(255), nullable=True, unique=True, index=True)
     disease_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
     name_en = db.Column(db.String(255), nullable=False)
@@ -232,7 +245,7 @@ class Indication(db.Model):
     code = db.Column(db.String(50), nullable=True, index=True)
     class_kind = db.Column(db.String(50), nullable=True)
     depth = db.Column(db.Integer, nullable=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('indication.id'), nullable=True, index=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.indication.id'), nullable=True, index=True)
     parent = db.relationship('Indication', remote_side=[id], backref=db.backref('children', lazy='select'))
     is_residual = db.Column(db.Boolean, nullable=False, default=False)
     is_leaf = db.Column(db.Boolean, nullable=False, default=False)
@@ -252,14 +265,16 @@ class Indication(db.Model):
 
 class Target(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name_tr = db.Column(db.String(100), nullable=False)
-    name_en = db.Column(db.String(100), nullable=False)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    name_tr = db.Column(db.String(255), nullable=False)  # Increased to 255
+    name_en = db.Column(db.String(255), nullable=False)  # Increased to 255
 
 class DrugInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    drug1_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=False)
-    drug2_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=False)
-    route_id = db.Column(db.Integer, db.ForeignKey('route_of_administration.id'), nullable=True)  # Uygulama yolu
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    drug1_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    drug2_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=True)  # Uygulama yolu
     interaction_type = db.Column(db.String(50), nullable=False)
     interaction_description = db.Column(db.Text, nullable=False)
     severity = db.Column(db.String(20), nullable=False, default="Hafif")  # Şiddet kategorisi
@@ -281,11 +296,12 @@ class DrugInteraction(db.Model):
 
 class RouteOfAdministration(db.Model):
     __tablename__ = 'route_of_administration'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(50), nullable=False)  # Sistemik, Lokal veya Hem Sistemik Hem Lokal
     description = db.Column(db.Text, nullable=True)  # e.g., "Absorbed via GI tract"
-    parent_id = db.Column(db.Integer, db.ForeignKey('route_of_administration.id'), nullable=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=True)
     parent = db.relationship(
         "RouteOfAdministration",
         remote_side=[id],
@@ -295,6 +311,7 @@ class RouteOfAdministration(db.Model):
 
 class Receptor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -314,8 +331,9 @@ class Receptor(db.Model):
 
 class DrugReceptorInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    drug_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=False)
-    receptor_id = db.Column(db.Integer, db.ForeignKey('receptor.id'), nullable=False)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    receptor_id = db.Column(db.Integer, db.ForeignKey('public.receptor.id'), nullable=False)
     affinity = db.Column(db.Float, nullable=True)  # e.g., Kd or Ki value
     interaction_type = db.Column(db.String(50), nullable=True)  # Agonist, antagonist, etc.
     mechanism = db.Column(db.Text, nullable=True)  # Interaction mechanism
@@ -330,8 +348,9 @@ class DrugReceptorInteraction(db.Model):
 
 class DrugDiseaseInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    drug_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=False)
-    indication_id = db.Column(db.Integer, db.ForeignKey('indication.id'), nullable=False)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    indication_id = db.Column(db.Integer, db.ForeignKey('public.indication.id'), nullable=False)
     interaction_type = db.Column(db.String(50), nullable=False)  # e.g., "Contraindication", "Caution"
     description = db.Column(db.Text, nullable=True)              # Why it’s a problem
     severity = db.Column(db.String(20), default="Moderate")      # e.g., "Mild", "Moderate", "Severe"
@@ -343,9 +362,10 @@ class DrugDiseaseInteraction(db.Model):
 
 class DrugRoute(db.Model):
     __tablename__ = 'drug_route'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
-    drug_detail_id = db.Column(db.Integer, db.ForeignKey('drug_detail.id', ondelete="CASCADE"), nullable=False)
-    route_id = db.Column(db.Integer, db.ForeignKey('route_of_administration.id', ondelete="CASCADE"), nullable=False)
+    drug_detail_id = db.Column(db.Integer, db.ForeignKey('public.drug_detail.id', ondelete="CASCADE"), nullable=False)
+    route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id', ondelete="CASCADE"), nullable=False)
     pharmacodynamics = db.Column(db.Text, nullable=True)  # Uygulama yoluna özel farmakodinami Genel bilgi
     pharmacokinetics = db.Column(db.Text, nullable=True)  # Uygulama yoluna özel farmakokinetik Genel bilgi
     absorption_rate_min = db.Column(db.Float, nullable=True)
@@ -379,24 +399,27 @@ class DrugRoute(db.Model):
 
 
 class RouteIndication(db.Model):
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
-    drug_detail_id = db.Column(db.Integer, db.ForeignKey('drug_detail.id'), nullable=False)
-    route_id = db.Column(db.Integer, db.ForeignKey('route_of_administration.id'), nullable=False)
-    indication_id = db.Column(db.Integer, db.ForeignKey('indication.id'), nullable=False)
+    drug_detail_id = db.Column(db.Integer, db.ForeignKey('public.drug_detail.id'), nullable=False)
+    route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=False)
+    indication_id = db.Column(db.Integer, db.ForeignKey('public.indication.id'), nullable=False)
 
     drug_detail = db.relationship('DrugDetail', backref='route_indications')
     route = db.relationship('RouteOfAdministration')
     indication = db.relationship('Indication')
-    drug_route_id = db.Column(db.Integer, db.ForeignKey('drug_route.id', ondelete="CASCADE"), nullable=True)
+    drug_route_id = db.Column(db.Integer, db.ForeignKey('public.drug_route.id', ondelete="CASCADE"), nullable=True)
 
 
 class SideEffect(db.Model):
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name_en = db.Column(db.String(100), nullable=False)  # İngilizce adı
     name_tr = db.Column(db.String(100), nullable=True)   # Türkçe adı (opsiyonel)
     details = db.relationship('DrugDetail', secondary='detail_side_effect', backref='side_effects', lazy='dynamic')
 
 class Pathway(db.Model):
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     pathway_id = db.Column(db.String(50), unique=True, nullable=False)  # KEGG pathway ID (örneğin: hsa00010)
     name = db.Column(db.String(255), nullable=False)  # Pathway adı
@@ -407,8 +430,10 @@ class Pathway(db.Model):
 
 pathway_drug = db.Table(
     'pathway_drug',
-    db.Column('pathway_id', db.Integer, db.ForeignKey('pathway.id'), primary_key=True),
-    db.Column('drug_id', db.Integer, db.ForeignKey('drug.id'), primary_key=True)
+    db.Column('pathway_id', db.Integer, db.ForeignKey('public.pathway.id'), primary_key=True),
+    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 
@@ -416,26 +441,31 @@ pathway_drug = db.Table(
 # Many-to-Many ilişki tablosu
 detail_side_effect = db.Table(
     'detail_side_effect',
-    db.Column('detail_id', db.Integer, db.ForeignKey('drug_detail.id'), primary_key=True),
-    db.Column('side_effect_id', db.Integer, db.ForeignKey('side_effect.id'), primary_key=True)
+    db.Column('detail_id', db.Integer, db.ForeignKey('public.drug_detail.id'), primary_key=True),
+    db.Column('side_effect_id', db.Integer, db.ForeignKey('public.side_effect.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
 )
 
 class MetabolismOrgan(db.Model):
     __tablename__ = 'metabolism_organ'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)  # e.g., "liver", "kidneys"
 
 class MetabolismEnzyme(db.Model):
     __tablename__ = 'metabolism_enzyme'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)  # e.g., "CYP2E1", "UGT"
 
 class Metabolite(db.Model):
     __tablename__ = 'metabolite'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)  # e.g., "Acetaminophen", "NAPQI"
-    parent_id = db.Column(db.Integer, db.ForeignKey('metabolite.id'), nullable=True)  # For hierarchy
-    drug_id = db.Column(db.Integer, db.ForeignKey('drug.id'), nullable=True)  # Link to the parent drug
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.metabolite.id'), nullable=True)  # For hierarchy
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=True)  # Link to the parent drug
     parent = db.relationship("Metabolite", remote_side=[id], backref="children")
     drug = db.relationship("Drug", backref="metabolites")  # Link to the drug
     drug_routes = db.relationship('DrugRoute', secondary='drug_route_metabolite', backref='metabolite_routes')  
@@ -444,6 +474,7 @@ class Metabolite(db.Model):
 # Clinical Annotations
 class Gene(db.Model):
     __tablename__ = 'gene'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     gene_id = Column(String(50), primary_key=True)  # e.g., PA126 for CYP2C9
     gene_symbol = Column(String(100), unique=True, nullable=False)
     clinical_annotations = relationship('ClinicalAnnotationGene', back_populates='gene')
@@ -453,6 +484,7 @@ class Gene(db.Model):
 
 class Phenotype(db.Model):
     __tablename__ = 'phenotype'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
     name = Column(String(200), unique=True, nullable=False)
     clinical_annotations = relationship('ClinicalAnnotationPhenotype', back_populates='phenotype')
@@ -460,6 +492,7 @@ class Phenotype(db.Model):
 
 class Variant(db.Model):
     __tablename__ = 'variant'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True)
     name = db.Column(db.String(200), unique=True, nullable=False)
@@ -470,6 +503,7 @@ class Variant(db.Model):
 
 class Publication(db.Model):
     __tablename__ = 'publication'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     pmid = Column(String(50), primary_key=True)
     title = Column(Text, nullable=True)
     year = Column(String(4), nullable=True)
@@ -480,6 +514,7 @@ class Publication(db.Model):
 # Clinical Annotations
 class ClinicalAnnotation(db.Model):
     __tablename__ = 'clinical_annotation'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     clinical_annotation_id = Column(String, primary_key=True)
     level_of_evidence = Column(String)
     phenotype_category = Column(String)
@@ -501,8 +536,9 @@ class ClinicalAnnotation(db.Model):
 
 class ClinicalAnnAllele(db.Model):
     __tablename__ = 'clinical_ann_allele'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'))
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
     genotype_allele = Column(String, index=True)
     annotation_text = Column(Text)
     allele_function = Column(String, nullable=True)
@@ -510,8 +546,9 @@ class ClinicalAnnAllele(db.Model):
 
 class ClinicalAnnHistory(db.Model):
     __tablename__ = 'clinical_ann_history'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'))
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
     date = Column(Date, index=True)
     type = Column(String)
     comment = Column(Text)
@@ -519,8 +556,9 @@ class ClinicalAnnHistory(db.Model):
 
 class ClinicalAnnEvidence(db.Model):
     __tablename__ = 'clinical_ann_evidence'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     evidence_id = Column(String, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'))
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
     evidence_type = Column(String, index=True)
     evidence_url = Column(String)
     summary = Column(Text)
@@ -531,42 +569,48 @@ class ClinicalAnnEvidence(db.Model):
 # Junction Tables for ClinicalAnnotation
 class ClinicalAnnotationDrug(db.Model):
     __tablename__ = 'clinical_annotation_drug'
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('drug.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
     annotation = relationship('ClinicalAnnotation', back_populates='drugs')
     drug = relationship('Drug', back_populates='clinical_annotations')
 
 class ClinicalAnnotationGene(db.Model):
     __tablename__ = 'clinical_annotation_gene'
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('gene.gene_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
     annotation = relationship('ClinicalAnnotation', back_populates='genes')
     gene = relationship('Gene', back_populates='clinical_annotations')
 
 class ClinicalAnnotationPhenotype(db.Model):
     __tablename__ = 'clinical_annotation_phenotype'
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'), primary_key=True)
-    phenotype_id = Column(Integer, ForeignKey('phenotype.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    phenotype_id = Column(Integer, ForeignKey('public.phenotype.id'), primary_key=True)
     annotation = relationship('ClinicalAnnotation', back_populates='phenotypes')
     phenotype = relationship('Phenotype', back_populates='clinical_annotations')
 
 class ClinicalAnnotationVariant(db.Model):
     __tablename__ = 'clinical_annotation_variant'
-    clinical_annotation_id = Column(String, ForeignKey('clinical_annotation.clinical_annotation_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('variant.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
     annotation = relationship('ClinicalAnnotation', back_populates='variants')
     variant = relationship('Variant', back_populates='clinical_annotations')
 
 class ClinicalAnnEvidencePublication(db.Model):
     __tablename__ = 'clinical_ann_evidence_publication'
-    evidence_id = Column(String, ForeignKey('clinical_ann_evidence.evidence_id'), primary_key=True)
-    pmid = Column(String, ForeignKey('publication.pmid'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    evidence_id = Column(String, ForeignKey('public.clinical_ann_evidence.evidence_id'), primary_key=True)
+    pmid = Column(String, ForeignKey('public.publication.pmid'), primary_key=True)
     evidence = relationship('ClinicalAnnEvidence', back_populates='publications')
     publication = relationship('Publication', back_populates='clinical_evidence')
 
 # Variant Annotations
 class VariantAnnotation(db.Model):
     __tablename__ = 'variant_annotation'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     variant_annotation_id = Column(String, primary_key=True)
     study_parameters = relationship('StudyParameters', back_populates='variant_annotation')
     fa_annotations = relationship('VariantFAAnn', back_populates='variant_annotation')
@@ -578,8 +622,9 @@ class VariantAnnotation(db.Model):
 
 class StudyParameters(db.Model):
     __tablename__ = 'study_parameters'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     study_parameters_id = Column(String, primary_key=True)
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'))
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'))
     study_type = Column(String, nullable=True)
     study_cases = Column(Integer, nullable=True)
     study_controls = Column(Integer, nullable=True)
@@ -599,7 +644,8 @@ class StudyParameters(db.Model):
 
 class VariantFAAnn(db.Model):
     __tablename__ = 'variant_fa_ann'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
     significance = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     sentence = Column(Text)
@@ -621,7 +667,8 @@ class VariantFAAnn(db.Model):
 
 class VariantDrugAnn(db.Model):
     __tablename__ = 'variant_drug_ann'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
     significance = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     sentence = Column(Text)
@@ -642,7 +689,8 @@ class VariantDrugAnn(db.Model):
 
 class VariantPhenoAnn(db.Model):
     __tablename__ = 'variant_pheno_ann'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
     significance = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     sentence = Column(Text)
@@ -667,28 +715,32 @@ class VariantPhenoAnn(db.Model):
 # Junction Tables for VariantAnnotation
 class VariantAnnotationDrug(db.Model):
     __tablename__ = 'variant_annotation_drug'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('drug.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
     variant_annotation = relationship('VariantAnnotation', back_populates='drugs')
     drug = relationship('Drug', back_populates='variant_annotations')
 
 class VariantAnnotationGene(db.Model):
     __tablename__ = 'variant_annotation_gene'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('gene.gene_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
     variant_annotation = relationship('VariantAnnotation', back_populates='genes')
     gene = relationship('Gene', back_populates='variant_annotations')
 
 class VariantAnnotationVariant(db.Model):
     __tablename__ = 'variant_annotation_variant'
-    variant_annotation_id = Column(String, ForeignKey('variant_annotation.variant_annotation_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('variant.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
     variant_annotation = relationship('VariantAnnotation', back_populates='variants')
     variant = relationship('Variant', back_populates='variant_annotations')
 
 # Relationships
 class Relationship(db.Model):
     __tablename__ = 'relationships'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
     entity1_id = Column(String, index=True)
     entity1_name = Column(String)
@@ -705,6 +757,7 @@ class Relationship(db.Model):
 # Drug Labels
 class DrugLabel(db.Model):
     __tablename__ = 'drug_label'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     pharmgkb_id = Column(String, primary_key=True)
     name = Column(String)
     source = Column(String)
@@ -723,32 +776,36 @@ class DrugLabel(db.Model):
 
 class DrugLabelDrug(db.Model):
     __tablename__ = 'drug_label_drug'
-    pharmgkb_id = Column(String, ForeignKey('drug_label.pharmgkb_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('drug.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
     drug_label = relationship('DrugLabel', back_populates='drugs')
     drug = relationship('Drug', back_populates='drug_labels')
 
 class DrugLabelGene(db.Model):
     __tablename__ = 'drug_label_gene'
-    pharmgkb_id = Column(String, ForeignKey('drug_label.pharmgkb_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('gene.gene_id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
     drug_label = relationship('DrugLabel', back_populates='genes')
     gene = relationship('Gene', back_populates='drug_labels')
 
 class DrugLabelVariant(db.Model):
     __tablename__ = 'drug_label_variant'
-    pharmgkb_id = Column(String, ForeignKey('drug_label.pharmgkb_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('variant.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
     drug_label = relationship('DrugLabel', back_populates='variants')
     variant = relationship('Variant', back_populates='drug_labels')
 
 # Clinical Variants
 class ClinicalVariant(db.Model):
     __tablename__ = 'clinical_variants'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     variant_type = db.Column(db.String)
     level_of_evidence = db.Column(db.String)
-    gene_id = db.Column(db.String, db.ForeignKey('gene.gene_id'), index=True)
+    gene_id = db.Column(db.String, db.ForeignKey('public.gene.gene_id'), index=True)
     gene = db.relationship('Gene', back_populates='clinical_variants')
     drugs = db.relationship('ClinicalVariantDrug', back_populates='clinical_variant')
     phenotypes = db.relationship('ClinicalVariantPhenotype', back_populates='clinical_variant')
@@ -756,28 +813,32 @@ class ClinicalVariant(db.Model):
 
 class ClinicalVariantDrug(db.Model):
     __tablename__ = 'clinical_variant_drug'
-    clinical_variant_id = Column(Integer, ForeignKey('clinical_variants.id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('drug.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_variant_id = Column(Integer, ForeignKey('public.clinical_variants.id'), primary_key=True)
+    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
     clinical_variant = relationship('ClinicalVariant', back_populates='drugs')
     drug = relationship('Drug', back_populates='clinical_variants')
 
 class ClinicalVariantPhenotype(db.Model):
     __tablename__ = 'clinical_variant_phenotype'
-    clinical_variant_id = Column(Integer, ForeignKey('clinical_variants.id'), primary_key=True)
-    phenotype_id = Column(Integer, ForeignKey('phenotype.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_variant_id = Column(Integer, ForeignKey('public.clinical_variants.id'), primary_key=True)
+    phenotype_id = Column(Integer, ForeignKey('public.phenotype.id'), primary_key=True)
     clinical_variant = relationship('ClinicalVariant', back_populates='phenotypes')
     phenotype = relationship('Phenotype', back_populates='clinical_variants')
 
 class ClinicalVariantVariant(db.Model):
     __tablename__ = 'clinical_variant_variant'
-    clinical_variant_id = db.Column(db.Integer, db.ForeignKey('clinical_variants.id'), primary_key=True)
-    variant_id = db.Column(db.Integer, db.ForeignKey('variant.id'), primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    clinical_variant_id = db.Column(db.Integer, db.ForeignKey('public.clinical_variants.id'), primary_key=True)
+    variant_id = db.Column(db.Integer, db.ForeignKey('public.variant.id'), primary_key=True)
     clinical_variant = db.relationship('ClinicalVariant', back_populates='variants')
     variant = db.relationship('Variant', back_populates='clinical_variants')
 
 # Occurrences
 class Occurrence(db.Model):
     __tablename__ = 'occurrences'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
     source_type = Column(String)
     source_id = Column(String, index=True)
@@ -789,6 +850,7 @@ class Occurrence(db.Model):
 # Automated Annotations
 class AutomatedAnnotation(db.Model):
     __tablename__ = 'automated_annotations'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = Column(Integer, primary_key=True)
     chemical_id = Column(String, index=True, nullable=True)
     chemical_name = Column(String, nullable=True)
@@ -797,7 +859,7 @@ class AutomatedAnnotation(db.Model):
     variation_name = Column(String, nullable=True)
     variation_type = Column(String, nullable=True)
     variation_in_text = Column(String, nullable=True)
-    gene_ids = Column(Text, nullable=True)  # Kept as text for compatibility
+    gene_ids = Column(Text, nullable=True)
     gene_symbols = Column(Text, index=True, nullable=True)
     gene_in_text = Column(Text, nullable=True)
     literature_id = Column(String, nullable=True)
@@ -806,7 +868,7 @@ class AutomatedAnnotation(db.Model):
     journal = Column(Text, nullable=True)
     sentence = Column(Text)
     source = Column(String)
-    pmid = Column(String, ForeignKey('publication.pmid'), index=True, nullable=True)
+    pmid = Column(String, ForeignKey('public.publication.pmid'), index=True, nullable=True)
     publication = relationship('Publication', back_populates='automated_annotations')
 # PharmGKB için database sonu.......
 
@@ -816,6 +878,7 @@ class AutomatedAnnotation(db.Model):
 
 class News(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     title = db.Column(db.String(200), nullable=False)  # Title of the news
     description = db.Column(db.Text, nullable=False)   # Detailed description
     category = db.Column(db.String(50), nullable=False)  # "Announcement" or "Update"
@@ -827,6 +890,7 @@ class News(db.Model):
 bcrypt = Bcrypt()
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(128), nullable=False)
     name = db.Column(db.String(50), nullable=False)
@@ -843,6 +907,7 @@ class User(db.Model):
 
 class Occupation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
     name = db.Column(db.String(100), unique=True, nullable=False)
 
 
@@ -932,11 +997,17 @@ def backend_index():
     details = DrugDetail.query.all()
     return render_template('index.html', drugs=drugs, salts=salts, details=details, query=query)
 
-# backend.drugly.ai için kök rota
-@app.route('/', host='backend.drugly.ai')
-@admin_required
-def backend_root():
-    return redirect(url_for('backend_index'))
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
 
 
 @app.route('/register', methods=['GET', 'POST'])
