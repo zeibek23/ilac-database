@@ -6,10 +6,58 @@
     <title>Welcome to Drugly</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f8f9fa;
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            color: #2c3e50;
+            margin: 0;
+        }
+        .navbar {
+            background: #2c3e50 !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            padding: 15px 0;
+        }
+        .navbar-brand {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff !important;
+        }
+        .nav-link {
+            color: #fff !important;
+            font-weight: 400;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #00b4d8 !important;
+        }
+        .btn-outline-light, .btn-light, .btn-warning {
+            border-radius: 25px;
+            padding: 8px 20px;
+            font-weight: 500;
+        }
+        .search-form {
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: 20px;
+        }
+        .search-form .form-control {
+            border-radius: 25px 0 0 25px;
+            border: 1px solid #ced4da;
+            font-size: 0.9rem;
+            padding: 8px 15px;
+        }
+        .search-form .btn {
+            border-radius: 0 25px 25px 0;
+            padding: 8px 15px;
+            background: #00b4d8;
+            border: none;
+            color: #fff;
+        }
+        .search-form .btn:hover {
+            background: #0096b2;
         }
         .hero-section {
             background: linear-gradient(to right, #007bff, #6610f2);
@@ -21,7 +69,7 @@
         }
         .hero-section h1 {
             font-size: 3.5rem;
-            font-weight: bold;
+            font-weight: 700;
             animation: fadeInDown 1s ease-in-out;
         }
         .hero-section p {
@@ -31,19 +79,25 @@
         }
         .hero-section .btn {
             animation: fadeIn 1.5s ease-in-out;
+            border-radius: 25px;
+            padding: 10px 25px;
         }
         .features-section {
             padding: 60px 20px;
-            background-color: #ffffff;
+            background: #fff;
         }
         .features-section h2 {
             font-size: 2.5rem;
+            font-weight: 700;
             margin-bottom: 20px;
+            text-align: center;
             animation: fadeInDown 1s ease-in-out;
         }
         .features-section p {
             font-size: 1.25rem;
+            color: #6c757d;
             margin-bottom: 40px;
+            text-align: center;
             animation: fadeInUp 1s ease-in-out;
         }
         .feature-card {
@@ -53,6 +107,7 @@
             overflow: hidden;
             background: linear-gradient(135deg, #ffffff, #f1f1f1);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
         }
         .feature-card:hover {
             transform: translateY(-10px);
@@ -60,23 +115,30 @@
         }
         .feature-card h4 {
             font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
             margin-bottom: 15px;
         }
         .feature-card p {
             font-size: 1rem;
+            color: #495057;
             margin-bottom: 20px;
         }
         .feature-card .btn {
             width: 100%;
             margin-top: 10px;
+            border-radius: 25px;
+            font-weight: 500;
         }
         .news-section {
             padding: 60px 20px;
-            background-color: #f8f9fa;
+            background: #f8f9fa;
         }
         .news-section h2 {
             font-size: 2.5rem;
+            font-weight: 700;
             margin-bottom: 20px;
+            text-align: center;
             animation: fadeInDown 1s ease-in-out;
         }
         .news-card {
@@ -85,6 +147,7 @@
             margin-bottom: 20px;
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             background: linear-gradient(135deg, #ffffff, #f1f1f1);
+            padding: 20px;
         }
         .news-card:hover {
             transform: translateY(-5px);
@@ -92,10 +155,13 @@
         }
         .news-card h5 {
             font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
             margin-bottom: 10px;
         }
         .news-card p {
             font-size: 1rem;
+            color: #495057;
             margin-bottom: 15px;
         }
         .news-card small {
@@ -103,82 +169,99 @@
             color: #6c757d;
         }
         footer {
-            background-color: #343a40;
-            color: white;
-            padding: 20px;
+            background: #2c3e50;
+            color: #fff;
+            padding: 30px 0;
+            font-size: 0.9rem;
             text-align: center;
         }
         footer a {
-            color: #ffffff;
+            color: #00b4d8;
+            margin: 0 15px;
             text-decoration: none;
-            transition: color 0.3s ease-in-out;
+            font-weight: 500;
         }
         footer a:hover {
-            color: #007bff;
-            text-decoration: none;
+            color: #fff;
         }
-
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        .toast {
+            border-radius: 10px;
+        }
         /* Animations */
         @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         @keyframes fadeIn {
-            from {
-                opacity: 0;
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .hero-section {
+                padding: 60px 15px;
             }
-            to {
-                opacity: 1;
+            .hero-section h1 {
+                font-size: 2.5rem;
+            }
+            .hero-section p {
+                font-size: 1.2rem;
+            }
+            .features-section, .news-section {
+                padding: 40px 15px;
+            }
+            .features-section h2, .news-section h2 {
+                font-size: 2rem;
+            }
+            .search-form {
+                max-width: 100%;
+                margin: 10px 0;
             }
         }
     </style>
 </head>
 <body>
-    <!-- New Navbar (Bootstrap 5) -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-      <div class="container-fluid">
-        <a class="navbar-brand" href="/">Drugly</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="druglyNavbar">
-          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-            <li class="nav-item">
-              <a class="nav-link" href="#features">Features</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#news">News</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/contact">Contact</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/about">About</a>
-            </li>
-          </ul>
-        <!-- Example: Only show button if user is logged in and is_admin is True -->
-        {% if user and user.is_admin %}
-        <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
-        {% endif %}
-
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Drugly</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="druglyNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#news">News</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+                </ul>
+                {% if user_email %}
+                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
+                        <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
+                        <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                    </form>
+                {% endif %}
+                {% if user and user.is_admin %}
+                    <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+                {% endif %}
+                {% if user_email %}
+                    <a href="/profile" class="btn btn-light me-2">Profile</a>
+                    <a href="/logout" class="btn btn-outline-light">Logout</a>
+                {% else %}
+                    <a href="/login" class="btn btn-light me-2">Login</a>
+                    <a href="/register" class="btn btn-outline-light">Register</a>
+                {% endif %}
+            </div>
         </div>
-      </div>
     </nav>
 
     <!-- Toast Notifications -->
@@ -268,8 +351,10 @@
 
     <!-- Footer -->
     <footer>
-        <p>&copy; 2025 Drugly. All rights reserved.</p>
-        <a href="/contact">Contact Us</a> | <a href="/about">About Us</a> | <a href="/terms">Terms of Service</a>
+        <p>© 2025 Drugly. All rights reserved.</p>
+        <a href="/contact">Contact Us</a> |
+        <a href="/about">About Us</a> |
+        <a href="/terms">Terms of Service</a>
     </footer>
 
     <script>
