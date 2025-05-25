@@ -1221,19 +1221,37 @@ def add_detail():
         print("DEBUG: Form data:", request.form)
 
         drug_id = request.form.get('drug_id')
-        salt_id = request.form.get('salt_id', None)
-        mechanism_of_action = request.form.get('mechanism_of_action')
-        smiles = request.form.get('smiles')
-        print(f"DEBUG: SMILES received: {smiles}")
+        salt_id = request.form.get('salt_id')
 
-        if not drug_id:
+        # Validate drug_id
+        if not drug_id or not drug_id.isdigit():
             return render_template(
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                error_message="Drug ID is required!"
+                error_message="Drug ID is required and must be an integer!"
             )
 
+        # Validate and convert salt_id
+        if salt_id == '' or salt_id is None:
+            salt_id = None  # Explicitly set to None
+        else:
+            try:
+                salt_id = int(salt_id)  # Convert to integer
+            except ValueError:
+                return render_template(
+                    'add_detail.html', drugs=drugs, salts=salts, indications=indications,
+                    targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                    metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                    error_message="Invalid salt_id. Must be an integer or empty."
+                )
+
+        mechanism_of_action = request.form.get('mechanism_of_action')
+        smiles = request.form.get('smiles')
+        print(f"DEBUG: SMILES received: {smiles}")
+        print(f"DEBUG: drug_id={drug_id}, salt_id={salt_id} (type: {type(salt_id)})")
+
+        # Check for existing detail
         existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).first()
         if existing_detail:
             return render_template(
@@ -1296,10 +1314,10 @@ def add_detail():
             new_detail = DrugDetail(
                 drug_id=drug_id, salt_id=salt_id, mechanism_of_action=mechanism_of_action,
                 molecular_formula=molecular_formula, synthesis=synthesis, structure=structure_filename,
-                structure_3d=structure_3d_filename, iupac_name=iupac_name, smiles=smiles, inchikey=inchikey, pubchem_cid=pubchem_cid,
-                pubchem_sid=pubchem_sid, cas_id=cas_id, ec_number=ec_number, nci_code=nci_code,
-                rxcui=rxcui, snomed_id=snomed_id, molecular_weight=molecular_weight, solubility=solubility,
-                pharmacodynamics=pharmacodynamics, black_box_warning=black_box_warning,
+                structure_3d=structure_3d_filename, iupac_name=iupac_name, smiles=smiles, inchikey=inchikey,
+                pubchem_cid=pubchem_cid, pubchem_sid=pubchem_sid, cas_id=cas_id, ec_number=ec_number,
+                nci_code=nci_code, rxcui=rxcui, snomed_id=snomed_id, molecular_weight=molecular_weight,
+                solubility=solubility, pharmacodynamics=pharmacodynamics, black_box_warning=black_box_warning,
                 black_box_details=black_box_details, indications=indications, target_molecules=target_molecules,
                 pharmacokinetics=pharmacokinetics, boiling_point=boiling_point, melting_point=melting_point,
                 density=density, flash_point=flash_point, fda_approved=fda_approved,
@@ -1307,7 +1325,7 @@ def add_detail():
             )
             db.session.add(new_detail)
             db.session.commit()
-            #print(f"DEBUG: DrugDetail added with ID: {new_detail.id}")
+            print(f"DEBUG: DrugDetail added with ID: {new_detail.id}")
 
             # Parse range helper
             def parse_range(value):
@@ -1331,11 +1349,11 @@ def add_detail():
             if not selected_routes:
                 print("WARNING: No routes selected")
             for route_id in selected_routes:
-                #print(f"DEBUG: Processing route_id={route_id}")
-                pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')  # Fixed: Removed $
-                pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')  # Fixed: Removed $
+                print(f"DEBUG: Processing route_id={route_id}")
+                pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
+                pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
 
-                # PK parameters - Fixed field names
+                # PK parameters
                 absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
                 vod_rate = request.form.get(f'vod_rate_{route_id}', '')
                 protein_binding = request.form.get(f'protein_binding_{route_id}', '')
@@ -1345,10 +1363,10 @@ def add_detail():
                 tmax = request.form.get(f'tmax_{route_id}', '')
                 cmax = request.form.get(f'cmax_{route_id}', '')
 
-                # Metabolism parameters - Fixed field names
-                metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')  # Fixed: Removed $
-                metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')  # Fixed: Removed $
-                metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')  # Fixed: Removed $
+                # Metabolism parameters
+                metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
+                metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
+                metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')
 
                 # Parse PK ranges
                 absorption_min, absorption_max = parse_range(absorption_rate)
@@ -1408,53 +1426,43 @@ def add_detail():
                     cmax_min=cmax_min,
                     cmax_max=cmax_max
                 )
-                #print("DEBUG: Adding DrugRoute to session")
                 db.session.add(new_drug_route)
-                #print("DEBUG: Flushing session for DrugRoute")
                 db.session.flush()  # Get ID for relationships
-                #print(f"DEBUG: DrugRoute added with ID: {new_drug_route.id}")
 
                 # Link metabolism data via relationships
                 if metabolism_organs_ids:
                     organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all()
                     new_drug_route.metabolism_organs.extend(organs)
-                    #print(f"DEBUG: Linked {len(organs)} metabolism organs to DrugRoute {new_drug_route.id}")
                 if metabolism_enzymes_ids:
                     enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all()
                     new_drug_route.metabolism_enzymes.extend(enzymes)
-                    #print(f"DEBUG: Linked {len(enzymes)} metabolism enzymes to DrugRoute {new_drug_route.id}")
                 if metabolite_ids:
                     metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all()
                     new_drug_route.metabolites.extend(metabolites)
-                    #print(f"DEBUG: Linked {len(metabolites)} metabolites to DrugRoute {new_drug_route.id}")
 
                 # Route-specific indications
-                selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')  # Fixed: Removed $
+                selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
                 for indication_id in selected_route_indications:
                     new_route_indication = RouteIndication(
                         drug_detail_id=new_detail.id,
                         route_id=route_id,
                         indication_id=indication_id
                     )
-                    #print("DEBUG: Adding RouteIndication to session")
                     db.session.add(new_route_indication)
-                    #print(f"DEBUG: Added RouteIndication for indication_id={indication_id}")
 
             # Add side effects
             for side_effect_id in selected_side_effects:
                 side_effect = SideEffect.query.get(side_effect_id)
                 if side_effect:
                     new_detail.side_effects.append(side_effect)
-                    #print(f"DEBUG: Added side_effect_id={side_effect_id} to DrugDetail {new_detail.id}")
 
-            #print("DEBUG: Committing all changes")
             db.session.commit()
-            #print("DEBUG: All records saved successfully")
+            print("DEBUG: All records saved successfully")
             return redirect(url_for('view_details'))
 
         except Exception as e:
             db.session.rollback()
-            #print(f"ERROR: Exception occurred: {str(e)}")
+            print(f"ERROR: Exception occurred: {str(e)}")
             return render_template(
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
