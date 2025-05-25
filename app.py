@@ -1283,7 +1283,7 @@ def add_detail():
                 if error:
                     print(f"DEBUG: 3D structure generation failed: {error}")
                 else:
-                    structure_3d_filename = os.path.join('Uploads', '3d_structures', output_filename).replace('\\', '/')
+                    structure_3d_filename = os.path.join('uploads', '3d_structures', output_filename).replace('\\', '/')
                     print(f"DEBUG: 3D structure saved as {structure_3d_filename}")
             else:
                 print("DEBUG: No SMILES provided, skipping 3D structure generation")

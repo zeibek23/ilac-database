@@ -3,7 +3,10 @@ services:
     name: drugly
     env: python
     plan: pro
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      pip install -r requirements.txt
+      mkdir -p /app/static/uploads/3d_structures
+      cp -r static/uploads /app/static/
     startCommand: gunicorn --timeout 600 --workers 1 --threads 4 app:app
     envVars:
       - key: DATABASE_URI
