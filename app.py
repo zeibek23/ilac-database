@@ -2,6 +2,7 @@ from flask import Flask, render_template, render_template_string, request, sessi
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
+from openpyxl import load_workbook
 from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
@@ -1564,17 +1565,21 @@ def find_column(df, possible_names):
 
 def import_icd11_mms_from_file(file_path):
     file_ext = os.path.splitext(file_path)[1].lower()
-    chunk_size = 5000  # Process 5,000 rows at a time
+    chunk_size = 1000  # Process 1,000 rows at a time to reduce memory
     batch_size = 500   # Commit categories every 500 records (same as original)
 
     # Initialize reader for chunked processing
     if file_ext == '.xlsx':
-        # Count total rows to determine chunks
-        total_rows_excel = pd.read_excel(file_path, usecols=[0]).shape[0]
-        chunks = []
-        for start in range(0, total_rows_excel, chunk_size):
-            df_chunk = pd.read_excel(file_path, dtype=str, skiprows=start, nrows=chunk_size)
-            chunks.append(df_chunk)
+        # Use openpyxl to read Excel iteratively
+        wb = load_workbook(file_path, read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        header = rows[0]  # Assume first row is header
+        data_rows = rows[1:]  # Data starts from second row
+        total_rows_excel = len(data_rows)
+        # Convert chunks to DataFrames
+        chunks = [pd.DataFrame(data_rows[i:i+chunk_size], columns=header) for i in range(0, total_rows_excel, chunk_size)]
+        wb.close()  # Free memory
     elif file_ext in ['.txt', '.tsv']:
         reader = pd.read_csv(file_path, sep='\t', dtype=str, encoding='utf-8', chunksize=chunk_size)
         chunks = reader
