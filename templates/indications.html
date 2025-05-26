@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICD-11 Veri Yansı</title>
+    <title>ICD-11 ve Endikasyon Yönetim Sayfası</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" integrity="sha512-iecdLmaskl7CVkqk1wZxL+h7yBzvj8z3jI9zL8zL7Q2z6L5f5l8zL8z3jI9zL8zL7Q2z6L5f5l8z3jI9zL8z3j" crossorigin="anonymous">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" integrity="sha512-iecdLmaskl7CVkqk1wZxL+h7yBzvj8z3jI9zL8zL7Q2z6L5f5l8zL8zL8z3jI9zL8z3j" crossorigin="anonymous">
     <style>
         body {
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -77,6 +77,9 @@
             list-style: none;
             padding: 0;
             margin: 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
         }
         .tree li {
             margin: 0;
@@ -84,13 +87,15 @@
         .tree .node {
             display: flex;
             align-items: center;
-            padding: 8px 0;
+            padding: 12px 8px;
             cursor: pointer;
-            border-radius: 5px;
-            transition: background 0.2s;
+            border-radius: 8px;
+            transition: background 0.2s, transform 0.2s;
+            margin-bottom: 4px;
         }
         .tree .node:hover {
-            background-color: #f1f3f5;
+            background-color: #e9ecef;
+            transform: translateX(5px);
         }
         .tree .node .children {
             display: none;
@@ -99,14 +104,15 @@
             display: block;
         }
         .tree .toggle {
-            width: 24px;
-            height: 24px;
-            margin-right: 10px;
-            font-size: 16px;
-            line-height: 24px;
+            width: 28px;
+            height: 28px;
+            margin-right: 12px;
+            font-size: 18px;
+            line-height: 28px;
             text-align: center;
             cursor: pointer;
-            color: #495057;
+            color: #2b4c7e;
+            transition: transform 0.3s;
         }
         .tree .toggle::before {
             content: "\f054"; /* Font Awesome chevron-right */
@@ -115,20 +121,24 @@
         }
         .tree .node.expanded .toggle::before {
             content: "\f078"; /* Chevron-down */
+            transform: rotate(180deg);
+            display: inline-block;
         }
         .tree .leaf .toggle::before {
             content: "";
         }
         .tree .node-details .label {
-            font-size: 15px;
-            color: #333;
+            font-size: 16px;
+            color: #2b4c7e;
+            font-weight: 500;
         }
         .tree .node-details .label.chapter {
-            font-weight: bold;
+            font-weight: 700;
             color: #1a3c5e;
+            font-size: 18px;
         }
         .tree .node-details .block {
-            font-weight: 500;
+            font-weight: 600;
             color: #34495e;
         }
         .tree .node-details .category {
@@ -137,25 +147,48 @@
         }
         .tree .node-details .badge {
             font-size: 12px;
-            margin-left: 8px;
+            margin-left: 10px;
             vertical-align: middle;
+            background: linear-gradient(45deg, #007bff, #00d4ff);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+        .tree .node-details .badge.bg-primary {
+            background: linear-gradient(45deg, #007bff, #00d4ff);
+        }
+        .tree .node-details .badge.bg-info {
+            background: linear-gradient(45deg, #17a2b8, #3ec9d6);
+        }
+        .tree .node-details .badge.bg-secondary {
+            background: linear-gradient(45deg, #6c757d, #adb5bd);
         }
         .tree .node-actions {
-            margin-left: 10px;
+            margin-left: 12px;
             opacity: 0;
             transition: opacity 0.2s;
         }
         .tree .node:hover .node-actions {
             opacity: 1;
         }
+        .tree .node-actions .btn {
+            padding: 4px 8px;
+            font-size: 14px;
+        }
         .search-bar {
             margin-bottom: 1.5rem;
             position: relative;
         }
         #tree-search {
-            padding: 10px 40px 10px 15px;
+            padding: 12px 45px 12px 15px;
             border-radius: 8px;
-            box-shadow: inset;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border: 1px solid #ced4da;
+            transition: border-color 0.3s;
+        }
+        #tree-search:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
         .search-bar .clear-search {
             position: absolute;
@@ -164,8 +197,9 @@
             transform: translateY(-50%);
             cursor: pointer;
             color: #6c757d;
-            font-size: 20px;
+            font-size: 22px;
             display: none;
+            transition: color 0.2s;
         }
         .search-bar .clear-search:hover {
             color: #dc3545;
@@ -173,19 +207,55 @@
         .ram-card {
             background: #ffffff;
             border-radius: 10px;
-            padding: 1rem;
+            padding: 1.2rem;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            margin-top: 1rem;
+            margin-top: 1.5rem;
         }
         .ram-card .progress {
-            height: 25px;
+            height: 28px;
             border-radius: 8px;
+            background-color: #e9ecef;
         }
         .view-toggle .btn {
             font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+        .view-toggle .btn.active {
+            background: linear-gradient(45deg, #007bff, #00d4ff);
+            color: #fff;
+            border-color: transparent;
         }
         .table-view {
             display: none;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+        .table-view .table {
+            border-collapse: separate;
+            border-spacing: 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .table-view .table th, .table-view .table td {
+            padding: 12px;
+            vertical-align: middle;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .table-view .table th {
+            background: linear-gradient(45deg, #007bff, #00d4ff);
+            color: #fff;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+        .table-view .table tr:hover {
+            background-color: #e9ecef;
+            transition: background 0.2s;
+        }
+        .table-view .table .btn {
+            padding: 4px 8px;
+            font-size: 14px;
         }
         .tree .node-level-0 { margin-left: 0px !important; }
         .tree .node-level-1 { margin-left: 20px !important; }
@@ -205,12 +275,27 @@
             .ram-card {
                 padding: 0.75rem;
             }
+            .tree .node {
+                padding: 8px 4px;
+            }
+            .tree .toggle {
+                width: 24px;
+                height: 24px;
+                font-size: 16px;
+            }
+            .tree .node-details .label {
+                font-size: 14px;
+            }
+            .table-view .table th, .table-view .table td {
+                padding: 8px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
 <body>
 <div class="container my-5">
-    <h1 class="text-center mb-5">ICD-11 Veri Yansı</h1>
+    <h1 class="text-center mb-5">ICD-11 ve Endikasyon Yönetim Sayfası</h1>
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}

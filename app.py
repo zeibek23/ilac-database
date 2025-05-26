@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 from openpyxl import load_workbook
+import bleach
 from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
@@ -80,7 +81,7 @@ from functools import wraps
 import sqlalchemy
 from sqlalchemy import and_, or_, nullslast, extract, inspect
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, Draw
 
 
 load_dotenv()
@@ -1125,7 +1126,19 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('home'))
 
-
+#ICD -11 tree view
+@app.route('/icd11')
+def icd11_view():
+    if 'user_id' not in session:
+        flash('Please log in to view the ICD-11 hierarchy.', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found. Please log in again.', 'error')
+        return redirect(url_for('login'))
+    
+    return render_template('icd11_view.html', user_email=user.email)
 
 # Yeni ilaç ekleme
 @app.route('/add', methods=['GET', 'POST'])
@@ -1165,23 +1178,47 @@ def manage_salts():
 #Etken Madde ve Tuz eşleşmesi
 @app.route('/matches', methods=['GET', 'POST'])
 def manage_matches():
-    # Get pagination parameters from the request
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 15, type=int)  # Adjust per_page as needed
+    if request.method == 'POST':
+        drug_id = request.form.get('drug_id', type=int)
+        salt_id = request.form.get('salt_id', type=int)
+        if drug_id and salt_id:
+            existing = db.session.query(drug_salt).filter(and_(
+                drug_salt.c.drug_id == drug_id,
+                drug_salt.c.salt_id == salt_id
+            )).first()
+            if not existing:
+                db.session.execute(drug_salt.insert().values(drug_id=drug_id, salt_id=salt_id))
+                db.session.commit()
+                flash('Drug-Salt association added successfully!', 'success')
+            else:
+                flash('This drug-salt association already exists.', 'warning')
+        else:
+            flash('Please select both a drug and a salt.', 'error')
+        return redirect(url_for('manage_matches'))
 
-    # Query with pagination
+    # Pagination for drugs
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 15, type=int)
     drugs_query = Drug.query.paginate(page=page, per_page=per_page, error_out=False)
-    drugs = drugs_query.items  # List of drugs for the current page
+    drugs = drugs_query.items
     total_pages = drugs_query.pages
     current_page = drugs_query.page
 
-    # Fetch salts (if needed, optimize this query similarly)
-    salts = []  # Replace with your salts query if needed
+    # Fetch all salts
+    salts = Salt.query.all()
+
+    # Fetch existing matches with explicit joins
+    matches = db.session.query(Drug, Salt).join(
+        drug_salt, Drug.id == drug_salt.c.drug_id
+    ).join(
+        Salt, Salt.id == drug_salt.c.salt_id
+    ).all()
 
     return render_template(
         'matches.html',
         drugs=drugs,
         salts=salts,
+        matches=matches,
         total_pages=total_pages,
         current_page=current_page,
         per_page=per_page
@@ -1191,19 +1228,22 @@ def generate_3d_structure(smiles, output_filename):
     try:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
+            logger.error(f"Invalid SMILES string: {smiles}")
             return None, "Invalid SMILES string"
         mol = Chem.AddHs(mol)
         if AllChem.EmbedMolecule(mol, randomSeed=42) != 0:
+            logger.error("Failed to generate 3D coordinates")
             return None, "Failed to generate 3D coordinates"
         AllChem.MMFFOptimizeMolecule(mol)
         output_path = os.path.join('static', 'uploads', '3d_structures', output_filename).replace('\\', '/')
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         Chem.MolToPDBFile(mol, output_path)
-        return output_path, None
+        logger.info(f"3D structure generated at {output_path}")
+        return os.path.join('Uploads', '3d_structures', output_filename).replace('\\', '/'), None
     except Exception as e:
+        logger.error(f"Error generating 3D structure: {str(e)}")
         return None, f"Error generating 3D structure: {str(e)}"
     
-
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -1217,14 +1257,17 @@ def add_detail():
     metabolism_enzymes = MetabolismEnzyme.query.all()
 
     if request.method == 'POST':
-        print("DEBUG: Entering POST block")
-        print("DEBUG: Form data:", request.form)
+        logger.debug("Entering POST block")
+        logger.debug(f"Form data: {request.form}")
+        logger.debug(f"Using bleach version: {bleach.__version__}")
+        logger.debug(f"bleach.clean function: {bleach.clean}")
 
         drug_id = request.form.get('drug_id')
         salt_id = request.form.get('salt_id')
 
         # Validate drug_id
         if not drug_id or not drug_id.isdigit():
+            logger.error("Invalid drug_id: must be an integer")
             return render_template(
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
@@ -1232,13 +1275,16 @@ def add_detail():
                 error_message="Drug ID is required and must be an integer!"
             )
 
+        drug_id = int(drug_id)
+
         # Validate and convert salt_id
         if salt_id == '' or salt_id is None:
-            salt_id = None  # Explicitly set to None
+            salt_id = None
         else:
             try:
-                salt_id = int(salt_id)  # Convert to integer
+                salt_id = int(salt_id)
             except ValueError:
+                logger.error(f"Invalid salt_id: {salt_id}")
                 return render_template(
                     'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
@@ -1246,14 +1292,10 @@ def add_detail():
                     error_message="Invalid salt_id. Must be an integer or empty."
                 )
 
-        mechanism_of_action = request.form.get('mechanism_of_action')
-        smiles = request.form.get('smiles')
-        print(f"DEBUG: SMILES received: {smiles}")
-        print(f"DEBUG: drug_id={drug_id}, salt_id={salt_id} (type: {type(salt_id)})")
-
         # Check for existing detail
         existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).first()
         if existing_detail:
+            logger.error(f"DrugDetail already exists for drug_id={drug_id}, salt_id={salt_id}")
             return render_template(
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
@@ -1262,31 +1304,94 @@ def add_detail():
             )
 
         try:
+            # Form data with sanitization for rich text fields
+            logger.debug(f"Mechanism of Action input: {request.form.get('mechanism_of_action')}")
+            try:
+                mechanism_of_action = bleach.clean(
+                    request.form.get('mechanism_of_action'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']},
+                    styles=['color', 'background-color']
+                ) if request.form.get('mechanism_of_action') else None
+            except TypeError as e:
+                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                mechanism_of_action = bleach.clean(
+                    request.form.get('mechanism_of_action'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']}
+                ) if request.form.get('mechanism_of_action') else None
+
+            smiles = request.form.get('smiles')
+            logger.debug(f"SMILES received: {smiles}")
+            logger.debug(f"drug_id={drug_id}, salt_id={salt_id} (type: {type(salt_id)})")
+
             selected_routes = request.form.getlist('route_id[]')
             selected_side_effects = request.form.getlist('side_effects[]')
             fda_approved = 'fda_approved' in request.form
             ema_approved = 'ema_approved' in request.form
             titck_approved = 'titck_approved' in request.form
             molecular_formula = request.form.get('molecular_formula')
-            synthesis = request.form.get('synthesis')
-            structure = request.files.get('structure')
+            logger.debug(f"Synthesis input: {request.form.get('synthesis')}")
+            try:
+                synthesis = bleach.clean(
+                    request.form.get('synthesis'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']},
+                    styles=['color', 'background-color']
+                ) if request.form.get('synthesis') else None
+            except TypeError as e:
+                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                synthesis = bleach.clean(
+                    request.form.get('synthesis'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']}
+                ) if request.form.get('synthesis') else None
+
+            # Handle uploaded structure file (priority)
             structure_filename = None
+            structure = request.files.get('structure')
             if structure:
-                structure_filename = secure_filename(structure.filename)
-                structure.save(os.path.join('static', 'Uploads', structure_filename))
+                original_filename = secure_filename(structure.filename)
+                file_ext = os.path.splitext(original_filename)[1] or '.png'  # Default to .png if no extension
+                structure_filename = f"structure_{drug_id}_salt_{salt_id or 'none'}{file_ext}"
+                structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
+                os.makedirs(os.path.dirname(structure_path), exist_ok=True)
+                structure.save(structure_path)
                 structure_filename = os.path.join('Uploads', structure_filename).replace('\\', '/')
-                print(f"DEBUG: Structure file saved as {structure_filename}")
+                logger.info(f"Uploaded structure file saved as {structure_path}")
+            elif smiles:
+                # Fallback to SVG generation if no file uploaded
+                svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
+                svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+                logger.debug(f"Generating SVG for drug_id={drug_id}, salt_id={salt_id or 'none'}, path={svg_path}")
+                try:
+                    mol = Chem.MolFromSmiles(smiles)
+                    if mol:
+                        os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                        Draw.MolToFile(mol, svg_path, size=(300, 300))
+                        structure_filename = os.path.join('Uploads', svg_filename).replace('\\', '/')
+                        logger.info(f"Structure file saved as {svg_path}")
+                    else:
+                        logger.error(f"Invalid SMILES: {smiles}")
+                except Exception as e:
+                    logger.error(f"Error generating SVG: {str(e)}")
+            else:
+                logger.warning("No structure file uploaded or SMILES provided")
+
+            # Generate 3D PDB
             structure_3d_filename = None
             if smiles:
-                output_filename = f"drug_{drug_id}_salt_{salt_id or 'none'}_3d.pdb"
-                structure_3d_path, error = generate_3d_structure(smiles, output_filename)
+                pdb_filename = f"drug_{drug_id}_salt_{salt_id or 'none'}_3d.pdb"
+                structure_3d_path, error = generate_3d_structure(smiles, pdb_filename)
                 if error:
-                    print(f"DEBUG: 3D structure generation failed: {error}")
+                    logger.error(f"3D structure generation failed: {error}")
                 else:
-                    structure_3d_filename = os.path.join('uploads', '3d_structures', output_filename).replace('\\', '/')
-                    print(f"DEBUG: 3D structure saved as {structure_3d_filename}")
+                    structure_3d_filename = structure_3d_path
+                    logger.info(f"3D structure saved as {structure_3d_filename}")
             else:
-                print("DEBUG: No SMILES provided, skipping 3D structure generation")
+                logger.debug("No SMILES provided, skipping 3D structure generation")
+
+            # Remaining form fields
             iupac_name = request.form.get('iupac_name')
             inchikey = request.form.get('inchikey')
             pubchem_cid = request.form.get('pubchem_cid')
@@ -1298,13 +1403,41 @@ def add_detail():
             snomed_id = request.form.get('snomed_id')
             molecular_weight = request.form.get('molecular_weight', type=float)
             solubility = request.form.get('solubility')
-            pharmacodynamics = request.form.get('pharmacodynamics')
+            logger.debug(f"Pharmacodynamics input: {request.form.get('pharmacodynamics')}")
+            try:
+                pharmacodynamics = bleach.clean(
+                    request.form.get('pharmacodynamics'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']},
+                    styles=['color', 'background-color']
+                ) if request.form.get('pharmacodynamics') else None
+            except TypeError as e:
+                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                pharmacodynamics = bleach.clean(
+                    request.form.get('pharmacodynamics'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']}
+                ) if request.form.get('pharmacodynamics') else None
             black_box_warning = 'black_box_warning' in request.form
             black_box_details = request.form.get('black_box_details') if black_box_warning else None
             indications = ','.join(request.form.getlist('indications[]')) if request.form.getlist('indications[]') else None
             selected_target_molecules = request.form.getlist('target_molecules[]')
             target_molecules = ','.join(selected_target_molecules) if selected_target_molecules else None
-            pharmacokinetics = request.form.get('pharmacokinetics')
+            logger.debug(f"Pharmacokinetics input: {request.form.get('pharmacokinetics')}")
+            try:
+                pharmacokinetics = bleach.clean(
+                    request.form.get('pharmacokinetics'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']},
+                    styles=['color', 'background-color']
+                ) if request.form.get('pharmacokinetics') else None
+            except TypeError as e:
+                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                pharmacokinetics = bleach.clean(
+                    request.form.get('pharmacokinetics'),
+                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                    attributes={'span': ['style'], 'a': ['href']}
+                ) if request.form.get('pharmacokinetics') else None
             boiling_point = request.form.get('boiling_point')
             melting_point = request.form.get('melting_point')
             density = request.form.get('density')
@@ -1325,7 +1458,7 @@ def add_detail():
             )
             db.session.add(new_detail)
             db.session.commit()
-            print(f"DEBUG: DrugDetail added with ID: {new_detail.id}")
+            logger.info(f"DrugDetail added with ID: {new_detail.id}")
 
             # Parse range helper
             def parse_range(value):
@@ -1336,20 +1469,20 @@ def add_detail():
                         min_val, max_val = map(float, value.split('-'))
                         return min_val, max_val
                     except ValueError:
-                        print(f"DEBUG: Failed to parse range '{value}'")
+                        logger.error(f"Failed to parse range '{value}'")
                         return None, None
                 try:
                     val = float(value)
                     return val, val
                 except ValueError:
-                    print(f"DEBUG: Failed to parse single value '{value}'")
+                    logger.error(f"Failed to parse single value '{value}'")
                     return None, None
 
             # Process DrugRoute entries
             if not selected_routes:
-                print("WARNING: No routes selected")
+                logger.warning("No routes selected")
             for route_id in selected_routes:
-                print(f"DEBUG: Processing route_id={route_id}")
+                logger.debug(f"Processing route_id={route_id}")
                 pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
                 pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
 
@@ -1384,23 +1517,23 @@ def add_detail():
                 tmax_min, tmax_max = parse_range(tmax)
                 cmax_min, cmax_max = parse_range(cmax)
 
-                print(f"DEBUG: Route ID {route_id} -> "
-                      f"Absorption: {absorption_min}-{absorption_max}, "
-                      f"VoD: {vod_min}-{vod_max}, "
-                      f"Protein Binding: {protein_min}-{protein_max}, "
-                      f"Half-Life: {half_life_min}-{half_life_max}, "
-                      f"Clearance: {clearance_min}-{clearance_max}, "
-                      f"Bioavailability: {bio_min}-{bio_max}, "
-                      f"Tmax: {tmax_min}-{tmax_max}, "
-                      f"Cmax: {cmax_min}-{cmax_max}, "
-                      f"Organs IDs: {metabolism_organs_ids}, "
-                      f"Enzymes IDs: {metabolism_enzymes_ids}, "
-                      f"Metabolite IDs: {metabolite_ids}, "
-                      f"PD: {pd}, PK: {pk}")
+                logger.debug(f"Route ID {route_id} -> "
+                             f"Absorption: {absorption_min}-{absorption_max}, "
+                             f"VoD: {vod_min}-{vod_max}, "
+                             f"Protein Binding: {protein_min}-{protein_max}, "
+                             f"Half-Life: {half_life_min}-{half_life_max}, "
+                             f"Clearance: {clearance_min}-{clearance_max}, "
+                             f"Bioavailability: {bio_min}-{bio_max}, "
+                             f"Tmax: {tmax_min}-{tmax_max}, "
+                             f"Cmax: {cmax_min}-{cmax_max}, "
+                             f"Organs IDs: {metabolism_organs_ids}, "
+                             f"Enzymes IDs: {metabolism_enzymes_ids}, "
+                             f"Metabolite IDs: {metabolite_ids}, "
+                             f"PD: {pd}, PK: {pk}")
 
                 # Validate route_id
                 if not RouteOfAdministration.query.get(route_id):
-                    print(f"ERROR: Invalid route_id {route_id}")
+                    logger.error(f"Invalid route_id {route_id}")
                     continue
 
                 # Create DrugRoute entry
@@ -1457,12 +1590,12 @@ def add_detail():
                     new_detail.side_effects.append(side_effect)
 
             db.session.commit()
-            print("DEBUG: All records saved successfully")
+            logger.info("All records saved successfully")
             return redirect(url_for('view_details'))
 
         except Exception as e:
             db.session.rollback()
-            print(f"ERROR: Exception occurred: {str(e)}")
+            logger.error(f"Exception occurred: {str(e)}")
             return render_template(
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
@@ -1477,15 +1610,95 @@ def add_detail():
     )
 
 
+def generate_and_update_structures():
+    with app.app_context():
+        details = DrugDetail.query.all()
+        for detail in details:
+            # Define consistent paths
+            svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
+            pdb_filename = f'drug_{detail.drug_id}_salt_{detail.salt_id or "none"}_3d.pdb'
+            svg_path = os.path.join('static', 'Uploads', svg_filename)
+            pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
+            db_svg_path = f'Uploads/{svg_filename}'
+            db_pdb_path = f'Uploads/3d_structures/{pdb_filename}'
+
+            # Generate 2D SVG if SMILES exists and structure is missing or file doesn't exist
+            if detail.smiles and (not detail.structure or not os.path.exists(svg_path)):
+                try:
+                    mol = Chem.MolFromSmiles(detail.smiles)
+                    if mol:
+                        os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                        Draw.MolToFile(mol, svg_path, size=(300, 300))
+                        detail.structure = db_svg_path
+                        db.session.commit()
+                        print(f"Generated SVG for drug_id={detail.drug_id}, salt_id={detail.salt_id or 'none'}")
+                    else:
+                        print(f"Invalid SMILES for drug_id={detail.drug_id}: {detail.smiles}")
+                except Exception as e:
+                    print(f"Error generating SVG for drug_id={detail.drug_id}: {e}")
+
+            # Generate 3D PDB if SMILES exists and structure_3d is missing or file doesn't exist
+            if detail.smiles and (not detail.structure_3d or not os.path.exists(pdb_path)):
+                try:
+                    structure_3d_path, error = generate_3d_structure(detail.smiles, pdb_filename)
+                    if not error:
+                        detail.structure_3d = db_pdb_path
+                        db.session.commit()
+                        print(f"Generated PDB for drug_id={detail.drug_id}, salt_id={detail.salt_id or 'none'}")
+                    else:
+                        print(f"Error generating PDB for drug_id={detail.drug_id}: {error}")
+                except Exception as e:
+                    print(f"Error generating PDB for drug_id={detail.drug_id}: {e}")
+
+            # Normalize existing paths (fix casing and prefixes)
+            if detail.structure and detail.structure.lower().startswith('uploads/'):
+                detail.structure = detail.structure.replace('uploads/', 'Uploads/')
+                db.session.commit()
+            if detail.structure_3d and detail.structure_3d.lower().startswith('uploads/'):
+                detail.structure_3d = detail.structure_3d.replace('uploads/', 'Uploads/')
+                db.session.commit()
+
+if __name__ == '__main__':
+    generate_and_update_structures()
 
 @app.route('/details', methods=['GET'])
 @login_required
 def view_details():
     details = DrugDetail.query.all()
-
     enriched_details = []
+
     for detail in details:
-        # Prepare routes with route-specific indications
+        # Define paths
+        svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
+        pdb_filename = f'drug_{detail.drug_id}_salt_{detail.salt_id or "none"}_3d.pdb'
+        svg_path = os.path.join('static', 'Uploads', svg_filename)
+        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
+        db_svg_path = f'Uploads/{svg_filename}'
+        db_pdb_path = f'Uploads/3d_structures/{pdb_filename}'
+
+        # Generate 2D SVG if missing
+        if detail.smiles and (not detail.structure or not os.path.exists(svg_path)):
+            try:
+                mol = Chem.MolFromSmiles(detail.smiles)
+                if mol:
+                    os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                    Draw.MolToFile(mol, svg_path, size=(300, 300))
+                    detail.structure = db_svg_path
+                    db.session.commit()
+            except Exception as e:
+                print(f"Error generating SVG for drug_id={detail.drug_id}: {e}")
+
+        # Generate 3D PDB if missing
+        if detail.smiles and (not detail.structure_3d or not os.path.exists(pdb_path)):
+            try:
+                structure_3d_path, error = generate_3d_structure(detail.smiles, pdb_filename)
+                if not error:
+                    detail.structure_3d = db_pdb_path
+                    db.session.commit()
+            except Exception as e:
+                print(f"Error generating PDB for drug_id={detail.drug_id}: {e}")
+
+        # Prepare routes and other data (your existing logic)
         routes_info = []
         for route in detail.routes:
             route_indications = [
@@ -1500,37 +1713,26 @@ def view_details():
                 'indications': route_indications
             })
 
-
-        # Indications isimlerini çözümle
         indications_list = []
         if detail.indications:
-            #print(f"DEBUG: Indications (raw) for detail {detail.id} -> {detail.indications}")
             indication_ids = [int(ind_id) for ind_id in detail.indications.split(',') if ind_id.isdigit()]
             indications = Indication.query.filter(Indication.id.in_(indication_ids)).all()
             indications_list = [f"{ind.name_en} ({ind.name_tr})" if ind.name_tr else ind.name_en for ind in indications]
-            #print(f"DEBUG: Retrieved Indications for detail {detail.id} -> {indications_list}")
 
-
-
-        # Target Molecules isimlerini çözümle
+        target_molecules_list = []
         if detail.target_molecules:
-            target_ids = detail.target_molecules.split(',')  # ID'leri ayır
+            target_ids = detail.target_molecules.split(',')
             target_molecules_list = [
                 db.session.get(Target, int(target_id)).name_en
                 for target_id in target_ids
                 if db.session.get(Target, int(target_id))
             ]
-        else:
-            target_molecules_list = []
 
-
-        # Yan etkileri çözümle
         side_effects_list = [
             {"id": se.id, "name_en": se.name_en, "name_tr": se.name_tr or 'N/A'}
             for se in detail.side_effects
         ]
 
-        # Detayı zenginleştir ve listeye ekle
         enriched_details.append({
             'id': detail.id,
             'drug_name': detail.drug.name_en,
@@ -1554,10 +1756,10 @@ def view_details():
             'snomed_id': detail.snomed_id,
             'molecular_weight': detail.molecular_weight,
             'solubility': detail.solubility,
-            'side_effects': side_effects_list,  # Yan etkiler listesi
+            'side_effects': side_effects_list,
             'pharmacodynamics': detail.pharmacodynamics,
-            'indications': indications_list,  # İsimleri şablona gönder
-            'target_molecules': target_molecules_list,  # İsimleri şablona gönder
+            'indications': indications_list,
+            'target_molecules': target_molecules_list,
             'pharmacokinetics': detail.pharmacokinetics,
             'boiling_point': detail.boiling_point,
             'melting_point': detail.melting_point,
@@ -1565,10 +1767,10 @@ def view_details():
             'flash_point': detail.flash_point,
             'routes': routes_info,
             'black_box_warning': detail.black_box_warning,
-            'black_box_details': detail.black_box_details
+            'black_box_details': detail.black_box_details,
+            'mechanism_of_action': detail.mechanism_of_action  # Added for completeness
         })
 
-    # Detayları şablona gönder
     return render_template('details_list.html', details=enriched_details)
 
 #ICD-11 Başlangıç
@@ -2022,8 +2224,15 @@ def get_children(parent_id):
         children_query = Indication.query.filter_by(parent_id=parent_id if parent_id != 0 else None)
         if expected_class_kind:
             children_query = children_query.filter_by(class_kind=expected_class_kind)
+            app.logger.debug(f"Filtering by class_kind: {expected_class_kind}")
         
-        # Sort chapters by chapter_no for parent_id=0, otherwise sort by code and name_en
+        # Log all children before pagination
+        all_children = children_query.all()
+        app.logger.debug(f"Total children found: {len(all_children)}")
+        for child in all_children:
+            app.logger.debug(f"Child: ID={child.id}, Name={child.name_en}, Code={child.code}, ClassKind={child.class_kind}, HasChildren={child.has_children}, IsLeaf={child.is_leaf}")
+
+        # Sort and paginate
         if parent_id == 0:
             children_query = children_query.order_by(Indication.chapter_no.asc())
         else:
@@ -2036,10 +2245,7 @@ def get_children(parent_id):
         children_paginated = children_query.paginate(page=page, per_page=per_page, error_out=False)
         children = children_paginated.items
 
-        app.logger.debug(f"Found {len(children)} children for parent_id: {parent_id} on page {page} (expected class_kind: {expected_class_kind})")
-        for child in children:
-            app.logger.debug(f"Child: {child.name_en} (ID: {child.id}, Code: {child.code}, Parent ID: {child.parent_id}, ClassKind: {child.class_kind})")
-
+        app.logger.debug(f"Paginated children count: {len(children)} on page {page}")
         response = [{
             'id': ind.id,
             'name_en': str(ind.name_en),
@@ -2049,7 +2255,7 @@ def get_children(parent_id):
             'has_children': ind.has_children,
             'is_leaf': ind.is_leaf
         } for ind in children]
-        app.logger.debug(f"Returning response for parent_id: {parent_id}: {response}")
+        app.logger.debug(f"Response: {response}")
         return jsonify({
             'children': response,
             'has_next': children_paginated.has_next,
@@ -2460,27 +2666,82 @@ def delete_drug(drug_id):
  #   else:
  #       for route in drug_routes:
  #           print(f"DrugRoute ID: {route.id}, DrugDetail ID: {route.drug_detail_id}, Route ID: {route.route_id}")
-
 @app.route('/drug/<int:drug_id>')
 def drug_detail(drug_id):
     drug = Drug.query.get_or_404(drug_id)
-    details = DrugDetail.query.filter_by(drug_id=drug_id).all()
+    
+    # Fetch salts
     salts = drug.salts.all()
-
+    
+    # Prepare drug-level information
+    drug_info = {
+        'id': drug.id,
+        'name_en': drug.name_en,
+        'name_tr': drug.name_tr,
+        'category': drug.category.name if drug.category else 'N/A',
+        'fda_approved': drug.fda_approved,
+        'indications': drug.indications,
+        'chembl_id': drug.chembl_id,
+        'pharmgkb_id': drug.pharmgkb_id
+    }
+    
+    # Fetch DrugDetail entries
+    details = DrugDetail.query.filter_by(drug_id=drug_id).all()
     enriched_details = []
+    
     for detail in details:
-        print(f"DEBUG: Enriching detail ID {detail.id}, structure_3d: {detail.structure_3d}")
+        # Generate 2D SVG if SMILES exists
+        salt_suffix = f"_salt_{detail.salt_id or 'none'}"
+        svg_filename = f'sketcher_{drug_id}{salt_suffix}.svg'
+        svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+        logger.debug(f"Checking SVG for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}, path={svg_path}")
+        if detail.smiles:
+            if not os.path.exists(svg_path):
+                try:
+                    logger.info(f"Generating SVG for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
+                    mol = Chem.MolFromSmiles(detail.smiles)
+                    if mol is None:
+                        logger.error(f"Invalid SMILES for drug_id={drug_id}: {detail.smiles}")
+                    else:
+                        os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                        Draw.MolToFile(mol, svg_path, size=(300, 300))
+                        logger.info(f"Saved SVG to {svg_path}")
+                except Exception as e:
+                    logger.error(f"Error generating SVG for drug_id={drug_id}: {str(e)}")
+            else:
+                logger.debug(f"SVG already exists at {svg_path}")
+        else:
+            logger.warning(f"No SMILES provided for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
+        
+        # Generate 3D PDB if SMILES exists
+        pdb_filename = f"drug_{drug_id}_salt_{detail.salt_id or 'none'}_3d.pdb"
+        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename).replace('\\', '/')
+        if detail.smiles and not os.path.exists(pdb_path):
+            try:
+                logger.info(f"Generating PDB for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
+                structure_3d_path, error = generate_3d_structure(detail.smiles, pdb_filename)
+                if error:
+                    logger.error(f"Error generating PDB for drug_id={drug_id}: {error}")
+                else:
+                    logger.info(f"Saved PDB to {structure_3d_path}")
+                    detail.structure_3d = structure_3d_path
+                    db.session.commit()
+            except Exception as e:
+                logger.error(f"Error generating PDB for drug_id={drug_id}: {e}")
+        
         routes_info = []
         for route in detail.routes:
-            # Query RouteIndication directly with drug_detail_id and route_id
             route_indications = [
-                f"{ri.indication.name_en} ({ri.indication.name_tr})" if ri.indication.name_tr else ri.indication.name_en
+                {
+                    'name_en': ri.indication.name_en,
+                    'name_tr': ri.indication.name_tr or 'N/A',
+                    'icd11_code': ri.indication.code or 'N/A'
+                }
                 for ri in RouteIndication.query.filter_by(
                     drug_detail_id=detail.id,
                     route_id=route.route_id
                 ).all()
             ]
-            print(f"DEBUG: Route ID {route.route_id}, Indications: {route_indications}")  # Debug log
             routes_info.append({
                 'name': route.route.name,
                 'pharmacodynamics': route.pharmacodynamics,
@@ -2529,7 +2790,13 @@ def drug_detail(drug_id):
         if detail.indications:
             indication_ids = [int(ind_id) for ind_id in detail.indications.split(',') if ind_id.isdigit()]
             indications = Indication.query.filter(Indication.id.in_(indication_ids)).all()
-            indications_list = [f"{ind.name_en} ({ind.name_tr})" if ind.name_tr else ind.name_en for ind in indications]
+            indications_list = [
+                {
+                    'name_en': ind.name_en,
+                    'name_tr': ind.name_tr or 'N/A',
+                    'icd11_code': ind.code or 'N/A'
+                } for ind in indications
+            ]
 
         target_molecules_list = []
         if detail.target_molecules:
@@ -2544,15 +2811,16 @@ def drug_detail(drug_id):
 
         enriched_details.append({
             'id': detail.id,
-            'drug_name': drug.name_en,
-            'mechanism_of_action': detail.mechanism_of_action,
+            'salt_id': detail.salt_id,
             'salt_name': detail.salt.name_en if detail.salt else None,
+            'is_drug_only': detail.salt_id is None,
+            'mechanism_of_action': detail.mechanism_of_action,
             'fda_approved': detail.fda_approved,
             'ema_approved': detail.ema_approved,
             'titck_approved': detail.titck_approved,
             'molecular_formula': detail.molecular_formula,
             'synthesis': detail.synthesis,
-            'structure': detail.structure,
+            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),
             'structure_3d': detail.structure_3d,
             'iupac_name': detail.iupac_name,
             'smiles': detail.smiles,
@@ -2580,7 +2848,12 @@ def drug_detail(drug_id):
             'black_box_details': detail.black_box_details,
         })
 
-    return render_template('drug_detail.html', drug=drug, salts=salts, details=enriched_details)
+    return render_template(
+        'drug_detail.html',
+        drug=drug_info,
+        salts=salts,
+        details=enriched_details
+    )
 
 
 import qrcode

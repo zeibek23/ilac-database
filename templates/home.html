@@ -100,6 +100,11 @@
             text-align: center;
             animation: fadeInUp 1s ease-in-out;
         }
+        .features-section .row {
+            display: flex;
+            justify-content: center; /* Center the feature cards horizontally */
+            flex-wrap: wrap; /* Ensure responsiveness */
+        }
         .feature-card {
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             border: none;
@@ -152,6 +157,22 @@
         .news-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+        }
+        .news-card .news-type-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        .news-card .news-type-badge.news {
+            background: #28a745; /* Green for news */
+            color: #fff;
+        }
+        .news-card .news-type-badge.update {
+            background: #ffc107; /* Yellow for updates */
+            color: #212529;
         }
         .news-card h5 {
             font-size: 1.5rem;
@@ -225,6 +246,21 @@
             .search-form {
                 max-width: 100%;
                 margin: 10px 0;
+            }
+            .feature-card {
+                margin-bottom: 20px;
+            }
+        }
+        @media (max-width: 992px) {
+            .features-section .row > div {
+                flex: 0 0 50%;
+                max-width: 50%;
+            }
+        }
+        @media (max-width: 576px) {
+            .features-section .row > div {
+                flex: 0 0 100%;
+                max-width: 100%;
             }
         }
     </style>
@@ -317,7 +353,14 @@
                 <div class="card feature-card p-3">
                     <h4>Pharmacogenomics</h4>
                     <p>Personalized medicine insights based on genetic data.</p>
-                    <a href="/pharmacogenomics_dashboard" class="btn btn-success">Discover</a>
+                    <a href="/pharmacogenomics/dashboard" class="btn btn-success">Discover</a>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card feature-card p-3">
+                    <h4>ICD-11 Management</h4>
+                    <p>Advanced tools for managing ICD-11 codes and indications.</p>
+                    <a href="/icd11" class="btn btn-warning">Check it out!</a>
                 </div>
             </div>
             <div class="col-md-3">
@@ -337,6 +380,9 @@
             {% for news in announcements + updates %}
             <div class="col-md-6">
                 <div class="card news-card p-3">
+                    <span class="news-type-badge {{ 'news' if news in announcements else 'update' }}">
+                        {{ 'News' if news in announcements else 'Update' }}
+                    </span>
                     <h5>{{ news.title }}</h5>
                     <p>{{ news.description }}</p>
                     <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
