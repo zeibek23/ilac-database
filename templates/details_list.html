@@ -63,6 +63,16 @@
             max-height: 600px;
             overflow-y: auto;
         }
+        .rich-text p {
+            margin-bottom: 0.5rem;
+        }
+        .rich-text ul, .rich-text ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .rich-text li {
+            margin-bottom: 0.25rem;
+        }
         /* Modal Styles */
         .modal {
             display: none;
@@ -141,12 +151,13 @@
                         <thead>
                             <tr>
                                 <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
+                                <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th> <!-- New Column -->
                                 <th><i class="fas fa-vial section-icon"></i>Salt</th>
                                 <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
                                 <th><i class="fas fa-info-circle section-icon"></i>Warning Details</th>
                                 <th><i class="fas fa-atom section-icon"></i>Molecular Formula</th>
                                 <th><i class="fas fa-image section-icon"></i>Structure</th>
-                                <th><i class="fas fa-cube section-icon"></i>3D Structure</th> <!-- New Column -->
+                                <th><i class="fas fa-cube section-icon"></i>3D Structure</th>
                                 <th><i class="fas fa-weight section-icon"></i>Molecular Weight</th>
                                 <th><i class="fas fa-flask section-icon"></i>Synthesis</th>
                                 <th><i class="fas fa-file-alt section-icon"></i>IUPAC Name</th>
@@ -180,6 +191,7 @@
                             {% for detail in details %}
                             <tr>
                                 <td>{{ detail.drug_name }}</td>
+                                <td class="rich-text">{{ detail.mechanism_of_action|safe if detail.mechanism_of_action else 'N/A' }}</td>
                                 <td>{{ detail.salt_name if detail.salt_name else 'N/A' }}</td>
                                 <td>
                                     {% if detail.black_box_warning %}
@@ -198,22 +210,25 @@
                                 <td>{{ detail.molecular_formula or 'N/A' }}</td>
                                 <td>
                                     {% if detail.structure %}
-                                    <a href="/static/uploads/{{ detail.structure }}" target="_blank" class="text-indigo-600 hover:underline">View</a>
+                                    <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[100px] rounded-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <span class="text-red-500 hidden">Structure unavailable</span>
                                     {% else %}
-                                    N/A
+                                    <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.structure_3d %}
-                                    <button class="btn-primary bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 view-3d-btn" data-structure="/static/uploads/{{ detail.structure_3d }}" data-drug="{{ detail.drug_name }}">
+                                    <button class="btn-primary bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ detail.drug_name }}">
                                         <i class="fas fa-cube mr-1"></i>View 3D
                                     </button>
                                     {% else %}
-                                    N/A
+                                    <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ detail.molecular_weight or 'N/A' }}</td>
-                                <td class="long-text tooltip-text" title="{{ detail.synthesis }}">{{ detail.synthesis or 'N/A' }}</td>
+                                <td class="long-text tooltip-text" title="{{ detail.synthesis|striptags if detail.synthesis else 'N/A' }}">
+                                    {{ detail.synthesis|safe if detail.synthesis else 'N/A' }}
+                                </td>
                                 <td>{{ detail.iupac_name or 'N/A' }}</td>
                                 <td class="long-text tooltip-text" title="{{ detail.smiles }}">{{ detail.smiles or 'N/A' }}</td>
                                 <td>{{ detail.cas_id or 'N/A' }}</td>
@@ -229,8 +244,8 @@
                                 <td>{{ detail.density or 'N/A' }}</td>
                                 <td>{{ detail.solubility or 'N/A' }}</td>
                                 <td>{{ detail.flash_point or 'N/A' }}</td>
-                                <td>{{ detail.pharmacodynamics or 'N/A' }}</td>
-                                <td>{{ detail.pharmacokinetics or 'N/A' }}</td>
+                                <td>{{ detail.pharmacodynamics|safe if detail.pharmacodynamics else 'N/A' }}</td>
+                                <td>{{ detail.pharmacokinetics|safe if detail.pharmacokinetics else 'N/A' }}</td>
                                 <td>
                                     {% if detail.indications %}
                                     <ul class="list-disc pl-5">
@@ -291,8 +306,8 @@
                                         {% for route in detail.routes %}
                                         <li>
                                             <strong>{{ route.name }}</strong><br>
-                                            <span class="text-gray-600"><em>Pharmacodynamics:</em> {{ route.pharmacodynamics or 'N/A' }}</span><br>
-                                            <span class="text-gray-600"><em>Pharmacokinetics:</em> {{ route.pharmacokinetics or 'N/A' }}</span><br>
+                                            <span class="text-gray-600"><em>Pharmacodynamics:</em> {{ route.pharmacodynamics|safe if route.pharmacodynamics else 'N/A' }}</span><br>
+                                            <span class="text-gray-600"><em>Pharmacokinetics:</em> {{ route.pharmacokinetics|safe if route.pharmacokinetics else 'N/A' }}</span><br>
                                             <span class="text-gray-600"><em>Indications:</em></span>
                                             {% if route.indications %}
                                             <ul class="list-disc pl-5">
@@ -351,7 +366,8 @@
                 columnDefs: [
                     { width: '200px', targets: [26, 27, 28, 32] }, // Adjusted for new column (indications, side effects, targets, routes)
                     { width: '100px', targets: [8, 10] }, // Synthesis, SMILES
-                    { width: '120px', targets: [6] } // 3D Structure column
+                    { width: '120px', targets: [6] }, // 3D Structure column
+                    { width: '150px', targets: [1] } // Mechanism of Action column
                 ]
             });
 

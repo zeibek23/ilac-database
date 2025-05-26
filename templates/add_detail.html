@@ -7,8 +7,10 @@
     <title>Add New Drug Detail</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 </head>
 
 <body>
@@ -46,7 +48,7 @@
             </div>
 
             <div class="form-group">
-                <label for="molecular_weight">Molecular Weight</label>
+                <label for="molecular_weight" class="form-label" data-bs-toggle="tooltip" title="Molecular weight in g/mol">Molecular Weight</label>
                 <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" placeholder="Enter molecular weight">
             </div>
 
@@ -58,8 +60,9 @@
 
             <!-- Synthesis -->
             <div class="mb-3">
-                <label for="synthesis" class="form-label">Synthesis</label>
-                <textarea class="form-control" id="synthesis" name="synthesis" rows="5" placeholder="Enter synthesis details"></textarea>
+                <label for="synthesis" class="form-label" data-bs-toggle="tooltip" title="Details of the drug synthesis process">Synthesis</label>
+                <div id="synthesis_editor" style="height: 200px;"></div>
+                <input type="hidden" id="synthesis" name="synthesis">
             </div>
 
             <!-- IUPAC Name -->
@@ -148,19 +151,24 @@
 
             <!-- Pharmacodynamics -->
             <div class="mb-3">
-                <label for="pharmacodynamics" class="form-label">General Pharmacodynamics</label>
-                <textarea class="form-control" id="pharmacodynamics" name="pharmacodynamics" rows="3"></textarea>
+                <label for="pharmacodynamics" class="form-label" data-bs-toggle="tooltip" title="General pharmacodynamic properties of the drug">General Pharmacodynamics</label>
+                <div id="pharmacodynamics_editor" style="height: 200px;"></div>
+                <input type="hidden" id="pharmacodynamics" name="pharmacodynamics">
             </div>
 
+            <!-- Pharmacokinetics -->
             <div class="form-group">
-                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics:</label>
+                <label for="pharmacokinetics" class="form-label" data-bs-toggle="tooltip" title="ADME properties (absorption, distribution, metabolism, excretion)">General Pharmacokinetics:</label>
                 <small class="form-text text-muted">Provide pharmacokinetics data such as absorption, distribution, metabolism, and excretion (ADME) that applies to the entire drug.</small>
-                <textarea id="pharmacokinetics" name="pharmacokinetics" rows="5" class="form-control" placeholder="Enter detailed pharmacokinetics information here..."></textarea>
+                <div id="pharmacokinetics_editor" style="height: 200px;"></div>
+                <input type="hidden" id="pharmacokinetics" name="pharmacokinetics">
             </div>
 
+            <!-- Mechanism of Action -->
             <div class="mb-3">
-                <label for="mechanism_of_action" class="form-label">Mechanism of Action</label>
-                <textarea class="form-control" id="mechanism_of_action" name="mechanism_of_action" rows="5" placeholder="Describe the mechanism of action..."></textarea>
+                <label for="mechanism_of_action" class="form-label" data-bs-toggle="tooltip" title="How the drug produces its pharmacological effect">Mechanism of Action</label>
+                <div id="mechanism_of_action_editor" style="height: 200px;"></div>
+                <input type="hidden" id="mechanism_of_action" name="mechanism_of_action">
             </div>
 
             <!-- Target Molecules -->
@@ -231,6 +239,56 @@
         let currentDrugId = null; // Track the current drug ID
 
         $(document).ready(function () {
+            // Initialize Quill editors
+            const toolbarOptions = [
+                ['bold', 'italic', 'underline'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                ['link']
+            ];
+
+            const moaQuill = new Quill('#mechanism_of_action_editor', {
+                theme: 'snow',
+                modules: { toolbar: toolbarOptions }
+            });
+
+            const pdQuill = new Quill('#pharmacodynamics_editor', {
+                theme: 'snow',
+                modules: { toolbar: toolbarOptions }
+            });
+
+            const pkQuill = new Quill('#pharmacokinetics_editor', {
+                theme: 'snow',
+                modules: { toolbar: toolbarOptions }
+            });
+
+            const synthesisQuill = new Quill('#synthesis_editor', {
+                theme: 'snow',
+                modules: { toolbar: toolbarOptions }
+            });
+
+            // Sync Quill content to hidden inputs on form submit
+            $('form').on('submit', function () {
+                $('#mechanism_of_action').val(moaQuill.root.innerHTML);
+                $('#pharmacodynamics').val(pdQuill.root.innerHTML);
+                $('#pharmacokinetics').val(pkQuill.root.innerHTML);
+                $('#synthesis').val(synthesisQuill.root.innerHTML);
+            });
+
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Validate molecular weight
+            $('#molecular_weight').on('input', function () {
+                if (this.value < 0) {
+                    this.value = '';
+                    alert('Molecular weight cannot be negative!');
+                }
+            });
+
             // Initialize drug_id Select2
             $('#drug_id').select2({
                 placeholder: "Search by English, Turkish, or Alternative Name...",
@@ -477,18 +535,18 @@
                     <label for="route_pharmacokinetics_${routeId}" class="form-label">Other Pharmacokinetics</label>
                     <textarea class="form-control mb-2" id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}" rows="2" placeholder="Additional PK details..."></textarea>
                     <div class="mb-2">
-                        <label for="metabolism_organs_${routeId}" class="form-label">Metabolism Organs</label>
+                        <label for="metabolism_select_${routeId}_organs" class="form-label">Metabolism Organs</label>
                         <select class="form-select" id="metabolism_organs_${routeId}" name="metabolism_organs_${routeId}[]" multiple></select>
                     </div>
                     <div class="mb-2">
-                        <label for="metabolism_enzymes_${routeId}" class="form-label">Metabolism Enzymes</label>
+                        <label for="metabolism_select_${routeId}_enzymes" class="form-label">Metabolism Enzymes</label>
                         <select class="form-select" id="metabolism_enzymes_${routeId}" name="metabolism_enzymes_${routeId}[]" multiple></select>
                     </div>
                     <div class="mb-2">
                         <label for="metabolites_${routeId}" class="form-label">Metabolites</label>
                         <select class="form-select" id="metabolites_${routeId}" name="metabolites_${routeId}[]" multiple></select>
                         <div id="metabolite_diagram_${routeId}" class="border p-2 mt-2" style="min-height: 100px;"></div>
-                        <button type="button" class="btn btn-outline-secondary mt-2" onclick="editMetabolites(${routeId})">Edit Metabolites</button>
+                        <button type="button" class="btn btn-outline-secondary mt-2" onclick="editMetabolites('${routeId}')">Edit Metabolites</button>
                     </div>
                 `;
                 effectsContainer.appendChild(effectsDiv);
@@ -504,7 +562,7 @@
                 indicationsContainer.appendChild(indicationSection);
 
                 // Initialize Select2 for metabolism dropdowns
-                $(`#metabolism_organs_${routeId}`).select2({
+                $(`#metabolism_${routeId}_organs`).select2({
                     placeholder: "Select organs for this drug...",
                     ajax: {
                         url: "/api/metabolism/organs",
@@ -518,7 +576,7 @@
                     width: '100%'
                 });
 
-                $(`#metabolism_enzymes_${routeId}`).select2({
+                $(`#metabolism_${routeId}_enzymes`).select2({
                     placeholder: "Select enzymes for this drug...",
                     ajax: {
                         url: "/api/metabolism/enzymes",
@@ -585,7 +643,7 @@
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title">Edit Metabolites for ${routesDropdown.options[routesDropdown.selectedIndex].text}</h5>
+                                <h5 class="modal-title">Edit Metabolites for ${routesDropdown.options[routesDropdown.selectedOptions[0].index]?.text || 'Route'}</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
@@ -593,7 +651,7 @@
                                 <select class="form-select mb-2" id="parent_metabolite_${routeId}">
                                     <option value="">None (Top Level)</option>
                                 </select>
-                                <button type="button" class="btn btn-primary" onclick="addMetabolite(${routeId})">Add Metabolite</button>
+                                <button type="button" class="btn btn-primary" onclick="addMetabolite('${routeId}')">Add Metabolite</button>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -632,13 +690,13 @@
 
             try {
                 const drugId = currentDrugId;
-                const response = await fetch(`/api/metabolites/full?ids=${selectedIds.join(',')}&drug_id=${drugId}`);
+                const response = await fetch(`/api/metabolites/full?ids=${encodeURIComponent(selectedIds.join(','))}&drug_id=${drugId || ''}`);
                 if (!response.ok) {
                     throw new Error(`Fetch failed: ${response.status} - ${response.statusText}`);
                 }
                 const metabolites = await response.json();
                 if (!metabolites || !Array.isArray(metabolites)) {
-                    throw new Error('Invalid response format: Expected an array of metabolites');
+                    throw new Error('Invalid response format: expected an array of metabolites');
                 }
                 diagram.innerHTML = buildTreeHTML(metabolites);
             } catch (error) {
@@ -685,7 +743,7 @@
                 modalEl.remove();
             } catch (error) {
                 console.error('Error adding metabolite:', error);
-                alert(`Failed to add metabolite: ${error.message}`);
+                alert(`Error adding metabolite: ${error.message}`);
             }
         }
 
