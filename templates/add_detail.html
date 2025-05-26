@@ -529,6 +529,19 @@
                             <label for="cmax_${routeId}" class="form-label">Cmax (mg/L)</label>
                             <input type="text" class="form-control" id="cmax_${routeId}" name="cmax_${routeId}" placeholder="e.g., 10-20 or 15">
                         </div>
+                        <!-- Add the therapeutic range input here -->
+                        <div class="col-md-6 mb-2">
+                                            <label for="therapeutic_range_${routeId}" class="form-label">Therapeutic Range</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="therapeutic_range_${routeId}" name="therapeutic_range_${routeId}" placeholder="e.g., 10-30">
+                                                <select class="form-select" id="therapeutic_unit_${routeId}" name="therapeutic_unit_${routeId}" style="width: auto;">
+                                                    <option value="mg/L" selected>mg/L</option>
+                                                    <option value="ng/mL">ng/mL</option>
+                                                </select>
+                                            </div>
+                                            <div id="therapeutic_range_error_${routeId}" class="text-danger mt-1" style="display: none;"></div>
+                                        </div>
+                        
                     </div>
                     <label for="route_pharmacodynamics_${routeId}" class="form-label">Pharmacodynamics</label>
                     <textarea class="form-control mb-2" id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}" rows="2" placeholder="Additional PD details..."></textarea>

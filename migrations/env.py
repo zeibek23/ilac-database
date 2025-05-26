@@ -1,8 +1,8 @@
 import logging
 from logging.config import fileConfig
-
 from flask import current_app
 from alembic import context
+from sqlalchemy.pool import NullPool
 
 # Alembic Config object, provides access to .ini file values
 config = context.config
@@ -37,13 +37,19 @@ def get_metadata():
         return target_db.metadatas[None]
     return target_db.metadata
 
+# Define schemas to include and exclude
+INCLUDE_SCHEMAS = ['public']  # Only manage the 'public' schema
+EXCLUDE_SCHEMAS = ['realtime', 'auth', 'storage', 'extensions', 'pgbouncer', 'information_schema', 'pg_catalog']
+
 def run_migrations_offline():
     """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=get_metadata(),
-        literal_binds=True
+        literal_binds=True,
+        include_schemas=True,
+        version_table_schema='public',  # Ensure alembic_version table is in 'public'
     )
 
     with context.begin_transaction():
@@ -58,7 +64,6 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
-    # Prioritize key tables to resolve foreign key dependencies
     def table_sort_key(table):
         priority_tables = {
             'drug': 0,
@@ -67,7 +72,7 @@ def run_migrations_online():
             'detail_side_effect': 3,
             'clinical_annotation': 4,
             'clinical_ann_allele': 5,
-            'clinical_ann_evidence': 6,  # Added to ensure it comes after clinical_annotation
+            'clinical_ann_evidence': 6,
             'publication': 7,
             'clinical_ann_evidence_publication': 8,
             'drug_salt': 9,
@@ -76,20 +81,31 @@ def run_migrations_online():
         }
         return (priority_tables.get(table.name, 12), table.name)
 
+    def include_object(object, name, type_, reflected, compare_to):
+        if type_ == "table":
+            schema = object.schema or 'public'
+            return schema in INCLUDE_SCHEMAS and schema not in EXCLUDE_SCHEMAS
+        return True
+
     conf_args = current_app.extensions['migrate'].configure_args
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
+    conf_args["include_object"] = include_object
 
-    connectable = get_engine()
+    connectable = get_engine().execution_options(poolclass=NullPool)  # Use NullPool for Supabase
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
-            include_schemas=True,  # Support explicit schema definitions
-            table_sort_key=table_sort_key,  # Custom table sorting
+            include_schemas=True,
+            version_table_schema='public',
+            table_sort_key=table_sort_key,
             **conf_args
         )
+
+        logger.info(f"Processing schemas: {INCLUDE_SCHEMAS}")
+        logger.info(f"Excluding schemas: {EXCLUDE_SCHEMAS}")
 
         with context.begin_transaction():
             context.run_migrations()
