@@ -2,6 +2,7 @@ from flask import Flask, render_template, render_template_string, request, sessi
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
+from flask.cli import FlaskGroup
 from openpyxl import load_workbook
 import bleach
 from flask_migrate import Migrate
@@ -29,6 +30,7 @@ import time
 import logging
 import nltk
 import traceback
+import math
 import json
 import xml.etree.ElementTree as ET
 import csv
@@ -405,6 +407,9 @@ class DrugRoute(db.Model):
     tmax_max = db.Column(db.Float, nullable=True)
     cmax_min = db.Column(db.Float, nullable=True)  # mg/L
     cmax_max = db.Column(db.Float, nullable=True)
+    therapeutic_min = db.Column(db.Float, nullable=True)  # mg/L
+    therapeutic_max = db.Column(db.Float, nullable=True)  # mg/L
+    therapeutic_unit = db.Column(db.String(10), nullable=True, default="mg/L")  # e.g., "mg/L" or "ng/mL"
 
     route = db.relationship("RouteOfAdministration")
     drug_detail = db.relationship("DrugDetail", back_populates="routes")
@@ -1495,7 +1500,9 @@ def add_detail():
                 bioavailability = request.form.get(f'bioavailability_{route_id}', '')
                 tmax = request.form.get(f'tmax_{route_id}', '')
                 cmax = request.form.get(f'cmax_{route_id}', '')
-
+                # New: Therapeutic range
+                therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
+                therapeutic_unit = request.form.get(f'therapeutic_unit_{route_id}', 'mg/L')
                 # Metabolism parameters
                 metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
                 metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
@@ -1516,6 +1523,10 @@ def add_detail():
                     bio_max /= 100
                 tmax_min, tmax_max = parse_range(tmax)
                 cmax_min, cmax_max = parse_range(cmax)
+                # Parse therapeutic range
+                therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
+                if therapeutic_unit == 'ng/mL' and therapeutic_min is not None and therapeutic_max is not None:
+                    pass
 
                 logger.debug(f"Route ID {route_id} -> "
                              f"Absorption: {absorption_min}-{absorption_max}, "
@@ -1526,6 +1537,7 @@ def add_detail():
                              f"Bioavailability: {bio_min}-{bio_max}, "
                              f"Tmax: {tmax_min}-{tmax_max}, "
                              f"Cmax: {cmax_min}-{cmax_max}, "
+                             f"Therapeutic Range: {therapeutic_min}-{therapeutic_max}, "  # New
                              f"Organs IDs: {metabolism_organs_ids}, "
                              f"Enzymes IDs: {metabolism_enzymes_ids}, "
                              f"Metabolite IDs: {metabolite_ids}, "
@@ -1536,7 +1548,7 @@ def add_detail():
                     logger.error(f"Invalid route_id {route_id}")
                     continue
 
-                # Create DrugRoute entry
+                # Create DrugRoute entry with new fields
                 new_drug_route = DrugRoute(
                     drug_detail_id=new_detail.id,
                     route_id=route_id,
@@ -1557,7 +1569,10 @@ def add_detail():
                     tmax_min=tmax_min,
                     tmax_max=tmax_max,
                     cmax_min=cmax_min,
-                    cmax_max=cmax_max
+                    cmax_max=cmax_max,
+                    therapeutic_min=therapeutic_min,  # New
+                    therapeutic_max=therapeutic_max,   # New
+                    therapeutic_unit=therapeutic_unit
                 )
                 db.session.add(new_drug_route)
                 db.session.flush()  # Get ID for relationships
@@ -1608,7 +1623,6 @@ def add_detail():
         targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
         metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes
     )
-
 
 def generate_and_update_structures():
     with app.app_context():
@@ -7866,75 +7880,91 @@ def delete_category(cat_id):
 
 #PK modülü...
 @app.route('/metabolism', methods=['GET', 'POST'])
+@login_required
 def manage_metabolism():
+    """Manage metabolism organs, enzymes, metabolites, and drugs."""
     organs = MetabolismOrgan.query.all()
     enzymes = MetabolismEnzyme.query.all()
     metabolites = Metabolite.query.all()
-    drugs = Drug.query.all()  # Add drugs to the template
+    drugs = Drug.query.all()
 
     if request.method == 'POST':
-        if 'organ_name' in request.form:
-            name = request.form.get('organ_name').strip()
-            if name and not MetabolismOrgan.query.filter_by(name=name).first():
-                new_organ = MetabolismOrgan(name=name)
-                db.session.add(new_organ)
-                db.session.commit()
-                return redirect(url_for('manage_metabolism'))
-        elif 'enzyme_name' in request.form:
-            name = request.form.get('enzyme_name').strip()
-            if name and not MetabolismEnzyme.query.filter_by(name=name).first():
-                new_enzyme = MetabolismEnzyme(name=name)
-                db.session.add(new_enzyme)
-                db.session.commit()
-                return redirect(url_for('manage_metabolism'))
-        elif 'metabolite_name' in request.form:
-            name = request.form.get('metabolite_name').strip()
-            parent_id = request.form.get('parent_id', type=int)
-            drug_id = request.form.get('drug_id', type=int)  # New: Get drug ID
-            if not drug_id or not name:
-                flash("Drug ID and metabolite name are required.", "error")
-                return redirect(url_for('manage_metabolism'))
-
-            # Check if the parent drug exists as a top-level metabolite
-            drug = Drug.query.get(drug_id)
-            if not drug:
-                flash(f"Drug with ID {drug_id} not found.", "error")
-                return redirect(url_for('manage_metabolism'))
-
-            # Check if the parent drug (e.g., "Acetaminophen") is already a top-level metabolite
-            parent_metabolite = Metabolite.query.filter_by(name=drug.name_en, parent_id=None, drug_id=drug_id).first()
-            if not parent_metabolite:
-                # Add the parent drug as a top-level metabolite
-                parent_metabolite = Metabolite(name=drug.name_en, parent_id=None, drug_id=drug_id)
-                db.session.add(parent_metabolite)
-                db.session.flush()  # Ensure parent_metabolite gets an ID before using it
-
-            # Update parent_id if it's the parent drug (None or empty means top-level)
-            if not parent_id or parent_id is None:
-                parent_id = None  # Ensure parent_id is explicitly None for top-level
-            else:
-                # Verify the parent metabolite exists
-                parent_metabolite_check = Metabolite.query.get(parent_id)
-                if not parent_metabolite_check or parent_metabolite_check.drug_id != drug_id:
-                    flash(f"Invalid parent metabolite for drug ID {drug_id}.", "error")
+        try:
+            if 'organ_name' in request.form:
+                name = request.form.get('organ_name').strip()
+                if not name:
+                    flash("Organ name is required.", "error")
+                elif MetabolismOrgan.query.filter_by(name=name).first():
+                    flash("Organ already exists.", "error")
+                else:
+                    new_organ = MetabolismOrgan(name=name)
+                    db.session.add(new_organ)
+                    db.session.commit()
+                    flash("Organ added successfully.", "success")
+            elif 'enzyme_name' in request.form:
+                name = request.form.get('enzyme_name').strip()
+                if not name:
+                    flash("Enzyme name is required.", "error")
+                elif MetabolismEnzyme.query.filter_by(name=name).first():
+                    flash("Enzyme already exists.", "error")
+                else:
+                    new_enzyme = MetabolismEnzyme(name=name)
+                    db.session.add(new_enzyme)
+                    db.session.commit()
+                    flash("Enzyme added successfully.", "success")
+            elif 'metabolite_name' in request.form:
+                class MetaboliteInput(BaseModel):
+                    name: str
+                    parent_id: int | None = None
+                    drug_id: int
+                data = MetaboliteInput(**{
+                    'name': request.form.get('metabolite_name').strip(),
+                    'parent_id': request.form.get('parent_id', type=int),
+                    'drug_id': request.form.get('drug_id', type=int)
+                })
+                if not data.drug_id or not data.name:
+                    flash("Drug ID and metabolite name are required.", "error")
                     return redirect(url_for('manage_metabolism'))
 
-            # Add or update the new metabolite (e.g., "NAPQI" or "Acetaminophen cysteine")
-            existing_metabolite = Metabolite.query.filter_by(name=name, parent_id=parent_id, drug_id=drug_id).first()
-            if existing_metabolite:
-                flash(f"Metabolite '{name}' already exists for this drug and parent.", "error")
-            else:
-                new_metabolite = Metabolite(name=name, parent_id=parent_id or None, drug_id=drug_id)
-                db.session.add(new_metabolite)
-                db.session.commit()
-                flash(f"Metabolite '{name}' added successfully for {drug.name_en}.", "success")
+                drug = Drug.query.get(data.drug_id)
+                if not drug:
+                    flash(f"Drug with ID {data.drug_id} not found.", "error")
+                    return redirect(url_for('manage_metabolism'))
 
+                parent_metabolite = Metabolite.query.filter_by(name=drug.name_en, parent_id=None, drug_id=data.drug_id).first()
+                if not parent_metabolite:
+                    parent_metabolite = Metabolite(name=drug.name_en, parent_id=None, drug_id=data.drug_id)
+                    db.session.add(parent_metabolite)
+                    db.session.flush()
+
+                if data.parent_id:
+                    parent_check = Metabolite.query.get(data.parent_id)
+                    if not parent_check or parent_check.drug_id != data.drug_id:
+                        flash(f"Invalid parent metabolite for drug ID {data.drug_id}.", "error")
+                        return redirect(url_for('manage_metabolism'))
+
+                if Metabolite.query.filter_by(name=data.name, parent_id=data.parent_id, drug_id=data.drug_id).first():
+                    flash(f"Metabolite '{data.name}' already exists.", "error")
+                else:
+                    new_metabolite = Metabolite(name=data.name, parent_id=data.parent_id, drug_id=data.drug_id)
+                    db.session.add(new_metabolite)
+                    db.session.commit()
+                    flash(f"Metabolite '{data.name}' added successfully for {drug.name_en}.", "success")
+            return redirect(url_for('manage_metabolism'))
+        except ValidationError as e:
+            flash(f"Validation error: {str(e)}", "error")
+            return redirect(url_for('manage_metabolism'))
+        except Exception as e:
+            db.session.rollback()
+            flash("An error occurred.", "error")
+            logging.error(f"Error in manage_metabolism: {str(e)}")
             return redirect(url_for('manage_metabolism'))
 
     return render_template('metabolism.html', organs=organs, enzymes=enzymes, metabolites=metabolites, drugs=drugs)
 
 @app.route('/api/metabolism/organs', methods=['GET'])
 def get_metabolism_organs():
+    """Fetch paginated metabolism organs with search."""
     search = request.args.get('q', '').strip()
     limit = request.args.get('limit', 10, type=int)
     page = request.args.get('page', 1, type=int)
@@ -7942,13 +7972,14 @@ def get_metabolism_organs():
     query = MetabolismOrgan.query
     if search:
         query = query.filter(MetabolismOrgan.name.ilike(f'%{search}%'))
-    paginated_query = query.paginate(page=page, per_page=limit)
+    paginated = query.paginate(page=page, per_page=limit)
 
-    results = [{'id': organ.id, 'text': organ.name} for organ in paginated_query.items]
-    return jsonify({'results': results, 'pagination': {'more': paginated_query.has_next}})
+    results = [{'id': organ.id, 'text': organ.name} for organ in paginated.items]
+    return jsonify({'results': results, 'pagination': {'more': paginated.has_next, 'total': paginated.total}})
 
 @app.route('/api/metabolism/enzymes', methods=['GET'])
 def get_metabolism_enzymes():
+    """Fetch paginated metabolism enzymes with search."""
     search = request.args.get('q', '').strip()
     limit = request.args.get('limit', 10, type=int)
     page = request.args.get('page', 1, type=int)
@@ -7956,91 +7987,92 @@ def get_metabolism_enzymes():
     query = MetabolismEnzyme.query
     if search:
         query = query.filter(MetabolismEnzyme.name.ilike(f'%{search}%'))
-    paginated_query = query.paginate(page=page, per_page=limit)
+    paginated = query.paginate(page=page, per_page=limit)
 
-    results = [{'id': enzyme.id, 'text': enzyme.name} for enzyme in paginated_query.items]
-    return jsonify({'results': results, 'pagination': {'more': paginated_query.has_next}})
+    results = [{'id': enzyme.id, 'text': enzyme.name} for enzyme in paginated.items]
+    return jsonify({'results': results, 'pagination': {'more': paginated.has_next, 'total': paginated.total}})
 
 @app.route('/api/metabolites', methods=['GET'])
 def get_metabolites():
+    """Fetch paginated metabolites with search and drug filter."""
     search = request.args.get('q', '').strip()
-    drug_id = request.args.get('drug_id', '').strip()
+    drug_id = request.args.get('drug_id', type=int)
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
 
     query = Metabolite.query
     if search:
         query = query.filter(Metabolite.name.ilike(f'%{search}%'))
     if drug_id:
-        try:
-            # Only filter by drug_id directly on Metabolite (ignore drug_route_metabolite until DrugRoute exists)
-            query = query.filter(Metabolite.drug_id == drug_id)
-            print(f"Querying metabolites for drug_id={drug_id}, search={search}")
-        except Exception as e:
-            print(f"Error in metabolite query for drug_id={drug_id}: {str(e)}")
-            return jsonify({'results': []}), 500
-
-    results = query.all()
-    return jsonify({'results': [{'id': m.id, 'text': m.name} for m in results]})
+        query = query.filter(Metabolite.drug_id == drug_id)
+    
+    paginated = query.paginate(page=page, per_page=limit)
+    results = [{'id': m.id, 'text': m.name} for m in paginated.items]
+    return jsonify({
+        'results': results,
+        'pagination': {'more': paginated.has_next, 'total': paginated.total}
+    })
 
 @app.route('/api/metabolites/full', methods=['GET'])
 def get_metabolites_full():
+    """Fetch full metabolite details by IDs and drug ID."""
     ids = request.args.get('ids', '').split(',')
-    drug_id = request.args.get('drug_id', '').strip()
-    print(f"Fetching metabolites: ids={ids}, drug_id={drug_id}")  # Debug log
-    
+    drug_id = request.args.get('drug_id', type=int)
+
     if ids == ['']:
         return jsonify([])
-    
+
     try:
-        # Ensure ids are valid integers
-        ids = [int(id) for id in ids if id]  # Filter out empty strings and convert to integers
+        ids = [int(id) for id in ids if id]
         if not ids:
-            return jsonify([]), 400  # No valid IDs provided
+            return jsonify([]), 400
         
         query = Metabolite.query.filter(Metabolite.id.in_(ids))
         if drug_id:
-            try:
-                drug_id = int(drug_id)  # Ensure it's an integer
-                if not Drug.query.get(drug_id):
-                    return jsonify([]), 404  # Drug not found
-                query = query.join(drug_route_metabolite, Metabolite.id == drug_route_metabolite.c.metabolite_id, isouter=True)\
-                             .join(DrugRoute, DrugRoute.id == drug_route_metabolite.c.drug_route_id, isouter=True)\
-                             .join(DrugDetail, DrugDetail.id == DrugRoute.drug_detail_id)\
-                             .filter(DrugDetail.drug_id == drug_id)
-            except (ValueError, AttributeError) as e:
-                print(f"Error with drug_id {drug_id}: {str(e)}")
-                return jsonify([]), 400  # Bad request if drug_id is invalid
+            if not Drug.query.get(drug_id):
+                return jsonify([]), 404
+            query = query.filter(Metabolite.drug_id == drug_id)
 
         metabolites = query.all()
         return jsonify([{'id': m.id, 'name': m.name, 'parent_id': m.parent_id} for m in metabolites])
     except Exception as e:
-        print(f"Error fetching metabolites: {str(e)}")
-        return jsonify([]), 500  # Internal server error with empty response
+        logging.error(f"Error fetching metabolites: {str(e)}")
+        return jsonify([]), 500
 
 @app.route('/api/metabolites/add', methods=['POST'])
+@login_required
 def add_metabolite():
-    data = request.get_json()
-    name = data['name'].strip()
-    parent_id = data.get('parent_id')
-    drug_id = data.get('drug_id')
-    print(f"Adding metabolite: name={name}, parent_id={parent_id}, drug_id={drug_id}")  # Debug log
-    if not name or Metabolite.query.filter_by(name=name, parent_id=parent_id).first():
-        return jsonify({'error': 'Invalid or duplicate name'}), 400
-    new_metabolite = Metabolite(name=name, parent_id=parent_id)
-    db.session.add(new_metabolite)
-    db.session.commit()
-    return jsonify({'id': new_metabolite.id, 'name': new_metabolite.name, 'parent_id': new_metabolite.parent_id}), 201
+    """Add a new metabolite with validation."""
+    class MetaboliteInput(BaseModel):
+        name: str
+        parent_id: int | None = None
+        drug_id: int
+    try:
+        data = MetaboliteInput(**request.get_json())
+        if Metabolite.query.filter_by(name=data.name, parent_id=data.parent_id, drug_id=data.drug_id).first():
+            return jsonify({'error': 'Metabolite already exists'}), 400
+        new_metabolite = Metabolite(name=data.name, parent_id=data.parent_id, drug_id=data.drug_id)
+        db.session.add(new_metabolite)
+        db.session.commit()
+        return jsonify({'id': new_metabolite.id, 'name': new_metabolite.name, 'parent_id': new_metabolite.parent_id}), 201
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error adding metabolite: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/drug_routes', methods=['GET'])
 def get_drug_routes():
+    """Fetch drug routes for a given drug ID."""
     drug_id = request.args.get('drug_id', type=int)
     if not drug_id:
         return jsonify([])
     routes = DrugRoute.query.join(DrugDetail).filter(DrugDetail.drug_id == drug_id).all()
-    result = [{
+    return jsonify([{
         'route_id': route.route_id,
         'metabolites': route.metabolites or '{}'
-    } for route in routes]
-    return jsonify(result)
+    } for route in routes])
 
 
 @app.route('/pharmacokinetics', methods=['GET'])
@@ -8048,7 +8080,7 @@ def pharmacokinetics():
     selected_drug_id = request.args.get('drug_id', type=int)
     pk_data = None
     selected_drug = None
-    
+
     if selected_drug_id:
         selected_drug = Drug.query.get(selected_drug_id)
         if not selected_drug:
@@ -8058,6 +8090,22 @@ def pharmacokinetics():
         pk_data = []
         for detail in details:
             for route in detail.routes:
+                half_life = (route.half_life_min or 0 + route.half_life_max or 0) / 2 or 1
+                vod = (route.vod_rate_min or 0 + route.vod_rate_max or 0) / 2 or 1
+                bio = (route.bioavailability_min or 0 + route.bioavailability_max or 0) / 2
+                ke = math.log(2) / half_life
+                dose = 100
+                time = [i / 2 for i in range(48)]
+                concentrations = []
+                for t in time:
+                    c0 = (dose * bio) / vod
+                    concentration = c0 * math.exp(-ke * t)
+                    concentrations.append(concentration)
+
+                auc = 0
+                for i in range(len(concentrations) - 1):
+                    auc += (concentrations[i] + concentrations[i + 1]) * (time[i + 1] - time[i]) / 2
+
                 pk_entry = {
                     'route_name': route.route.name,
                     'absorption_rate_min': route.absorption_rate_min or 0,
@@ -8070,18 +8118,24 @@ def pharmacokinetics():
                     'half_life_max': route.half_life_max or 0,
                     'clearance_rate_min': route.clearance_rate_min or 0,
                     'clearance_rate_max': route.clearance_rate_max or 0,
-                    'bioavailability_min': (route.bioavailability_min or 0) * 100,  # Fixed: 'route' instead of 'entry'
-                    'bioavailability_max': (route.bioavailability_max or 0) * 100,  # Fixed: 'route' instead of 'entry'
+                    'bioavailability_min': (route.bioavailability_min or 0) * 100,
+                    'bioavailability_max': (route.bioavailability_max or 0) * 100,
                     'tmax_min': route.tmax_min or 0,
                     'tmax_max': route.tmax_max or 0,
                     'cmax_min': route.cmax_min or 0,
                     'cmax_max': route.cmax_max or 0,
                     'pharmacodynamics': route.pharmacodynamics or "N/A",
                     'pharmacokinetics': route.pharmacokinetics or "N/A",
+                    'therapeutic_min': route.therapeutic_min or 0,
+                    'therapeutic_max': route.therapeutic_max or 0,
+                    'therapeutic_unit': route.therapeutic_unit or "mg/L",  # New
                     'metabolites': [
                         {'id': met.id, 'name': met.name, 'parent_id': met.parent_id}
                         for met in route.metabolites
-                    ] if route.metabolites else []
+                    ] if route.metabolites else [],
+                    'metabolism_organs': [organ.name for organ in route.metabolism_organs],
+                    'metabolism_enzymes': [enzyme.name for enzyme in route.metabolism_enzymes],
+                    'auc': round(auc, 2)
                 }
                 pk_data.append(pk_entry)
     
