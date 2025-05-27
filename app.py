@@ -2609,7 +2609,7 @@ def drug_detail(drug_id):
         # Generate 2D SVG if SMILES exists
         salt_suffix = f"_salt_{detail.salt_id or 'none'}"
         svg_filename = f'sketcher_{drug_id}{salt_suffix}.svg'
-        svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+        svg_path = os.path.join('static', 'uploads', svg_filename).replace('\\', '/')  # Change to 'uploads'
         logger.debug(f"Checking SVG for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}, path={svg_path}")
         if detail.smiles:
             if not os.path.exists(svg_path):
@@ -2631,7 +2631,7 @@ def drug_detail(drug_id):
         
         # Generate 3D PDB if SMILES exists
         pdb_filename = f"drug_{drug_id}_salt_{detail.salt_id or 'none'}_3d.pdb"
-        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename).replace('\\', '/')
+        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename).replace('\\', '/')  # Change to 'uploads'
         if detail.smiles and not os.path.exists(pdb_path):
             try:
                 logger.info(f"Generating PDB for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
@@ -2640,7 +2640,7 @@ def drug_detail(drug_id):
                     logger.error(f"Error generating PDB for drug_id={drug_id}: {error}")
                 else:
                     logger.info(f"Saved PDB to {structure_3d_path}")
-                    detail.structure_3d = structure_3d_path
+                    detail.structure_3d = structure_3d_path.replace('static/uploads/', 'uploads/')
                     db.session.commit()
             except Exception as e:
                 logger.error(f"Error generating PDB for drug_id={drug_id}: {e}")
@@ -2741,7 +2741,7 @@ def drug_detail(drug_id):
             'titck_approved': detail.titck_approved,
             'molecular_formula': detail.molecular_formula,
             'synthesis': detail.synthesis,
-            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),
+            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),  # Change to 'uploads'
             'structure_3d': detail.structure_3d,
             'iupac_name': detail.iupac_name,
             'smiles': detail.smiles,
@@ -2960,166 +2960,6 @@ def update_detail(detail_id):
 
 
 
-
-@app.route('/cdss/advanced', methods=['GET', 'POST'])
-def cdss_advanced():
-    drugs = Drug.query.all()
-    routes = RouteOfAdministration.query.all()
-    indications = Indication.query.all()
-    interaction_results = None
-
-    if request.method == 'POST':
-        age = request.form.get('age', type=int, default=30)
-        weight = request.form.get('weight', type=float, default=70.0)
-        crcl = request.form.get('crcl', type=float, default=None)
-        gender = request.form.get('gender', default='M')
-        selected_indications = request.form.getlist('indications')  # Condition IDs
-        selected_drugs = request.form.getlist('drugs')
-        selected_route = request.form.get('route_id')
-
-        if age < 0 or weight <= 0 or (crcl is not None and crcl < 0):
-            return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
-                                 indications=indications, interaction_results=None, 
-                                 error="Invalid input—check age, weight, or CrCl!")
-
-        if crcl is None and age and weight and gender:
-            crcl = calculate_crcl(age, weight, gender)
-
-        interaction_results = analyze_interactions(
-            selected_drugs, selected_route, age, weight, crcl, 
-            [int(i) for i in selected_indications]
-        )
-
-    return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
-                         indications=indications, interaction_results=interaction_results)
-
-def calculate_crcl(age, weight, gender, serum_creatinine=1.0):
-    """Calculate CrCl using Cockcroft-Gault formula."""
-    if gender.upper() == 'F':
-        factor = 0.85
-    else:
-        factor = 1.0
-    return ((140 - age) * weight * factor) / (72 * serum_creatinine)
-
-def analyze_interactions(drug_ids, route_id, age, weight, crcl, conditions):
-    results = []
-    drug_ids = [int(d) for d in drug_ids]
-
-    # 1. Multi-Drug Interactions
-    for drug1_id, drug2_id in combinations(drug_ids, 2):
-        interactions = DrugInteraction.query.filter(
-            db.or_(
-                db.and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
-                db.and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
-            )
-        ).filter(
-            db.or_(DrugInteraction.route_id == route_id, DrugInteraction.route_id == None)
-        ).all()
-
-        for interaction in interactions:
-            drug1 = Drug.query.get(drug1_id)
-            drug2 = Drug.query.get(drug2_id)
-            detail1 = DrugDetail.query.filter_by(drug_id=drug1_id).first() or DrugDetail()
-            detail2 = DrugDetail.query.filter_by(drug_id=drug2_id).first() or DrugDetail()
-
-            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl)
-
-            result = {
-                'type': 'Drug-Drug Interaction',
-                'drug1': drug1.name_en,
-                'drug2': drug2.name_en,
-                'route': RouteOfAdministration.query.get(route_id).name if route_id else "General",
-                'interaction_type': interaction.interaction_type,
-                'description': interaction.interaction_description,
-                'severity': interaction.severity,
-                'predicted_severity': adjust_severity(interaction.severity, age, crcl),
-                'peak_risk': interaction.time_to_peak or time_points[risk_profile.argmax()],
-                'risk_profile': list(zip(time_points, risk_profile)),
-                'mechanism': interaction.mechanism or "Not Provided",
-                'monitoring': interaction.monitoring or "Not Provided",
-                'alternatives': interaction.alternatives or "Not Provided",
-                'reference': interaction.reference or "Not Provided"
-            }
-            results.append(result)
-
-    # 2. Condition Checks (Only this remains!)
-    condition_risks = {
-        "renal failure": {"severity_boost": 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
-        "liver disease": {"severity_boost": 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
-        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"}
-    }
-
-    if conditions:
-        for drug_id in drug_ids:
-            drug = Drug.query.get(drug_id)
-            for condition_id in conditions:
-                condition = Indication.query.get(condition_id)
-                if condition and condition.name_en.lower() in condition_risks:  # Fixed to name_en
-                    risk_info = condition_risks[condition.name_en.lower()]
-                    base_severity = "Moderate"
-                    adjusted_severity = adjust_severity(base_severity, age, crcl, boost=risk_info["severity_boost"])
-                    results.append({
-                        'type': 'Drug-Condition Alert',
-                        'drug1': drug.name_en,
-                        'drug2': condition.name_en,  # Fixed to name_en
-                        'route': "N/A",
-                        'interaction_type': "Potential Risk",
-                        'description': f"Caution: {drug.name_en} with {condition.name_en}. {risk_info['desc']}",
-                        'severity': base_severity,
-                        'predicted_severity': adjusted_severity,
-                        'peak_risk': 0,
-                        'risk_profile': [(0, 2 + risk_info["severity_boost"])],
-                        'mechanism': "Condition-Drug Interaction",
-                        'monitoring': risk_info["monitoring"],
-                        'alternatives': "Consider alternative therapy",
-                        'reference': "Clinical guideline"
-                    })
-
-    return results
-
-def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl):
-    half_life1 = detail1.half_life or 4.0
-    half_life2 = detail2.half_life or 4.0
-    clearance1 = detail1.clearance_rate or 100.0
-    clearance2 = detail2.clearance_rate or 100.0
-    bioavail1 = detail1.bioavailability or 1.0
-    bioavail2 = detail2.bioavailability or 1.0
-
-    if age > 65:
-        clearance1 *= 0.75
-        clearance2 *= 0.75
-    elif age < 18:
-        clearance1 *= 1.2
-        clearance2 *= 1.2
-
-    if crcl:
-        renal_factor = min(crcl / 100, 1.0)
-        clearance1 *= renal_factor
-        clearance2 *= renal_factor
-
-    if weight:
-        clearance1 *= (weight / 70)
-        clearance2 *= (weight / 70)
-
-    time_points = np.linspace(0, 24, 100)
-    conc1 = bioavail1 * np.exp(-np.log(2) / half_life1 * time_points) * clearance1
-    conc2 = bioavail2 * np.exp(-np.log(2) / half_life2 * time_points) * clearance2
-    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}.get(interaction.severity, 1)
-    risk_profile = base_risk * conc1 * conc2 * (1 if crcl > 30 else 1.5)
-    return time_points, risk_profile
-
-def adjust_severity(base_severity, age, crcl, boost=0):
-    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}
-    score = severity_map.get(base_severity, 2) + boost
-    if age > 75 or crcl < 30:
-        score += 1
-    elif age < 18:
-        score += 0.5
-    if score >= 3:
-        return "Severe"
-    elif score >= 2:
-        return "Moderate"
-    return "Hafif"
 
 
 
@@ -3587,6 +3427,166 @@ def get_interactions():
         "data": data
     })
 
+
+@app.route('/cdss/advanced', methods=['GET', 'POST'])
+def cdss_advanced():
+    drugs = Drug.query.all()
+    routes = RouteOfAdministration.query.all()
+    indications = Indication.query.all()
+    interaction_results = None
+
+    if request.method == 'POST':
+        age = request.form.get('age', type=int, default=30)
+        weight = request.form.get('weight', type=float, default=70.0)
+        crcl = request.form.get('crcl', type=float, default=None)
+        gender = request.form.get('gender', default='M')
+        selected_indications = request.form.getlist('indications')  # Condition IDs
+        selected_drugs = request.form.getlist('drugs')
+        selected_route = request.form.get('route_id')
+
+        if age < 0 or weight <= 0 or (crcl is not None and crcl < 0):
+            return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
+                                 indications=indications, interaction_results=None, 
+                                 error="Invalid input—check age, weight, or CrCl!")
+
+        if crcl is None and age and weight and gender:
+            crcl = calculate_crcl(age, weight, gender)
+
+        interaction_results = analyze_interactions(
+            selected_drugs, selected_route, age, weight, crcl, 
+            [int(i) for i in selected_indications]
+        )
+
+    return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
+                         indications=indications, interaction_results=interaction_results)
+
+def calculate_crcl(age, weight, gender, serum_creatinine=1.0):
+    """Calculate CrCl using Cockcroft-Gault formula."""
+    if gender.upper() == 'F':
+        factor = 0.85
+    else:
+        factor = 1.0
+    return ((140 - age) * weight * factor) / (72 * serum_creatinine)
+
+def analyze_interactions(drug_ids, route_id, age, weight, crcl, conditions):
+    results = []
+    drug_ids = [int(d) for d in drug_ids]
+
+    # 1. Multi-Drug Interactions
+    for drug1_id, drug2_id in combinations(drug_ids, 2):
+        interactions = DrugInteraction.query.filter(
+            db.or_(
+                db.and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                db.and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+            )
+        ).filter(
+            db.or_(DrugInteraction.route_id == route_id, DrugInteraction.route_id == None)
+        ).all()
+
+        for interaction in interactions:
+            drug1 = Drug.query.get(drug1_id)
+            drug2 = Drug.query.get(drug2_id)
+            detail1 = DrugDetail.query.filter_by(drug_id=drug1_id).first() or DrugDetail()
+            detail2 = DrugDetail.query.filter_by(drug_id=drug2_id).first() or DrugDetail()
+
+            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl)
+
+            result = {
+                'type': 'Drug-Drug Interaction',
+                'drug1': drug1.name_en,
+                'drug2': drug2.name_en,
+                'route': RouteOfAdministration.query.get(route_id).name if route_id else "General",
+                'interaction_type': interaction.interaction_type,
+                'description': interaction.interaction_description,
+                'severity': interaction.severity,
+                'predicted_severity': adjust_severity(interaction.severity, age, crcl),
+                'peak_risk': interaction.time_to_peak or time_points[risk_profile.argmax()],
+                'risk_profile': list(zip(time_points, risk_profile)),
+                'mechanism': interaction.mechanism or "Not Provided",
+                'monitoring': interaction.monitoring or "Not Provided",
+                'alternatives': interaction.alternatives or "Not Provided",
+                'reference': interaction.reference or "Not Provided"
+            }
+            results.append(result)
+
+    # 2. Condition Checks (Only this remains!)
+    condition_risks = {
+        "renal failure": {"severity_boost": 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
+        "liver disease": {"severity_boost": 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
+        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"}
+    }
+
+    if conditions:
+        for drug_id in drug_ids:
+            drug = Drug.query.get(drug_id)
+            for condition_id in conditions:
+                condition = Indication.query.get(condition_id)
+                if condition and condition.name_en.lower() in condition_risks:  # Fixed to name_en
+                    risk_info = condition_risks[condition.name_en.lower()]
+                    base_severity = "Moderate"
+                    adjusted_severity = adjust_severity(base_severity, age, crcl, boost=risk_info["severity_boost"])
+                    results.append({
+                        'type': 'Drug-Condition Alert',
+                        'drug1': drug.name_en,
+                        'drug2': condition.name_en,  # Fixed to name_en
+                        'route': "N/A",
+                        'interaction_type': "Potential Risk",
+                        'description': f"Caution: {drug.name_en} with {condition.name_en}. {risk_info['desc']}",
+                        'severity': base_severity,
+                        'predicted_severity': adjusted_severity,
+                        'peak_risk': 0,
+                        'risk_profile': [(0, 2 + risk_info["severity_boost"])],
+                        'mechanism': "Condition-Drug Interaction",
+                        'monitoring': risk_info["monitoring"],
+                        'alternatives': "Consider alternative therapy",
+                        'reference': "Clinical guideline"
+                    })
+
+    return results
+
+def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl):
+    half_life1 = detail1.half_life or 4.0
+    half_life2 = detail2.half_life or 4.0
+    clearance1 = detail1.clearance_rate or 100.0
+    clearance2 = detail2.clearance_rate or 100.0
+    bioavail1 = detail1.bioavailability or 1.0
+    bioavail2 = detail2.bioavailability or 1.0
+
+    if age > 65:
+        clearance1 *= 0.75
+        clearance2 *= 0.75
+    elif age < 18:
+        clearance1 *= 1.2
+        clearance2 *= 1.2
+
+    if crcl:
+        renal_factor = min(crcl / 100, 1.0)
+        clearance1 *= renal_factor
+        clearance2 *= renal_factor
+
+    if weight:
+        clearance1 *= (weight / 70)
+        clearance2 *= (weight / 70)
+
+    time_points = np.linspace(0, 24, 100)
+    conc1 = bioavail1 * np.exp(-np.log(2) / half_life1 * time_points) * clearance1
+    conc2 = bioavail2 * np.exp(-np.log(2) / half_life2 * time_points) * clearance2
+    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}.get(interaction.severity, 1)
+    risk_profile = base_risk * conc1 * conc2 * (1 if crcl > 30 else 1.5)
+    return time_points, risk_profile
+
+def adjust_severity(base_severity, age, crcl, boost=0):
+    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}
+    score = severity_map.get(base_severity, 2) + boost
+    if age > 75 or crcl < 30:
+        score += 1
+    elif age < 18:
+        score += 0.5
+    if score >= 3:
+        return "Severe"
+    elif score >= 2:
+        return "Moderate"
+    return "Hafif"
 
 
 import joblib
