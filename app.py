@@ -7643,10 +7643,12 @@ def convert_ligand():
             file.write(drug_detail.smiles)
 
         obabel_path = "/usr/bin/obabel" if os.name != "nt" else "obabel"  # Adjust for Windows if needed
-        subprocess.run(
+        app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d")
+        result = subprocess.run(
             [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
-            check=True
+            capture_output=True, text=True, check=True
         )
+        app.logger.info(f"Open Babel output: {result.stdout}")
 
         if not os.path.exists(pdb_file):
             return jsonify({"error": "Failed to generate 3D PDB file."}), 500
@@ -7656,9 +7658,14 @@ def convert_ligand():
 
         return jsonify({"pdb": pdb_content}), 200
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": "Open Babel conversion failed.", "details": str(e)}), 500
+        app.logger.error(f"Open Babel failed: {e.stderr}")
+        return jsonify({"error": "Open Babel conversion failed.", "details": e.stderr}), 500
+    except FileNotFoundError as e:
+        app.logger.error(f"Open Babel not found: {str(e)}")
+        return jsonify({"error": "Open Babel not installed or not found.", "details": str(e)}), 500
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {e}"}), 500
+        app.logger.error(f"Unexpected error in convert_ligand: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
 # Updated endpoint with fpocket for binding site prediction
 @app.route('/api/get_receptor_structure', methods=['GET'])

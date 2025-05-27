@@ -1,8 +1,11 @@
 FROM python:3.9
 WORKDIR /app
-# Install fpocket and Open Babel
-RUN apt-get update && apt-get install -y fpocket openbabel
-# Copy your app code
+# Update package lists and install fpocket and openbabel
+RUN apt-get update && apt-get install -y \
+    fpocket \
+    openbabel \
+    && rm -rf /var/lib/apt/lists/*
+# Copy app code
 COPY . /app
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
