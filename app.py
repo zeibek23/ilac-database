@@ -7620,7 +7620,7 @@ def receptor_ligand_simulator():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-@app.route('/api/convert_ligand', methods=['GET'])
+@app.route('/api/convert_ligand', methods=['GET']) #deneme
 def convert_ligand():
     drug_id = request.args.get('drug_id')
     if not drug_id:

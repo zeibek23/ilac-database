@@ -28,11 +28,13 @@ RUN wget https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-
 # Verify installations
 RUN which fpocket || { echo "ERROR: fpocket not found"; exit 1; }
 RUN which obabel || { echo "ERROR: obabel not found"; exit 1; }
-RUN obabel -V && fpocket -h  # Additional verification
+RUN obabel -V && fpocket -h || { echo "ERROR: Binary verification failed"; exit 1; }
 # Set PATH explicitly
 ENV PATH="/usr/bin:/usr/local/bin:${PATH}"
 # Create static directory with write permissions
 RUN mkdir -p /opt/render/project/src/static && chmod -R 777 /opt/render/project/src/static
+# Create working directory with write permissions
+RUN chmod -R 777 /app
 # Install Python dependencies
 COPY requirements.txt /app
 RUN pip install --no-cache-dir -r requirements.txt
