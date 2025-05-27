@@ -7642,7 +7642,10 @@ def convert_ligand():
         with open(smiles_file, "w") as file:
             file.write(drug_detail.smiles)
 
-        obabel_path = "/usr/bin/obabel" if os.name != "nt" else "obabel"  # Adjust for Windows if needed
+        obabel_path = shutil.which("obabel")
+        if not obabel_path:
+            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
+        
         app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d")
         result = subprocess.run(
             [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
