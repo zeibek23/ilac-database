@@ -1245,7 +1245,7 @@ def generate_3d_structure(smiles, output_filename):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         Chem.MolToPDBFile(mol, output_path)
         logger.info(f"3D structure generated at {output_path}")
-        return os.path.join('Uploads', '3d_structures', output_filename).replace('\\', '/'), None
+        return os.path.join('uploads', '3d_structures', output_filename).replace('\\', '/'), None
     except Exception as e:
         logger.error(f"Error generating 3D structure: {str(e)}")
         return None, f"Error generating 3D structure: {str(e)}"
@@ -1360,22 +1360,22 @@ def add_detail():
                 original_filename = secure_filename(structure.filename)
                 file_ext = os.path.splitext(original_filename)[1] or '.png'  # Default to .png if no extension
                 structure_filename = f"structure_{drug_id}_salt_{salt_id or 'none'}{file_ext}"
-                structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
+                structure_path = os.path.join('static', 'uploads', structure_filename).replace('\\', '/')
                 os.makedirs(os.path.dirname(structure_path), exist_ok=True)
                 structure.save(structure_path)
-                structure_filename = os.path.join('Uploads', structure_filename).replace('\\', '/')
+                structure_filename = os.path.join('uploads', structure_filename).replace('\\', '/')
                 logger.info(f"Uploaded structure file saved as {structure_path}")
             elif smiles:
                 # Fallback to SVG generation if no file uploaded
                 svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
-                svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+                svg_path = os.path.join('static', 'uploads', svg_filename).replace('\\', '/')
                 logger.debug(f"Generating SVG for drug_id={drug_id}, salt_id={salt_id or 'none'}, path={svg_path}")
                 try:
                     mol = Chem.MolFromSmiles(smiles)
                     if mol:
                         os.makedirs(os.path.dirname(svg_path), exist_ok=True)
                         Draw.MolToFile(mol, svg_path, size=(300, 300))
-                        structure_filename = os.path.join('Uploads', svg_filename).replace('\\', '/')
+                        structure_filename = os.path.join('uploads', svg_filename).replace('\\', '/')
                         logger.info(f"Structure file saved as {svg_path}")
                     else:
                         logger.error(f"Invalid SMILES: {smiles}")
@@ -1632,10 +1632,10 @@ def generate_and_update_structures():
             # Define consistent paths
             svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
             pdb_filename = f'drug_{detail.drug_id}_salt_{detail.salt_id or "none"}_3d.pdb'
-            svg_path = os.path.join('static', 'Uploads', svg_filename)
-            pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
-            db_svg_path = f'Uploads/{svg_filename}'
-            db_pdb_path = f'Uploads/3d_structures/{pdb_filename}'
+            svg_path = os.path.join('static', 'uploads', svg_filename)
+            pdb_path = os.path.join('static', 'uploads', '3d_structures', pdb_filename)
+            db_svg_path = f'uploads/{svg_filename}'
+            db_pdb_path = f'uploads/3d_structures/{pdb_filename}'
 
             # Generate 2D SVG if SMILES exists and structure is missing or file doesn't exist
             if detail.smiles and (not detail.structure or not os.path.exists(svg_path)):
@@ -1686,10 +1686,10 @@ def view_details():
         # Define paths
         svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
         pdb_filename = f'drug_{detail.drug_id}_salt_{detail.salt_id or "none"}_3d.pdb'
-        svg_path = os.path.join('static', 'Uploads', svg_filename)
-        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
-        db_svg_path = f'Uploads/{svg_filename}'
-        db_pdb_path = f'Uploads/3d_structures/{pdb_filename}'
+        svg_path = os.path.join('static', 'uploads', svg_filename)
+        pdb_path = os.path.join('static', 'uploads', '3d_structures', pdb_filename)
+        db_svg_path = f'uploads/{svg_filename}'
+        db_pdb_path = f'uploads/3d_structures/{pdb_filename}'
 
         # Generate 2D SVG if missing
         if detail.smiles and (not detail.structure or not os.path.exists(svg_path)):
@@ -2631,7 +2631,7 @@ def drug_detail(drug_id):
         
         # Generate 3D PDB if SMILES exists
         pdb_filename = f"drug_{drug_id}_salt_{detail.salt_id or 'none'}_3d.pdb"
-        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename).replace('\\', '/')  # Change to 'uploads'
+        pdb_path = os.path.join('static', 'uploads', '3d_structures', pdb_filename).replace('\\', '/')  # Change to 'uploads'
         if detail.smiles and not os.path.exists(pdb_path):
             try:
                 logger.info(f"Generating PDB for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
@@ -2741,7 +2741,7 @@ def drug_detail(drug_id):
             'titck_approved': detail.titck_approved,
             'molecular_formula': detail.molecular_formula,
             'synthesis': detail.synthesis,
-            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),  # Change to 'uploads'
+            'structure': os.path.join('uploads', svg_filename).replace('\\', '/'),  # Change to 'uploads'
             'structure_3d': detail.structure_3d,
             'iupac_name': detail.iupac_name,
             'smiles': detail.smiles,
