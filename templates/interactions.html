@@ -4,83 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Basic Interaction Check</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
     <style>
         body {
             background-color: #f8f9fa;
         }
-
         h1 {
             font-family: 'Arial', sans-serif;
             color: #343a40;
         }
-
         .card {
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-
         .table thead {
             background-color: #343a40;
             color: white;
         }
-
         .table tbody tr:hover {
             background-color: #f1f1f1;
         }
-
-        /* Severity renk kodları */
         .severity-low {
-            background-color: #d4edda !important; /* Yeşil */
-            color: #155724 !important; /* Yeşil yazı rengi */
+            background-color: #d4edda !important;
+            color: #155724 !important;
         }
         .severity-moderate {
-            background-color: #fff3cd !important; /* Sarı */
-            color: #856404 !important; /* Sarı yazı rengi */
+            background-color: #fff3cd !important;
+            color: #856404 !important;
         }
         .severity-high {
-            background-color: #f8d7da !important; /* Kırmızı */
-            color: #721c24 !important; /* Kırmızı yazı rengi */
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
         }
         .severity-critical {
-            background-color: #d9534f !important; /* Koyu kırmızı */
-            color: white !important; /* Beyaz yazı rengi */
-            font-weight: bold; /* Vurgu için kalın yazı */
+            background-color: #d9534f !important;
+            color: white !important;
+            font-weight: bold;
         }
         .severity-potential-risk {
-            background-color: #d1ecf1 !important; /* Mavi */
-            color: #0c5460 !important; /* Mavi yazı rengi */
+            background-color: #d1ecf1 !important;
+            color: #0c5460 !important;
         }
-
-        /* Predicted Severity renk kodları */
         .severity-ai-low {
-            background-color: #d4edda !important; /* Yeşil */
-            color: #155724 !important; /* Yeşil yazı rengi */
+            background-color: #d4edda !important;
+            color: #155724 !important;
         }
         .severity-ai-moderate {
-            background-color: #fff3cd !important; /* Sarı */
-            color: #856404 !important; /* Sarı yazı rengi */
+            background-color: #fff3cd !important;
+            color: #856404 !important;
         }
         .severity-ai-high {
-            background-color: #f8d7da !important; /* Kırmızı */
-            color: #721c24 !important; /* Kırmızı yazı rengi */
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
         }
         .severity-ai-critical {
-            background-color: #d9534f !important; /* Koyu kırmızı */
-            color: white !important; /* Beyaz yazı rengi */
-            font-weight: bold; /* Vurgu için kalın yazı */
+            background-color: #d9534f !important;
+            color: white !important;
+            font-weight: bold;
         }
         .severity-ai-potential-risk {
-            background-color: #d1ecf1 !important; /* Mavi */
-            color: #0c5460 !important; /* Mavi yazı rengi */
+            background-color: #d1ecf1 !important;
+            color: #0c5460 !important;
         }
-
-        /* Metni her zaman görünür yap */
         td {
-            visibility: visible !important; /* Her zaman görünür yap */
-            opacity: 1 !important; /* Şeffaflık kaldır */
+            visibility: visible !important;
+            opacity: 1 !important;
         }
     </style>
 </head>
@@ -103,7 +92,7 @@
                         <label for="drug2" class="form-label">Select Drug 2</label>
                         <select name="drug2_id" id="drug2" class="form-select" required></select>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Check Interaction</button>
+                    <button type="submit" class="btn btn-primary w-100" id="submitBtn">Check Interaction</button>
                 </form>
             </div>
         </div>
@@ -137,30 +126,31 @@
                             <td>{{ interaction.drug2 }}</td>
                             <td>{{ interaction.route }}</td>
                             <td>{{ interaction.interaction_type }}</td>
-                            <td>{{ interaction.interaction_description }}</td>
+                            <td>{{ interaction.interaction_description | safe }}</td>
                             <td class="
-                                {% if interaction.severity == 'LOW SEVERITY' %}severity-low
-                                {% elif interaction.severity == 'MODERATE SEVERITY' %}severity-moderate
-                                {% elif interaction.severity == 'HIGH SEVERITY' %}severity-high
-                                {% elif interaction.severity == 'CRITICAL SEVERITY' %}severity-critical
-                                {% elif interaction.severity == 'POTENTIAL RISK SEVERITY' %}severity-potential-risk
+                                {% if interaction.severity == 'düşük' %}severity-low
+                                {% elif interaction.severity == 'orta' %}severity-moderate
+                                {% elif interaction.severity == 'yüksek' %}severity-high
+                                {% elif interaction.severity == 'hayati tehlike' %}severity-critical
+                                {% elif interaction.severity == 'potansiyel risk' %}severity-potential-risk
                                 {% endif %}
                             ">
                                 {{ interaction.severity or 'Not Available' }}
                             </td>
                             <td class="
-                                {% if interaction.predicted_severity == 'LOW SEVERITY' %}severity-ai-low
-                                {% elif interaction.predicted_severity == 'MODERATE SEVERITY' %}severity-ai-moderate
-                                {% elif interaction.predicted_severity == 'HIGH SEVERITY' %}severity-ai-high
-                                {% elif interaction.predicted_severity == 'CRITICAL SEVERITY' %}severity-ai-critical
-                                {% elif interaction.predicted_severity == 'POTENTIAL RISK SEVERITY' %}severity-ai-potential-risk
+                                {% if interaction.predicted_severity == 'düşük' %}severity-ai-low
+                                {% elif interaction.predicted_severity == 'orta' %}severity-ai-moderate
+                                {% elif interaction.predicted_severity == 'yüksek' %}severity-ai-high
+                                {% elif interaction.predicted_severity == 'hayati tehlike' %}severity-ai-critical
+                                {% elif interaction.predicted_severity == 'potansiyel risk' %}severity-ai-potential-risk
+                                {% else %}severity-ai-not-available
                                 {% endif %}
                             ">
                                 {{ interaction.predicted_severity or 'Not Available' }}
                             </td>
                             <td>{{ interaction.mechanism }}</td>
                             <td>{{ interaction.monitoring }}</td>
-                            <td>{{ interaction.alternatives }}</td>                            
+                            <td>{{ interaction.alternatives }}</td>
                             <td>{{ interaction.reference }}</td>
                         </tr>
                         {% endfor %}
@@ -173,14 +163,15 @@
             <p class="text-muted">No interactions found. Please select two drugs and try again.</p>
         </div>
         {% endif %}
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
 $(document).ready(function() {
     function initSelect2(selector, placeholder) {
         console.log(`Initializing Select2 for ${selector}`);
-
         $(selector).select2({
             placeholder: placeholder,
             ajax: {
@@ -190,39 +181,58 @@ $(document).ready(function() {
                 data: function(params) {
                     console.log("Search term sent to API:", params.term);
                     return {
-                        search: params.term,
-                        page: params.page || 1, // Pass the current page
-                        limit: 10               // Limit results per page
+                        q: params.term,
+                        page: params.page || 1,
+                        limit: 10
                     };
                 },
                 processResults: function(data, params) {
                     console.log("Raw data received from API:", data);
-
-                    // Extract results and handle pagination
-                    params.page = params.page || 1; // Default to page 1
+                    params.page = params.page || 1;
                     return {
-                        results: data.results,
+                        results: data.results || [],
                         pagination: {
-                            more: data.has_next // Use `has_next` for pagination
+                            more: data.pagination ? data.pagination.more : false
                         }
                     };
                 },
                 error: function(xhr, status, error) {
-                    console.error("Error fetching data from API:", error);
+                    console.error("Error fetching data from API:", status, error, xhr.responseText);
                 }
             },
             minimumInputLength: 1,
-            allowClear: true
+            allowClear: true,
+            language: 'tr'
         });
     }
 
-    initSelect2("#drug1", "Search for Drug 1...");
-    initSelect2("#drug2", "Search for Drug 2...");
+    initSelect2("#drug1", "İlaç 1 seçin...");
+    initSelect2("#drug2", "İlaç 2 seçin...");
+
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        var $btn = $('#submitBtn');
+        $btn.prop('disabled', true).text('Kontrol Ediliyor...');
+
+        $.ajax({
+            url: '/interactions',
+            type: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                $btn.prop('disabled', false).text('Check Interaction');
+                // Instead of reloading, update the page content
+                document.open();
+                document.write(response);
+                document.close();
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false).text('Check Interaction');
+                console.error("Error submitting form:", xhr.responseText);
+                alert('Etkileşim kontrol edilirken bir hata oluştu: ' + xhr.responseText);
+            }
+        });
+    });
 });
-
-
-
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

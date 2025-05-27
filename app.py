@@ -18,6 +18,7 @@ import psutil
 import requests
 import smtplib
 from email.mime.text import MIMEText
+import shutil
 import uuid  # Import the uuid library for generating unique file names
 import subprocess
 import os
@@ -2486,105 +2487,6 @@ def manage_details():
     return render_template('details_list.html', details=details)
 
 
-@app.route('/interactions', methods=['GET', 'POST'])
-@login_required
-def check_interactions():
-    drugs = Drug.query.all()
-    interaction_results = []
-
-    if request.method == 'POST':
-        drug1_id = request.form.get('drug1_id')
-        drug2_id = request.form.get('drug2_id')
-
-        interactions = DrugInteraction.query.filter(
-            db.or_(
-                db.and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
-                db.and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
-            )
-        ).all()
-
-        for interaction in interactions:
-            # Eğer predicted_severity bir yapay zeka modelinden veya başka bir yerden çekiliyorsa
-            # Burada onun değerini almak için kontrol eklenmelidir.
-            predicted_severity = getattr(interaction, 'predicted_severity', 'Not Available')  # Varsayılan değer ekler
-
-            interaction_results.append({
-                'drug1': interaction.drug1.name_en if interaction.drug1 else "Unknown",
-                'drug2': interaction.drug2.name_en if interaction.drug2 else "Unknown",
-                'route': interaction.route.name if interaction.route else "General",
-                'interaction_type': interaction.interaction_type,
-                'interaction_description': interaction.interaction_description,
-                'severity': interaction.severity,
-                'predicted_severity': predicted_severity,
-                'mechanism': interaction.mechanism or "Not Provided",
-                'monitoring': interaction.monitoring or "Not Provided",
-                'alternatives': interaction.alternatives or "Not Provided",
-                'reference': interaction.reference or "Not Provided",
-            })
-
-    return render_template('interactions.html', drugs=drugs, interaction_results=interaction_results)
-
-
-
-
-@app.route('/interactions/manage', methods=['GET', 'POST'])
-def manage_interactions():
-    drugs = Drug.query.all()
-    routes = RouteOfAdministration.query.all()
-
-    # Sayfa numarasını al ve sayfa başına kayıt sayısını belirle
-    page = request.args.get('page', 1, type=int)
-    per_page = 10
-
-    # Sıralama parametrelerini al
-    order_by_column = request.args.get('order_by', 'id')  # Varsayılan: 'id'
-    order_direction = request.args.get('direction', 'desc')  # Varsayılan: 'desc'
-
-    # Etkileşimleri al ve sıralama yap
-    interactions_query = DrugInteraction.query.order_by(
-        getattr(getattr(DrugInteraction, order_by_column), order_direction)()
-    )
-    interactions = interactions_query.paginate(page=page, per_page=per_page)
-
-    if request.method == 'POST':
-        # Formdan gelen verileri al
-        drug1_id = request.form.get('drug1_id')
-        drug2_id = request.form.get('drug2_id')
-        route_id = request.form.get('route_id')
-        interaction_type = request.form.get('interaction_type')
-        interaction_description = request.form.get('interaction_description')
-        severity = request.form.get('severity')
-        reference = request.form.get('reference')
-        mechanism = request.form.get('mechanism')
-        monitoring = request.form.get('monitoring')
-        alternatives = request.form.get('alternatives')
-
-        # Yeni etkileşim kaydet
-        new_interaction = DrugInteraction(
-            drug1_id=drug1_id,
-            drug2_id=drug2_id,
-            route_id=route_id if route_id else None,
-            interaction_type=interaction_type,
-            interaction_description=interaction_description,
-            severity=severity,
-            reference=reference,
-            mechanism=mechanism,
-            monitoring=monitoring,
-            alternatives=alternatives
-        )
-        db.session.add(new_interaction)
-        db.session.commit()
-
-        return redirect(url_for('manage_interactions'))
-
-    return render_template(
-        'manage_interactions.html',
-        drugs=drugs,
-        routes=routes,
-        interactions=interactions
-    )
-
-
 
 
 
@@ -3417,32 +3319,179 @@ def get_salts():
     ])
 
 
+@app.route('/interactions', methods=['GET', 'POST'])
+@login_required
+def check_interactions():
+    drugs = Drug.query.all()
+    interaction_results = []
+
+    if request.method == 'POST':
+        drug1_id = request.form.get('drug1_id')
+        drug2_id = request.form.get('drug2_id')
+        logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}")
+
+        try:
+            # Cast to integers and validate
+            drug1_id = int(drug1_id) if drug1_id else None
+            drug2_id = int(drug2_id) if drug2_id else None
+            if not drug1_id or not drug2_id:
+                logger.error("Invalid drug IDs provided")
+                return render_template('interactions.html', drugs=drugs, interaction_results=[])
+
+            # Query interactions
+            interactions = DrugInteraction.query.filter(
+                or_(
+                    and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                    and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+                )
+            ).all()
+
+            logger.debug(f"Found {len(interactions)} interactions")
+
+            for interaction in interactions:
+                predicted_severity = getattr(interaction, 'predicted_severity', 'Not Available')
+                interaction_results.append({
+                    'drug1': interaction.drug1.name_en if interaction.drug1 else "Unknown",
+                    'drug2': interaction.drug2.name_en if interaction.drug2 else "Unknown",
+                    'route': interaction.route.name if interaction.route else "General",
+                    'interaction_type': interaction.interaction_type,
+                    'interaction_description': interaction.interaction_description,
+                    'severity': interaction.severity,
+                    'predicted_severity': predicted_severity,
+                    'mechanism': interaction.mechanism or "Not Provided",
+                    'monitoring': interaction.monitoring or "Not Provided",
+                    'alternatives': interaction.alternatives or "Not Provided",
+                    'reference': interaction.reference or "Not Provided",
+                })
+
+        except ValueError as e:
+            logger.error(f"Invalid ID format: {e}")
+            return render_template('interactions.html', drugs=drugs, interaction_results=[])
+        except Exception as e:
+            logger.error(f"Error querying interactions: {e}")
+            return render_template('interactions.html', drugs=drugs, interaction_results=[])
+
+    return render_template('interactions.html', drugs=drugs, interaction_results=interaction_results)
+
+
+
+@app.route('/interactions/manage', methods=['GET', 'POST'])
+def manage_interactions():
+    drugs = Drug.query.all()
+    routes = RouteOfAdministration.query.all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    order_by_column = request.args.get('order_by', 'id')
+    order_direction = request.args.get('direction', 'desc')
+
+    interactions_query = DrugInteraction.query.order_by(
+        getattr(getattr(DrugInteraction, order_by_column), order_direction)()
+    )
+    interactions = interactions_query.paginate(page=page, per_page=per_page)
+
+    if request.method == 'POST':
+        drug1_id = request.form.get('drug1_id')
+        drug2_id = request.form.get('drug2_id')
+        route_id = request.form.get('route_id')
+        interaction_type = request.form.get('interaction_type')
+        interaction_description = request.form.get('interaction_description')
+        severity = request.form.get('severity')
+        reference = request.form.get('reference')
+        mechanism = request.form.get('mechanism')
+        monitoring = request.form.get('monitoring')
+        # Get list of alternative drug IDs
+        alternatives = request.form.getlist('alternatives')  # Changed to getlist
+
+        # Convert list of drug IDs to a comma-separated string of drug names
+        if alternatives:
+            alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
+            alternatives_str = ', '.join([drug.name_en for drug in alternative_drugs])
+        else:
+            alternatives_str = ''
+
+        new_interaction = DrugInteraction(
+            drug1_id=drug1_id,
+            drug2_id=drug2_id,
+            route_id=route_id if route_id else None,
+            interaction_type=interaction_type,
+            interaction_description=interaction_description,
+            severity=severity,
+            reference=reference,
+            mechanism=mechanism,
+            monitoring=monitoring,
+            alternatives=alternatives_str  # Store as comma-separated string
+        )
+        db.session.add(new_interaction)
+        db.session.commit()
+
+        return redirect(url_for('manage_interactions'))
+
+    return render_template(
+        'manage_interactions.html',
+        drugs=drugs,
+        routes=routes,
+        interactions=interactions
+    )
+
+
+
 @app.route('/interactions/update/<int:interaction_id>', methods=['GET', 'POST'])
+@login_required
 def update_interaction(interaction_id):
     interaction = DrugInteraction.query.get_or_404(interaction_id)
     drugs = Drug.query.all()
     routes = RouteOfAdministration.query.all()
 
     if request.method == 'POST':
-        # Form verilerini al
-        interaction.drug1_id = request.form.get('drug1_id')
-        interaction.drug2_id = request.form.get('drug2_id')
-        interaction.route_id = request.form.get('route_id') if request.form.get('route_id') else None
-        interaction.interaction_type = request.form.get('interaction_type')
-        interaction.interaction_description = request.form.get('interaction_description')
-        interaction.severity = request.form.get('severity')
-        interaction.reference = request.form.get('reference')
-        interaction.mechanism = request.form.get('mechanism')
-        interaction.monitoring = request.form.get('monitoring')
-        interaction.alternatives = request.form.get('alternatives')
+        try:
+            interaction.drug1_id = request.form.get('drug1_id')
+            interaction.drug2_id = request.form.get('drug2_id')
+            interaction.route_id = request.form.get('route_id') if request.form.get('route_id') else None
+            interaction.interaction_type = request.form.get('interaction_type')
+            interaction.interaction_description = request.form.get('interaction_description')
+            interaction.severity = request.form.get('severity')
+            interaction.reference = request.form.get('reference')
+            interaction.mechanism = request.form.get('mechanism')
+            interaction.monitoring = request.form.get('monitoring')
+            # Get list of alternative drug IDs
+            alternatives = request.form.getlist('alternatives')
+            # Convert to comma-separated string of drug names
+            if alternatives:
+                alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
+                interaction.alternatives = ', '.join([drug.name_en for drug in alternative_drugs])
+            else:
+                interaction.alternatives = ''
 
-        db.session.commit()
-        return redirect(url_for('manage_interactions'))
+            db.session.commit()
+            logger.info(f"Interaction {interaction_id} updated successfully")
+            return redirect(url_for('manage_interactions'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating interaction {interaction_id}: {str(e)}")
+            return f"Error updating interaction: {str(e)}", 500
 
-    return render_template('update_interaction.html', 
-                           interaction=interaction, 
-                           drugs=drugs, 
-                           routes=routes)
+    # Prepopulate alternatives for editing
+    selected_alternatives = []
+    if interaction.alternatives:
+        try:
+            alternative_names = [name.strip() for name in interaction.alternatives.split(',') if name.strip()]
+            logger.debug(f"Alternative names: {alternative_names}")
+            alternative_drugs = Drug.query.filter(Drug.name_en.in_(alternative_names)).all()
+            selected_alternatives = [
+                {'id': drug.id, 'text': f"{drug.name_en} ({drug.name_tr})"}
+                for drug in alternative_drugs
+                if drug.name_en and drug.name_tr  # Ensure no None values
+            ]
+            logger.debug(f"Selected alternatives: {selected_alternatives}")
+        except Exception as e:
+            logger.error(f"Error preparing selected_alternatives: {str(e)}")
+            selected_alternatives = []
+
+    return render_template('update_interaction.html',
+                           interaction=interaction,
+                           drugs=drugs,
+                           routes=routes,
+                           selected_alternatives=selected_alternatives)
 
 @app.route('/interactions/delete/<int:interaction_id>', methods=['POST'])
 def delete_interaction(interaction_id):
@@ -3450,61 +3499,6 @@ def delete_interaction(interaction_id):
     db.session.delete(interaction)
     db.session.commit()
     return redirect(url_for('manage_interactions'))
-
-
-
-
-
-import joblib
-
-# Model ve vektörleştiriciyi yükleyin
-#model = joblib.load('interaction_model.pkl')
-#vectorizer = joblib.load('interaction_vectorizer.pkl')
-
-
-from flask import Flask, request, jsonify
-
-@app.route('/predict_severity', methods=['GET', 'POST'])
-def predict_severity():
-    if request.method == 'POST':
-        # Formdan etkileşim açıklamasını al
-        description = request.form.get('interaction_description')
-
-        # TF-IDF ile açıklamayı vektörleştir
-        description_vector = vectorizer.transform([description])
-
-        # Şiddet seviyesini tahmin et
-        severity = model.predict(description_vector)[0]
-
-        # Tahmini JSON olarak döndür
-        return jsonify({"interaction_description": description, "predicted_severity": severity})
-
-    # GET isteği için bir form döndür
-    return render_template('predict_severity.html')
-
-
-@app.route('/view_predictions')
-def view_predictions():
-    import pandas as pd
-    # Tahmin edilen dosyayı oku
-    data = pd.read_csv('predicted_interactions.csv')
-    
-    # Veriyi HTML tablosu olarak gönder
-    return data.to_html()
-
-@app.route('/check_predictions')
-def check_predictions():
-    interactions = DrugInteraction.query.all()
-    results = [
-        {
-            "drug1_id": interaction.drug1_id,
-            "drug2_id": interaction.drug2_id,
-            "description": interaction.interaction_description,
-            "predicted_severity": interaction.predicted_severity,
-        }
-        for interaction in interactions
-    ]
-    return jsonify(results)
 
 @app.route('/api/interactions', methods=['POST'])
 def get_interactions():
@@ -3593,6 +3587,58 @@ def get_interactions():
         "data": data
     })
 
+
+
+import joblib
+
+# Model ve vektörleştiriciyi yükleyin
+#model = joblib.load('interaction_model.pkl')
+#vectorizer = joblib.load('interaction_vectorizer.pkl')
+
+
+from flask import Flask, request, jsonify
+
+@app.route('/predict_severity', methods=['GET', 'POST'])
+def predict_severity():
+    if request.method == 'POST':
+        # Formdan etkileşim açıklamasını al
+        description = request.form.get('interaction_description')
+
+        # TF-IDF ile açıklamayı vektörleştir
+        description_vector = vectorizer.transform([description])
+
+        # Şiddet seviyesini tahmin et
+        severity = model.predict(description_vector)[0]
+
+        # Tahmini JSON olarak döndür
+        return jsonify({"interaction_description": description, "predicted_severity": severity})
+
+    # GET isteği için bir form döndür
+    return render_template('predict_severity.html')
+
+
+@app.route('/view_predictions')
+def view_predictions():
+    import pandas as pd
+    # Tahmin edilen dosyayı oku
+    data = pd.read_csv('predicted_interactions.csv')
+    
+    # Veriyi HTML tablosu olarak gönder
+    return data.to_html()
+
+@app.route('/check_predictions')
+def check_predictions():
+    interactions = DrugInteraction.query.all()
+    results = [
+        {
+            "drug1_id": interaction.drug1_id,
+            "drug2_id": interaction.drug2_id,
+            "description": interaction.interaction_description,
+            "predicted_severity": interaction.predicted_severity,
+        }
+        for interaction in interactions
+    ]
+    return jsonify(results)
 
 
 
@@ -7596,8 +7642,9 @@ def convert_ligand():
         with open(smiles_file, "w") as file:
             file.write(drug_detail.smiles)
 
+        obabel_path = "/usr/bin/obabel" if os.name != "nt" else "obabel"  # Adjust for Windows if needed
         subprocess.run(
-            ['/opt/homebrew/bin/obabel', smiles_file, '-O', pdb_file, '--gen3d'],
+            [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
             check=True
         )
 
@@ -7647,40 +7694,59 @@ def get_receptor_structure():
         "pdb": pdb_content,
         "binding_site": binding_site_coords
     }), 200
-
+    
 def get_pocket_coords(pdb_content, pdb_id):
-    """Run fpocket to predict binding site from PDB."""
-    try:
-        temp_pdb = f"temp_{pdb_id}.pdb"
-        with open(temp_pdb, "w") as f:
-            f.write(pdb_content)
+         try:
+             # Write PDB content to temporary file
+             temp_pdb = f"temp_{pdb_id}.pdb"
+             temp_pdb_path = os.path.abspath(temp_pdb)
+             with open(temp_pdb_path, "w") as f:
+                 f.write(pdb_content)
+             if not os.path.exists(temp_pdb_path):
+                 raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-        subprocess.run(["fpocket", "-f", temp_pdb], check=True)
+             # Run fpocket
+             output_dir = f"fpocket_{pdb_id}_out"
+             output_dir_path = os.path.abspath(output_dir)
+             fpocket_cmd = ["fpocket", "-f", temp_pdb_path]
+             app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
+             result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
+             app.logger.info(f"fpocket output: {result.stdout}")
 
-        pocket_file = f"temp_{pdb_id}_out/pockets/pocket1_atm.pdb"
-        if not os.path.exists(pocket_file):
-            raise FileNotFoundError("fpocket output not found")
+             # Check for output
+             pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
+             info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
+             if not os.path.exists(pocket_file) or not os.path.exists(info_file):
+                 raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
 
-        with open(pocket_file, "r") as f:
-            lines = [l for l in f if l.startswith("ATOM")]
-            if not lines:
-                raise ValueError("No atoms found in pocket file")
-            coords = [list(map(float, l[30:54].split())) for l in lines]
-            x = sum(c[0] for c in coords) / len(coords)
-            y = sum(c[1] for c in coords) / len(coords)
-            z = sum(c[2] for c in coords) / len(coords)
-            return {"x": x, "y": y, "z": z}
-    except Exception as e:
-        print(f"fpocket failed for {pdb_id}: {e}")
-        return {"x": 0, "y": 0, "z": 0}
-    finally:
-        for file in [temp_pdb, f"temp_{pdb_id}_out"]:
-            if os.path.exists(file):
-                if os.path.isdir(file):
-                    import shutil
-                    shutil.rmtree(file)
-                else:
-                    os.remove(file)
+             # Parse top pocket centroid from info.txt
+             with open(info_file, "r") as f:
+                 lines = f.readlines()
+                 for line in lines:
+                     if "Pocket 1" in line:
+                         match = re.search(r"Center of mass: X=([\d.-]+) Y=([\d.-]+) Z=([\d.-]+)", line)
+                         if match:
+                             x = float(match.group(1))
+                             y = float(match.group(2))
+                             z = float(match.group(3))
+                             app.logger.info(f"fpocket binding site for {pdb_id}: {{'x': {x}, 'y': {y}, 'z': {z}}}")
+                             return {"x": x, "y": y, "z": z}
+
+             app.logger.error(f"No centroid found in {info_file}")
+             return {"x": 0, "y": 0, "z": 0}
+         except subprocess.CalledProcessError as e:
+             app.logger.error(f"fpocket failed for {pdb_id}: {e.stderr}")
+             return {"x": 0, "y": 0, "z": 0}
+         except Exception as e:
+             app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
+             return {"x": 0, "y": 0, "z": 0}
+         finally:
+             for path in [temp_pdb_path, output_dir_path]:
+                 if os.path.exists(path):
+                     if os.path.isdir(path):
+                         shutil.rmtree(path)
+                     else:
+                         os.remove(path)
 
 
 @app.route('/api/get_interaction_data', methods=['GET'])
