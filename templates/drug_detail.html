@@ -268,6 +268,7 @@
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Drug Name:</span> {{ drug.name_en }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">Salt:</span> N/A (Drug Only)</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Category:</span> {{ drug.category or "N/A" }}</p>
                             <p class="mb-3">
                                 <span class="font-medium text-gray-800">Black Box Warning:</span>
                                 {% if detail.black_box_warning %}
@@ -443,6 +444,7 @@
                                     <li><span class="font-medium">Bioavailability:</span> {{ route.bioavailability.min | default("N/A") }} - {{ route.bioavailability.max | default("N/A") }} %</li>
                                     <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} hours</li>
                                     <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} mg/L</li>
+                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit | default("mg/L") }}</li>
                                     <li>
                                         <span class="font-medium">Metabolism Organs:</span>
                                         {% if route.metabolism_organs %}
@@ -715,6 +717,7 @@
                                     <li><span class="font-medium">Bioavailability:</span> {{ route.bioavailability.min | default("N/A") }} - {{ route.bioavailability.max | default("N/A") }} %</li>
                                     <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} hours</li>
                                     <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} mg/L</li>
+                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit | default("mg/L") }}</li>
                                     <li>
                                         <span class="font-medium">Metabolism Organs:</span>
                                         {% if route.metabolism_organs %}

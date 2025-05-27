@@ -2793,6 +2793,11 @@ def drug_detail(drug_id):
                     'min': route.cmax_min,
                     'max': route.cmax_max
                 },
+                'therapeutic_range': {
+                    'min': route.therapeutic_min,
+                    'max': route.therapeutic_max,
+                    'unit': route.therapeutic_unit or 'mg/L'
+                },
                 'metabolism_organs': [organ.name for organ in route.metabolism_organs] if route.metabolism_organs else [],
                 'metabolism_enzymes': [enzyme.name for enzyme in route.metabolism_enzymes] if route.metabolism_enzymes else [],
                 'metabolites': [
@@ -2868,7 +2873,6 @@ def drug_detail(drug_id):
         salts=salts,
         details=enriched_details
     )
-
 
 import qrcode
 from flask import send_file
