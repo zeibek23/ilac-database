@@ -13,5 +13,9 @@ services:
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
       - key: PYTHON_VERSION
         value: 3.11
+    disk:
+      name: uploads
+      mountPath: /app/static/uploads
+      sizeGB: 1
     postdeploy:
       - flask db upgrade
