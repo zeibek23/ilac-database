@@ -1,18 +1,12 @@
 services:
   - type: web
     name: drugly
-    env: python
+    env: docker
     plan: pro
-    buildCommand: |
-      pip install -r requirements.txt
-      mkdir -p /app/static/uploads/3d_structures
-      cp -r static/uploads /app/static/
-    startCommand: gunicorn --timeout 600 --workers 1 --threads 4 app:app
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DATABASE_URI
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
-      - key: PYTHON_VERSION
-        value: 3.11
     disk:
       name: uploads
       mountPath: /app/static/uploads
