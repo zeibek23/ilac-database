@@ -4,12 +4,14 @@ services:
     env: docker
     plan: pro
     dockerfilePath: ./Dockerfile
+    buildCommand: ""
     envVars:
       - key: DATABASE_URI
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
     disk:
       name: uploads
-      mountPath: /app/static/uploads
+      mountPath: /opt/render/project/src/static/uploads
       sizeGB: 1
+    healthCheckPath: /health
     postdeploy:
       - flask db upgrade

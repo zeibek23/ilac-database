@@ -7809,7 +7809,24 @@ def get_interaction_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        fpocket_path = shutil.which("fpocket")
+        obabel_path = shutil.which("obabel")
+        if not fpocket_path or not obabel_path:
+            return jsonify({
+                "status": "unhealthy",
+                "fpocket": fpocket_path,
+                "obabel": obabel_path
+            }), 500
+        return jsonify({
+            "status": "healthy",
+            "fpocket": fpocket_path,
+            "obabel": obabel_path
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
 #Code for drug - disease interactions:
 
 @app.route('/drug_disease/add', methods=['GET', 'POST'])
