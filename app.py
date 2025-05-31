@@ -7620,7 +7620,7 @@ def receptor_ligand_simulator():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-@app.route('/api/convert_ligand', methods=['GET']) #deneme
+@app.route('/api/convert_ligand', methods=['GET'])
 def convert_ligand():
     drug_id = request.args.get('drug_id')
     if not drug_id:
@@ -7636,16 +7636,19 @@ def convert_ligand():
         return jsonify({"error": "SMILES not available for this DrugDetail."}), 404
 
     try:
+        # Log PATH and obabel location
+        app.logger.info(f"PATH: {os.environ.get('PATH')}")
+        obabel_path = shutil.which("obabel")
+        app.logger.info(f"obabel binary: {obabel_path}")
+        if not obabel_path:
+            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
+
         smiles_file = os.path.abspath(f"static/smiles_{uuid.uuid4().hex}.smi")
         pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
 
         with open(smiles_file, "w") as file:
             file.write(drug_detail.smiles)
 
-        obabel_path = shutil.which("obabel")
-        if not obabel_path:
-            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
-        
         app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d")
         result = subprocess.run(
             [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
@@ -7706,57 +7709,64 @@ def get_receptor_structure():
     }), 200
     
 def get_pocket_coords(pdb_content, pdb_id):
-         try:
-             # Write PDB content to temporary file
-             temp_pdb = f"temp_{pdb_id}.pdb"
-             temp_pdb_path = os.path.abspath(temp_pdb)
-             with open(temp_pdb_path, "w") as f:
-                 f.write(pdb_content)
-             if not os.path.exists(temp_pdb_path):
-                 raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
+    try:
+        # Log PATH and fpocket location
+        app.logger.info(f"PATH: {os.environ.get('PATH')}")
+        fpocket_path = shutil.which("fpocket")
+        app.logger.info(f"fpocket binary: {fpocket_path}")
+        if not fpocket_path:
+            raise FileNotFoundError("fpocket not found in PATH")
 
-             # Run fpocket
-             output_dir = f"fpocket_{pdb_id}_out"
-             output_dir_path = os.path.abspath(output_dir)
-             fpocket_cmd = ["fpocket", "-f", temp_pdb_path]
-             app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
-             result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
-             app.logger.info(f"fpocket output: {result.stdout}")
+        # Write PDB content to temporary file
+        temp_pdb = f"temp_{pdb_id}.pdb"
+        temp_pdb_path = os.path.abspath(temp_pdb)
+        with open(temp_pdb_path, "w") as f:
+            f.write(pdb_content)
+        if not os.path.exists(temp_pdb_path):
+            raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-             # Check for output
-             pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
-             info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
-             if not os.path.exists(pocket_file) or not os.path.exists(info_file):
-                 raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
+        # Run fpocket
+        output_dir = f"fpocket_{pdb_id}_out"
+        output_dir_path = os.path.abspath(output_dir)
+        fpocket_cmd = [fpocket_path, "-f", temp_pdb_path]
+        app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
+        result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
+        app.logger.info(f"fpocket output: {result.stdout}")
 
-             # Parse top pocket centroid from info.txt
-             with open(info_file, "r") as f:
-                 lines = f.readlines()
-                 for line in lines:
-                     if "Pocket 1" in line:
-                         match = re.search(r"Center of mass: X=([\d.-]+) Y=([\d.-]+) Z=([\d.-]+)", line)
-                         if match:
-                             x = float(match.group(1))
-                             y = float(match.group(2))
-                             z = float(match.group(3))
-                             app.logger.info(f"fpocket binding site for {pdb_id}: {{'x': {x}, 'y': {y}, 'z': {z}}}")
-                             return {"x": x, "y": y, "z": z}
+        # Check for output
+        pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
+        info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
+        if not os.path.exists(pocket_file) or not os.path.exists(info_file):
+            raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
 
-             app.logger.error(f"No centroid found in {info_file}")
-             return {"x": 0, "y": 0, "z": 0}
-         except subprocess.CalledProcessError as e:
-             app.logger.error(f"fpocket failed for {pdb_id}: {e.stderr}")
-             return {"x": 0, "y": 0, "z": 0}
-         except Exception as e:
-             app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
-             return {"x": 0, "y": 0, "z": 0}
-         finally:
-             for path in [temp_pdb_path, output_dir_path]:
-                 if os.path.exists(path):
-                     if os.path.isdir(path):
-                         shutil.rmtree(path)
-                     else:
-                         os.remove(path)
+        # Parse top pocket centroid from info.txt
+        with open(info_file, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                if "Pocket 1" in line:
+                    match = re.search(r"Center of mass: X=([\d.-]+) Y=([\d.-]+) Z=([\d.-]+)", line)
+                    if match:
+                        x = float(match.group(1))
+                        y = float(match.group(2))
+                        z = float(match.group(3))
+                        app.logger.info(f"fpocket binding site for {pdb_id}: {{'x': {x}, 'y': {y}, 'z': {z}}}")
+                        return {"x": x, "y": y, "z": z}
+
+        app.logger.error(f"No centroid found in {info_file}")
+        return {"x": 0, "y": 0, "z": 0}
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"fpocket failed for {pdb_id}: {e.stderr}")
+        return {"x": 0, "y": 0, "z": 0}
+    except Exception as e:
+        app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
+        return {"x": 0, "y": 0, "z": 0}
+    finally:
+        for path in [temp_pdb_path, output_dir_path]:
+            if os.path.exists(path):
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
 
 
 @app.route('/api/get_interaction_data', methods=['GET'])
