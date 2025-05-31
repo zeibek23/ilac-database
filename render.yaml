@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: drugly
+    name: ilac-database-app
     env: docker
     plan: pro
     dockerfilePath: ./Dockerfile
@@ -8,6 +8,8 @@ services:
     envVars:
       - key: DATABASE_URI
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+      - key: PYTHONUNBUFFERED
+        value: 1
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
