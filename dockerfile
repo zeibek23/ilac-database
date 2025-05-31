@@ -16,9 +16,9 @@ RUN apt-get update && apt-get install -y \
     libnetcdf-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install fpocket
+# Install fpocket from GitHub
 RUN echo "Installing fpocket..." && \
-    wget https://downloads.sourceforge.net/project/fpocket/fpocket-3.1.5.tar.gz -O fpocket-3.1.5.tar.gz && \
+    wget https://github.com/Discngine/fpocket/archive/refs/tags/3.1.5.tar.gz -O fpocket-3.1.5.tar.gz && \
     tar -xzf fpocket-3.1.5.tar.gz && \
     cd fpocket-3.1.5 && \
     make && \
