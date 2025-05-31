@@ -1,49 +1,39 @@
-# Use official Python runtime as the base image
-FROM python:3.9-slim
+# Use Python 3.11 slim base image
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install minimal system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
+    build-essential \
     wget \
+    unzip \
+    openbabel \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh
+# Install fpocket2
+RUN wget https://sourceforge.net/projects/fpocket/files/fpocket2.tar.gz/download -O fpocket2.tar.gz && \
+    tar -xzf fpocket2.tar.gz && \
+    mv fpocket* fpocket2 && \
+    cd fpocket2 && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf fpocket2 fpocket2.tar.gz
 
-# Set PATH for Conda
-ENV PATH="/opt/conda/bin:/opt/conda/envs/drugly_env/bin:${PATH}"
-
-# Create Conda environment
-RUN conda create -n drugly_env python=3.9 -y
-
-# Install fpocket and Open Babel in Conda environment
-RUN /bin/bash -c "source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate drugly_env && \
-    conda config --add channels conda-forge && \
-    conda install -y fpocket openbabel=3.1.1"
-
-# Pre-download NLTK data
-RUN /bin/bash -c "source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate drugly_env && \
-    python -c 'import nltk; nltk.download(\"brown\"); nltk.download(\"punkt\")'"
-
-# Verify installations during build
-RUN /bin/bash -c "source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate drugly_env && \
-    which fpocket && fpocket -h && \
-    which obabel && obabel -V" || { echo "ERROR: fpocket or obabel not found"; exit 1; }
+# Verify installations
+RUN which fpocket && fpocket -h && \
+    which obabel && obabel -V || { echo "ERROR: fpocket or obabel not found"; exit 1; }
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN /bin/bash -c "source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate drugly_env && \
-    /opt/conda/envs/drugly_env/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/conda/envs/drugly_env/bin/pip install --no-cache-dir -r requirements.txt && \
-    /opt/conda/envs/drugly_env/bin/pip install --no-cache-dir gunicorn==22.0.0"
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir gunicorn==22.0.0
+
+# Pre-download NLTK data
+RUN python -c 'import nltk; nltk.download("brown"); nltk.download("punkt")'
 
 # Copy application code
 COPY . .
@@ -54,8 +44,7 @@ RUN mkdir -p /opt/render/project/src/static && \
 
 # Create app user and set permissions
 RUN useradd -m appuser && \
-    chown -R appuser:appuser /app /opt/render/project/src/static && \
-    chmod -R u+rw /opt/conda/envs/drugly_env
+    chown -R appuser:appuser /app /opt/render/project/src/static
 
 # Switch to appuser
 USER appuser
@@ -63,8 +52,8 @@ USER appuser
 # Ensure /app is writable
 RUN chmod -R u+rw /app
 
-# Expose port (Render uses PORT environment variable)
+# Expose port
 EXPOSE 8000
 
-# Command to run the application with explicit Conda activation
-CMD ["/bin/bash", "-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate drugly_env && exec gunicorn -b 0.0.0.0:$PORT --timeout 1200 --workers 4 --threads 4 app:app"]
+# Debug PATH and binaries at runtime
+CMD ["/bin/bash", "-c", "echo 'Runtime PATH: $PATH' && which fpocket && which obabel && exec gunicorn -b 0.0.0.0:$PORT --timeout 1200 --workers 4 --threads 4 app:app"]
