@@ -3,147 +3,797 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Pharmacology Lab</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>Dose-Response Simulator</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js UMD Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.js"></script>
+    <!-- Chart.js Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f9f9f9;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #333;
         }
-        header {
-            background-color: #4CAF50;
-            color: white;
-            text-align: center;
-            padding: 1rem 0;
-            margin-bottom: 1rem;
-        }
-        h1 {
-            font-size: 2rem;
-            margin: 0;
-        }
         .container {
-            width: 80%;
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 15px;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-header {
+            background: #5e72e4;
+            color: white;
+            border-radius: 15px 15px 0 0;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        .form-section {
             padding: 2rem;
         }
-        form {
-            margin-bottom: 2rem;
+        .form-group {
+            margin-bottom: 1.5rem;
+            position: relative;
         }
-        label {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-            display: block;
+        .form-control {
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            padding: 0.75rem;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
-        input {
-            width: calc(100% - 20px);
-            padding: 10px;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+        .form-control:focus {
+            border-color: #5e72e4;
+            box-shadow: 0 0 0 0.2rem rgba(94, 114, 228, 0.25);
         }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            font-size: 1rem;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        .form-control.is-invalid {
+            border-color: #dc3545;
         }
-        button:hover {
-            background-color: #45a049;
+        .error {
+            color: #dc3545;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+            display: none;
         }
-        #plot {
-            margin-top: 2rem;
-        }
-        footer {
-            text-align: center;
-            margin-top: 2rem;
-            padding: 1rem 0;
+        .param-description {
             font-size: 0.9rem;
-            color: #666;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 0.25rem;
+        }
+        .btn-modern {
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        .btn-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .btn-primary {
+            background: #5e72e4;
+            border: none;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            border: none;
+        }
+        .btn-info {
+            background: #11cdef;
+            border: none;
+        }
+        .btn-success {
+            background: #2dce89;
+            border: none;
+        }
+        .btn-home {
+            background: #ff9f43;
+            border: none;
+        }
+        #results {
+            margin-top: 2rem;
+        }
+        #chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .collapsible-header {
+            cursor: pointer;
+            padding: 1rem;
+            background: #f1f3f5;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .collapsible-content.active {
+            max-height: 500px; /* Adjust as needed */
+        }
+        .tooltip {
+            position: relative;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 220px;
+            background: #333;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 0.5rem;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .progress-spinner {
+            display: none;
+            margin: 1rem auto;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #5e72e4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .label-with-icon {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .label-with-icon i {
+            color: #5e72e4;
+        }
+        .homepage-btn-container {
+            max-width: 900px;
+            margin: 1rem auto 0;
+            padding: 0 15px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        @media (max-width: 768px) {
+            .card-header h1 {
+                font-size: 1.5rem;
+            }
+            .btn-modern {
+                padding: 0.5rem 1rem;
+            }
+            .param-description {
+                font-size: 0.85rem;
+            }
+            .homepage-btn-container {
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Virtual Pharmacology Lab</h1>
-        <p>Simulate Dose-Response Curves in Seconds</p>
-    </header>
-    <div class="container">
-        <form id="dose-response-form">
-            <label for="emax">Emax (Maximum Effect):</label>
-            <input type="number" id="emax" name="emax" placeholder="Enter Emax value (e.g., 100)" required>
-
-            <label for="ec50">EC50 (Half-Max Concentration):</label>
-            <input type="number" id="ec50" name="ec50" placeholder="Enter EC50 value (e.g., 50)" required>
-
-            <label for="hill">Hill Coefficient (n):</label>
-            <input type="number" id="hill" name="hill" placeholder="Enter Hill coefficient (e.g., 1)" required>
-
-            <label for="concentrations">Concentrations (comma-separated):</label>
-            <input type="text" id="concentrations" name="concentrations" placeholder="Enter values (e.g., 0.1, 1, 10, 100)" required>
-
-            <button type="submit">Simulate</button>
-        </form>
-
-        <div id="plot"></div>
+    <!-- Homepage Button -->
+    <div class="homepage-btn-container">
+        <a href="/" class="btn btn-home btn-modern">
+            <i class="fas fa-home me-2"></i>Back to Homepage
+        </a>
     </div>
-    <footer>
-        Powered by Drugly.ai | Your Virtual Pharmacology Assistant
-    </footer>
 
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h1><i class="fas fa-vial me-2"></i>Dose-Response Simulator</h1>
+                <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Simulate dose-response curves using the Hill equation."></i>
+            </div>
+            <div class="form-section">
+                <form id="simulation-form" aria-label="Dose-Response Simulation Form">
+                    <!-- Parameters Section -->
+                    <div class="collapsible-header" data-toggle="parameters">
+                        <span><i class="fas fa-cogs me-2"></i>Model Parameters</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="collapsible-content active" id="parameters-content">
+                        <div class="form-group">
+                            <label for="emax" class="label-with-icon tooltip">
+                                <span>Emax</span>
+                                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                                <span class="tooltiptext">The maximum effect a drug can produce (0.1 to 1000). Defines the upper limit of the response curve.</span>
+                            </label>
+                            <input type="number" class="form-control" id="emax" name="emax" step="0.1" min="0.1" max="1000" required aria-describedby="emax-error">
+                            <div class="param-description">The maximum effect a drug can produce, representing the plateau of the dose-response curve.</div>
+                            <div id="emax-error" class="error"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="ec50" class="label-with-icon tooltip">
+                                <span>EC50</span>
+                                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                                <span class="tooltiptext">Concentration producing 50% of Emax (0.1 to 10000). Indicates drug potency.</span>
+                            </label>
+                            <input type="number" class="form-control" id="ec50" name="ec50" step="0.1" min="0.1" max="10000" required aria-describedby="ec50-error">
+                            <div class="param-description">The concentration at which the drug produces 50% of its maximum effect, a measure of potency.</div>
+                            <div id="ec50-error" class="error"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="n" class="label-with-icon tooltip">
+                                <span>Hill Coefficient</span>
+                                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                                <span class="tooltiptext">Steepness of the dose-response curve (0.1 to 10). Reflects the curve's slope.</span>
+                            </label>
+                            <input type="number" class="form-control" id="n" name="n" step="0.1" min="0.1" max="10" required aria-describedby="n-error">
+                            <div class="param-description">Determines the steepness of the curve, indicating how quickly the effect changes with concentration.</div>
+                            <div id="n-error" class="error"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="e0" class="label-with-icon tooltip">
+                                <span>Baseline Effect (E0)</span>
+                                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                                <span class="tooltiptext">Effect at zero concentration (0 to 1000). Sets the starting point of the curve.</span>
+                            </label>
+                            <input type="number" class="form-control" id="e0" name="e0" step="0.1" min="0" max="1000" value="0" aria-describedby="e0-error">
+                            <div class="param-description">The effect observed when no drug is present, acting as the baseline for the response curve.</div>
+                            <div id="e0-error" class="error"></div>
+                        </div>
+                    </div>
+
+                    <!-- Dosing Regimen Section -->
+                    <div class="collapsible-header" data-toggle="dosing">
+                        <span><i class="fas fa-syringe me-2"></i>Dosing Regimen</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="collapsible-content" id="dosing-content">
+                        <div class="form-group">
+                            <label for="dosing_regimen">Dosing Regimen</label>
+                            <select class="form-control" id="dosing_regimen" name="dosing_regimen" aria-label="Dosing Regimen">
+                                <option value="single">Single Dose</option>
+                                <option value="multiple">Multiple Doses</option>
+                            </select>
+                        </div>
+                        <div id="multiple-dosing" style="display: none;">
+                            <div class="form-group">
+                                <label for="doses">Doses (comma-separated)</label>
+                                <input type="text" class="form-control" id="doses" name="doses" placeholder="e.g., 100,100,100" aria-describedby="doses-error">
+                                <div id="doses-error" class="error"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="intervals">Intervals (hours, comma-separated)</label>
+                                <input type="text" class="form-control" id="intervals" name="intervals" placeholder="e.g., 12,12" aria-describedby="intervals-error">
+                                <div id="intervals-error" class="error"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Concentrations Section -->
+                    <div class="collapsible-header" data-toggle="concentrations">
+                        <span><i class="fas fa-flask me-2"></i>Concentrations</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="collapsible-content" id="concentrations-content">
+                        <div class="form-group">
+                            <label for="concentration_type">Concentration Input</label>
+                            <select class="form-control" id="concentration_type" aria-label="Concentration Input Type">
+                                <option value="list">Enter Concentrations</option>
+                                <option value="range">Logarithmic Range</option>
+                            </select>
+                        </div>
+                        <div id="concentration_list" class="form-group">
+                            <label for="concentrations">Concentrations (comma-separated)</label>
+                            <input type="text" class="form-control" id="concentrations" name="concentrations" placeholder="e.g., 0.1,1,10,100" aria-describedby="concentrations-error">
+                            <div id="concentrations-error" class="error"></div>
+                        </div>
+                        <div id="log_range" class="form-group" style="display: none;">
+                            <label for="log_start">Start Concentration</label>
+                            <input type="number" class="form-control" id="log_start" name="log_start" step="0.1" min="0.1" aria-describedby="log_start-error">
+                            <div id="log_start-error" class="error"></div>
+                            <label for="log_stop">Stop Concentration</label>
+                            <input type="number" class="form-control" id="log_stop" name="log_stop" step="0.1" min="0.1" aria-describedby="log_stop-error">
+                            <div id="log_stop-error" class="error"></div>
+                            <label for="log_num">Number of Points</label>
+                            <input type="number" class="form-control" id="log_num" name="log_num" min="10" aria-describedby="log_num-error">
+                            <div id="log_num-error" class="error"></div>
+                        </div>
+                    </div>
+
+                    <!-- Units Section -->
+                    <div class="collapsible-header" data-toggle="units">
+                        <span><i class="fas fa-ruler me-2"></i>Units</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="collapsible-content" id="units-content">
+                        <div class="form-group">
+                            <label for="concentration_unit">Concentration Unit</label>
+                            <select class="form-control" id="concentration_unit" name="concentration_unit" aria-label="Concentration Unit">
+                                <option value="µM">µM</option>
+                                <option value="nM">nM</option>
+                                <option value="mg/L">mg/L</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="effect_unit">Effect Unit</label>
+                            <select class="form-control" id="effect_unit" name="effect_unit" aria-label="Effect Unit">
+                                <option value="%">%</option>
+                                <option value="mV">mV</option>
+                                <option value="units">Units</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
+                        <button type="submit" class="btn btn-primary btn-modern">
+                            <i class="fas fa-play me-2"></i>Simulate
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-modern" id="reset-btn">
+                            <i class="fas fa-undo me-2"></i>Reset
+                        </button>
+                        <button type="button" class="btn btn-info btn-modern" id="save-btn">
+                            <i class="fas fa-save me-2"></i>Save
+                        </button>
+                        <button type="button" class="btn btn-info btn-modern" id="load-btn">
+                            <i class="fas fa-folder-open me-2"></i>Load
+                        </button>
+                    </div>
+                </form>
+                <div class="progress-spinner" id="loading-spinner"></div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-4">
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-chart-line me-2"></i>Simulation Results</h2>
+                </div>
+                <div class="form-section">
+                    <div id="metadata"></div>
+                    <div id="chart-container">
+                        <canvas id="doseResponseChart" aria-label="Dose-Response Chart"></canvas>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                        <button id="export-btn" class="btn btn-success btn-modern" style="display: none;">
+                            <i class="fas fa-download me-2"></i>Export as CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('dose-response-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Register the zoom plugin with Chart.js
+        if (typeof Chart !== 'undefined' && typeof Chart.register === 'function') {
+            Chart.register(ChartZoom);
+        } else {
+            console.error('Chart.js or ChartZoom plugin not loaded properly.');
+        }
 
-            const emax = parseFloat(document.getElementById('emax').value);
-            const ec50 = parseFloat(document.getElementById('ec50').value);
-            const hill = parseFloat(document.getElementById('hill').value);
-            const concentrations = document.getElementById('concentrations').value
-                .split(',')
-                .map(Number);
+        let chartInstance = null;
 
-            const response = await fetch('/simulate-dose-response', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emax, ec50, n: hill, concentrations })
+        // Initialize Bootstrap Tooltips
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+        // Collapsible Sections
+        document.querySelectorAll('.collapsible-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const content = document.getElementById(`${header.dataset.toggle}-content`);
+                const icon = header.querySelector('.fas');
+                content.classList.toggle('active');
+                icon.classList.toggle('fa-chevron-down');
+                icon.classList.toggle('fa-chevron-up');
             });
+        });
 
-            const results = await response.json();
+        // Concentration Type Toggle
+        document.getElementById('concentration_type').addEventListener('change', function() {
+            const isList = this.value === 'list';
+            document.getElementById('concentration_list').style.display = isList ? 'block' : 'none';
+            document.getElementById('log_range').style.display = isList ? 'none' : 'block';
+        });
 
-            if (response.ok) {
-                const x = results.data.map(r => r.concentration);
-                const y = results.data.map(r => r.effect);
+        // Dosing Regimen Toggle
+        document.getElementById('dosing_regimen').addEventListener('change', function() {
+            const isMultiple = this.value === 'multiple';
+            document.getElementById('multiple-dosing').style.display = isMultiple ? 'block' : 'none';
+        });
 
-                const trace = {
-                    x: x,
-                    y: y,
-                    mode: 'lines+markers',
-                    type: 'scatter',
-                    name: 'Dose-Response'
-                };
+        // Reset Form
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            const form = document.getElementById('simulation-form');
+            form.reset();
+            document.getElementById('concentration_list').style.display = 'block';
+            document.getElementById('log_range').style.display = 'none';
+            document.getElementById('multiple-dosing').style.display = 'none';
+            document.getElementById('results').innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-chart-line me-2"></i>Simulation Results</h2>
+                    </div>
+                    <div class="form-section">
+                        <div id="metadata"></div>
+                        <div id="chart-container">
+                            <canvas id="doseResponseChart" aria-label="Dose-Response Chart"></canvas>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button id="export-btn" class="btn btn-success btn-modern" style="display: none;">
+                                <i class="fas fa-download me-2"></i>Export as CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+            clearErrors();
+        });
 
-                const layout = {
-                    title: 'Dose-Response Curve',
-                    xaxis: { title: 'Concentration (log scale)', type: 'log' },
-                    yaxis: { title: 'Effect' },
-                    margin: { t: 50, l: 50, r: 50, b: 50 }
-                };
-
-                Plotly.newPlot('plot', [trace], layout);
+        // Save Parameters
+        document.getElementById('save-btn').addEventListener('click', function() {
+            const formData = getFormData();
+            if (validateForm(formData)) {
+                localStorage.setItem('doseResponseParams', JSON.stringify(formData));
+                alert('Parameters saved successfully!');
             } else {
-                alert('Error: ' + (results.error || 'Unknown error'));
+                alert('Please fix form errors before saving.');
             }
         });
+
+        // Load Parameters
+        document.getElementById('load-btn').addEventListener('click', function() {
+            const saved = localStorage.getItem('doseResponseParams');
+            if (saved) {
+                const params = JSON.parse(saved);
+                document.getElementById('emax').value = params.emax || '';
+                document.getElementById('ec50').value = params.ec50 || '';
+                document.getElementById('n').value = params.n || '';
+                document.getElementById('e0').value = params.e0 || 0;
+                document.getElementById('dosing_regimen').value = params.dosing_regimen || 'single';
+                document.getElementById('multiple-dosing').style.display = params.dosing_regimen === 'multiple' ? 'block' : 'none';
+                document.getElementById('doses').value = params.doses?.join(',') || '';
+                document.getElementById('intervals').value = params.intervals?.join(',') || '';
+                document.getElementById('concentration_type').value = params.concentration_type || 'list';
+                document.getElementById('concentrations').value = params.concentrations?.join(',') || '';
+                document.getElementById('log_start').value = params.log_range?.start || '';
+                document.getElementById('log_stop').value = params.log_range?.stop || '';
+                document.getElementById('log_num').value = params.log_range?.num || '';
+                document.getElementById('concentration_list').style.display = params.concentration_type === 'list' ? 'block' : 'none';
+                document.getElementById('log_range').style.display = params.concentration_type === 'list' ? 'none' : 'block';
+                document.getElementById('concentration_unit').value = params.concentration_unit || 'µM';
+                document.getElementById('effect_unit').value = params.effect_unit || '%';
+                alert('Parameters loaded successfully!');
+            } else {
+                alert('No saved parameters found.');
+            }
+        });
+
+        // Form Submission
+        document.getElementById('simulation-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            clearErrors();
+            const spinner = document.getElementById('loading-spinner');
+            spinner.style.display = 'block';
+
+            const formData = getFormData();
+            if (!validateForm(formData)) {
+                spinner.style.display = 'none';
+                return;
+            }
+
+            fetch('/simulate-dose-response', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                spinner.style.display = 'none';
+                if (data.error) {
+                    displayErrors(data.details || [{ message: data.error }]);
+                    return;
+                }
+                displayResults(data);
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                console.error('Error:', error);
+                document.getElementById('metadata').innerHTML += '<p class="error">Failed to fetch results. Please try again.</p>';
+            });
+        });
+
+        function getFormData() {
+            const concentrationType = document.getElementById('concentration_type').value;
+            const dosingRegimen = document.getElementById('dosing_regimen').value;
+            const data = {
+                emax: parseFloat(document.getElementById('emax').value) || null,
+                ec50: parseFloat(document.getElementById('ec50').value) || null,
+                n: parseFloat(document.getElementById('n').value) || null,
+                e0: parseFloat(document.getElementById('e0').value) || 0,
+                dosing_regimen: dosingRegimen,
+                concentration_unit: document.getElementById('concentration_unit').value,
+                effect_unit: document.getElementById('effect_unit').value,
+                concentration_type: concentrationType
+            };
+            if (dosingRegimen === 'multiple') {
+                data.doses = document.getElementById('doses').value.split(',')
+                    .map(Number)
+                    .filter(n => !isNaN(n) && n > 0);
+                data.intervals = document.getElementById('intervals').value.split(',')
+                    .map(Number)
+                    .filter(n => !isNaN(n) && n > 0);
+            }
+            if (concentrationType === 'list') {
+                data.concentrations = document.getElementById('concentrations').value
+                    .split(',')
+                    .map(Number)
+                    .filter(n => !isNaN(n) && n > 0);
+            } else {
+                data.log_range = {
+                    start: parseFloat(document.getElementById('log_start').value) || null,
+                    stop: parseFloat(document.getElementById('log_stop').value) || null,
+                    num: parseInt(document.getElementById('log_num').value) || null
+                };
+            }
+            return data;
+        }
+
+        function validateForm(data) {
+            let isValid = true;
+            clearErrors();
+
+            const validateField = (field, value, errorId, message) => {
+                if (!value || value <= 0 || (field === 'emax' && value > 1000) || 
+                    (field === 'ec50' && value > 10000) || (field === 'n' && value > 10)) {
+                    document.getElementById(errorId).textContent = message;
+                    document.getElementById(errorId).style.display = 'block';
+                    document.getElementById(field).classList.add('is-invalid');
+                    return false;
+                }
+                document.getElementById(field).classList.remove('is-invalid');
+                return true;
+            };
+
+            isValid &= validateField('emax', data.emax, 'emax-error', 'Emax must be between 0.1 and 1000.');
+            isValid &= validateField('ec50', data.ec50, 'ec50-error', 'EC50 must be between 0.1 and 10000.');
+            isValid &= validateField('n', data.n, 'n-error', 'Hill coefficient must be between 0.1 and 10.');
+            if (data.e0 < 0 || data.e0 > 1000) {
+                document.getElementById('e0-error').textContent = 'Baseline effect must be between 0 and 1000.';
+                document.getElementById('e0-error').style.display = 'block';
+                document.getElementById('e0').classList.add('is-invalid');
+                isValid = false;
+            } else {
+                document.getElementById('e0').classList.remove('is-invalid');
+            }
+
+            if (data.dosing_regimen === 'multiple') {
+                if (!data.doses || data.doses.length === 0 || data.doses.some(d => d <= 0)) {
+                    document.getElementById('doses-error').textContent = 'Enter valid positive doses.';
+                    document.getElementById('doses-error').style.display = 'block';
+                    document.getElementById('doses').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('doses').classList.remove('is-invalid');
+                }
+                if (!data.intervals || data.intervals.length === 0 || data.intervals.some(i => i <= 0)) {
+                    document.getElementById('intervals-error').textContent = 'Enter valid positive intervals.';
+                    document.getElementById('intervals-error').style.display = 'block';
+                    document.getElementById('intervals').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('intervals').classList.remove('is-invalid');
+                }
+            }
+
+            if (data.concentrations) {
+                if (data.concentrations.length === 0 || data.concentrations.some(c => c <= 0)) {
+                    document.getElementById('concentrations-error').textContent = 'Enter valid positive concentrations.';
+                    document.getElementById('concentrations-error').style.display = 'block';
+                    document.getElementById('concentrations').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('concentrations').classList.remove('is-invalid');
+                }
+            } else if (data.log_range) {
+                if (!data.log_range.start || data.log_range.start <= 0) {
+                    document.getElementById('log_start-error').textContent = 'Start must be positive.';
+                    document.getElementById('log_start-error').style.display = 'block';
+                    document.getElementById('log_start').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('log_start').classList.remove('is-invalid');
+                }
+                if (!data.log_range.stop || data.log_range.stop <= data.log_range.start) {
+                    document.getElementById('log_stop-error').textContent = 'Stop must be greater than start.';
+                    document.getElementById('log_stop-error').style.display = 'block';
+                    document.getElementById('log_stop').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('log_stop').classList.remove('is-invalid');
+                }
+                if (!data.log_range.num || data.log_range.num < 10) {
+                    document.getElementById('log_num-error').textContent = 'Number of points must be at least 10.';
+                    document.getElementById('log_num-error').style.display = 'block';
+                    document.getElementById('log_num').classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    document.getElementById('log_num').classList.remove('is-invalid');
+                }
+            }
+
+            return isValid;
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.error').forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+            document.querySelectorAll('.form-control').forEach(el => el.classList.remove('is-invalid'));
+        }
+
+        function displayErrors(errors) {
+            errors.forEach(err => {
+                const field = err.loc ? err.loc.join('-') : err.message.toLowerCase().replace(/\s+/g, '-');
+                const errorEl = document.getElementById(`${field}-error`);
+                if (errorEl) {
+                    errorEl.textContent = err.message;
+                    errorEl.style.display = 'block';
+                    const inputEl = document.getElementById(field);
+                    if (inputEl) inputEl.classList.add('is-invalid');
+                }
+            });
+        }
+
+        function displayResults(data) {
+            const metadataDiv = document.getElementById('metadata');
+            const metadata = data.metadata;
+            metadataDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <h4 class="alert-heading">Simulation Details</h4>
+                    <p><strong>ID:</strong> ${metadata.simulation_id}</p>
+                    <p><strong>Model:</strong> ${metadata.model}</p>
+                    <p><strong>Emax:</strong> ${metadata.parameters.Emax} ${metadata.units.effect}</p>
+                    <p><strong>EC50:</strong> ${metadata.parameters.EC50} ${metadata.units.concentration}</p>
+                    <p><strong>Hill Coefficient:</strong> ${metadata.parameters.Hill_Coefficient}</p>
+                    <p><strong>Baseline Effect (E0):</strong> ${metadata.parameters.E0} ${metadata.units.effect}</p>
+                    <p><strong>Dosing Regimen:</strong> ${metadata.parameters.Dosing_Regimen}</p>
+                    ${metadata.parameters.Doses ? `<p><strong>Doses:</strong> ${metadata.parameters.Doses.join(', ')}</p>` : ''}
+                    ${metadata.parameters.Intervals ? `<p><strong>Intervals:</strong> ${metadata.parameters.Intervals.join(', ')} hours</p>` : ''}
+                    <p><strong>Concentration Range:</strong> ${metadata.concentration_range.min} to ${metadata.concentration_range.max} ${metadata.units.concentration}</p>
+                    ${metadata.pseudo_r2 !== null ? `<p><strong>Pseudo R²:</strong> ${metadata.pseudo_r2}</p>` : ''}
+                    <p><strong>Points:</strong> ${metadata.point_count}</p>
+                </div>
+            `;
+
+            // Update Chart
+            const ctx = document.getElementById('doseResponseChart').getContext('2d');
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const isSingleDose = metadata.parameters.Dosing_Regimen === 'single';
+            const datasets = isSingleDose ? [{
+                label: `Effect (${metadata.units.effect}) vs Concentration (${metadata.units.concentration})`,
+                data: data.data.map(d => ({ x: d.concentration, y: d.effect })),
+                borderColor: '#5e72e4',
+                backgroundColor: 'rgba(94, 114, 228, 0.1)',
+                fill: false,
+                tension: 0.4
+            }] : [{
+                label: `Effect (${metadata.units.effect}) vs Time (hours)`,
+                data: data.data.map(d => ({ x: d.time, y: d.effect })),
+                borderColor: '#5e72e4',
+                backgroundColor: 'rgba(94, 114, 228, 0.1)',
+                fill: false,
+                tension: 0.4
+            }, {
+                label: `Concentration (${metadata.units.concentration}) vs Time (hours)`,
+                data: data.data.map(d => ({ x: d.time, y: d.concentration })),
+                borderColor: '#2dce89',
+                backgroundColor: 'rgba(45, 206, 137, 0.1)',
+                fill: false,
+                tension: 0.4
+            }];
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: context => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
+                            }
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'xy'
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'xy'
+                            }
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: isSingleDose ? 'logarithmic' : 'linear',
+                            title: {
+                                display: true,
+                                text: isSingleDose ? `Concentration (${metadata.units.concentration})` : 'Time (hours)'
+                            },
+                            min: isSingleDose ? Math.min(...data.data.map(d => d.concentration)) / 10 : undefined,
+                            max: isSingleDose ? Math.max(...data.data.map(d => d.concentration)) * 10 : undefined
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: isSingleDose ? `Effect (${metadata.units.effect})` : 'Value'
+                            },
+                            beginAtZero: true
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+
+            // Show Export Button
+            const exportBtn = document.getElementById('export-btn');
+            exportBtn.style.display = 'block';
+            exportBtn.onclick = () => {
+                window.location.href = `/simulate-dose-response/export/${metadata.simulation_id}`;
+            };
+        }
     </script>
 </body>
 </html>
