@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Drugly</title>
+    <title>Verify Your Email - Drugly</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -62,14 +62,14 @@
         .search-form .btn:hover {
             background: #0096b2;
         }
-        .login-section {
+        .verify-section {
             padding: 60px 20px;
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        .login-card {
+        .verify-card {
             background: linear-gradient(135deg, #ffffff, #f1f1f1);
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -79,44 +79,54 @@
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             animation: fadeIn 1s ease-in-out;
         }
-        .login-card:hover {
+        .verify-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
         }
-        .login-card h2 {
+        .verify-card h2 {
             font-size: 2rem;
             font-weight: 600;
             color: #2c3e50;
             margin-bottom: 20px;
             text-align: center;
         }
-        .login-card .form-control {
+        .verify-card p {
+            font-size: 1rem;
+            color: #495057;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .verify-card .form-control {
             border-radius: 10px;
             padding: 10px;
             font-size: 1rem;
+            transition: box-shadow 0.3s ease;
         }
-        .login-card .btn-primary {
+        .verify-card .form-control:focus {
+            box-shadow: 0 0 8px rgba(0, 180, 216, 0.3);
+            border-color: #00b4d8;
+        }
+        .verify-card .btn-primary {
             width: 100%;
             border-radius: 25px;
-            padding: 12px;
+            padding: 10px;
             font-weight: 500;
             background: #00b4d8;
             border: none;
         }
-        .login-card .btn-primary:hover {
+        .verify-card .btn-primary:hover {
             background: #0096b2;
         }
-        .login-card .text-danger {
+        .verify-card .btn-secondary {
+            width: 100%;
+            border-radius: 25px;
+            padding: 10px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .verify-card .text-danger {
             font-size: 0.9rem;
             margin-top: 5px;
-        }
-        .password-toggle {
-            cursor: pointer;
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6c757d;
         }
         footer {
             background: #2c3e50;
@@ -149,11 +159,14 @@
             to { opacity: 1; }
         }
         @media (max-width: 768px) {
-            .login-section {
+            .verify-section {
                 padding: 40px 15px;
             }
-            .login-card h2 {
+            .verify-card h2 {
                 font-size: 1.5rem;
+            }
+            .verify-card p {
+                font-size: 0.9rem;
             }
             .search-form {
                 max-width: 100%;
@@ -177,8 +190,22 @@
                     <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
                     <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
                 </ul>
-                <a href="/login" class="btn btn-light me-2 active">Login</a>
-                <a href="/register" class="btn btn-outline-light">Register</a>
+                {% if user_email %}
+                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
+                        <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
+                        <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                    </form>
+                {% endif %}
+                {% if user and user.is_admin %}
+                    <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+                {% endif %}
+                {% if user_email %}
+                    <a href="/profile" class="btn btn-light me-2">Profile</a>
+                    <a href="/logout" class="btn btn-outline-light">Logout</a>
+                {% else %}
+                    <a href="/login" class="btn btn-light me-2">Login</a>
+                    <a href="/register" class="btn btn-outline-light">Register</a>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -201,32 +228,23 @@
         {% endwith %}
     </div>
 
-    <!-- Login Section -->
-    <div class="login-section">
-        <div class="login-card">
-            <h2>Login to Drugly</h2>
-            <form method="POST" id="loginForm" onsubmit="showSpinner()">
+    <!-- Verify Email Section -->
+    <div class="verify-section">
+        <div class="verify-card">
+            <h2>Verify Your Email</h2>
+            <p>Please enter the 6-digit code sent to your email.</p>
+            <form method="POST" id="verifyForm" onsubmit="showSpinner()">
                 <div class="form-group mb-3">
-                    <label for="email" class="form-label">Email</label>
-                    <input type="email" name="email" id="email" class="form-control" required>
-                    <small id="emailError" class="text-danger"></small>
+                    <label for="code" class="form-label">Verification Code</label>
+                    <input type="text" class="form-control" id="code" name="code" maxlength="6" required>
+                    <small id="codeError" class="text-danger"></small>
                 </div>
-                <div class="form-group mb-3 position-relative">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" name="password" id="password" class="form-control" required>
-                    <i class="fas fa-eye password-toggle" id="togglePassword"></i>
-                    <small id="passwordError" class="text-danger"></small>
-                </div>
-                <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Login</button>
+                <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Verify</button>
                 <div id="spinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
+                <button type="button" class="btn btn-secondary mt-3" id="resendBtn" onclick="resendCode()">Resend Code</button>
             </form>
-            <p class="text-center mt-3">
-                Don't have an account? <a href="/register" class="text-primary">Register here</a>.
-                <br>
-                <a href="/forgot-password" class="text-primary">Forgot Password?</a>
-            </p>
         </div>
     </div>
 
@@ -247,36 +265,17 @@
                 toast.show();
             });
 
-            // Password toggle
-            const togglePassword = document.getElementById('togglePassword');
-            const password = document.getElementById('password');
-
-            togglePassword.addEventListener('click', () => {
-                const type = password.type === 'password' ? 'text' : 'password';
-                password.type = type;
-                togglePassword.classList.toggle('fa-eye');
-                togglePassword.classList.toggle('fa-eye-slash');
-            });
-
             // Form validation
-            const form = document.getElementById('loginForm');
-            const email = document.getElementById('email');
-            const passwordInput = document.getElementById('password');
-            const emailError = document.getElementById('emailError');
-            const passwordError = document.getElementById('passwordError');
+            const form = document.getElementById('verifyForm');
+            const codeInput = document.getElementById('code');
+            const codeError = document.getElementById('codeError');
 
             form.addEventListener('submit', (e) => {
                 let isValid = true;
-                emailError.textContent = '';
-                passwordError.textContent = '';
+                codeError.textContent = '';
 
-                if (!email.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-                    emailError.textContent = 'Please enter a valid email address.';
-                    isValid = false;
-                }
-
-                if (!passwordInput.value) {
-                    passwordError.textContent = 'Password is required.';
+                if (!codeInput.value.match(/^\d{6}$/)) {
+                    codeError.textContent = 'Please enter a 6-digit code.';
                     isValid = false;
                 }
 
@@ -291,6 +290,33 @@
         function showSpinner() {
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('spinner').style.display = 'inline-block';
+        }
+
+        function resendCode() {
+            const resendBtn = document.getElementById('resendBtn');
+            resendBtn.disabled = true;
+            fetch('/resend-verification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: {{ session['pending_user_id'] | tojson }} })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resendBtn.disabled = false;
+                const toast = document.createElement('div');
+                toast.className = `toast align-items-center text-bg-${data.success ? 'primary' : 'danger'}`;
+                toast.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">${data.message}</div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>`;
+                document.querySelector('.toast-container').appendChild(toast);
+                new bootstrap.Toast(toast).show();
+            })
+            .catch(error => {
+                resendBtn.disabled = false;
+                console.error('Error:', error);
+            });
         }
     </script>
 </body>
