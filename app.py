@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory
+from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -16,6 +16,7 @@ import pandas as pd
 import seaborn as sns
 import psutil
 import requests
+from sqlalchemy.exc import IntegrityError
 import smtplib
 from email.mime.text import MIMEText
 import shutil
@@ -37,6 +38,7 @@ import json
 import xml.etree.ElementTree as ET
 import csv
 import ssl
+import random
 import certifi
 import numpy as np
 from itertools import combinations
@@ -104,6 +106,7 @@ print("DATABASE_URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
+
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -908,8 +911,10 @@ class User(db.Model):
     name = db.Column(db.String(50), nullable=False)
     surname = db.Column(db.String(50), nullable=False)
     date_of_birth = db.Column(db.Date, nullable=False)
-    occupation = db.Column(db.String(100), nullable=True)  # Optional field
+    occupation = db.Column(db.String(100), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=False)  # New field
+    verification_code = db.Column(db.String(6), nullable=True)  # Store 6-digit code
 
     def set_password(self, password):
         self.password = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -977,7 +982,7 @@ def admin_required(f):
             return redirect(url_for('login'))
         user = User.query.get(session['user_id'])
         if not user or not user.is_admin:
-            flash("Admin değilsin!", "danger")
+            flash("You are not an Admin!", "danger")
             return redirect(url_for('home'))
         return f(*args, **kwargs)
     return decorated_function
@@ -1060,10 +1065,66 @@ def terms():
             user_email = user.email
     return render_template('terms.html', user_email=user_email, user=user)
 
+#KAyıt ve Login olma sayfaları
+load_dotenv()
+
+def send_verification_email(email, code):
+    msg = MIMEText(f"Your verification code is: {code}")
+    msg['Subject'] = 'Drugly.ai Email Verification'
+    msg['From'] = os.getenv('EMAIL_ADDRESS')
+    msg['To'] = email
+
+    try:
+        server = smtplib.SMTP('smtp.office365.com', 587)
+        server.starttls()
+        server.login(os.getenv('EMAIL_ADDRESS'), os.getenv('EMAIL_PASSWORD'))
+        server.sendmail(msg['From'], msg['To'], msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email sending failed: {e}")
+        return False
+
+def send_reset_code(email, code):
+    msg = MIMEText(f"Your password reset code is: {code}")
+    msg['Subject'] = 'Drugly.ai Password Reset'
+    msg['From'] = os.getenv('EMAIL_ADDRESS')
+    msg['To'] = email
+
+    try:
+        server = smtplib.SMTP('smtp.office365.com', 587)
+        server.starttls()
+        server.login(os.getenv('EMAIL_ADDRESS'), os.getenv('EMAIL_PASSWORD'))
+        server.sendmail(msg['From'], msg['To'], msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email sending failed: {e}")
+        return False
+
+def is_strong_password(password):
+    if len(password) < 8:
+        return False
+    if not any(c.isupper() for c in password):
+        return False
+    if not any(c.isdigit() for c in password):
+        return False
+    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
+        return False
+    return True
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash("Please log in to access this page.", "danger")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    occupations = Occupation.query.order_by(Occupation.name).all()  # Fetch occupations
-
+    occupations = Occupation.query.order_by(Occupation.name).all()
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -1073,52 +1134,152 @@ def register():
         date_of_birth = request.form['date_of_birth']
         occupation = request.form['occupation']
 
-        # Check if passwords match
         if password != confirm_password:
             flash("Passwords do not match.", "danger")
             return redirect(url_for('register'))
 
-        # Check if email already exists
+        if not is_strong_password(password):
+            flash("Password must be at least 8 characters, with an uppercase letter, number, and special character.", "danger")
+            return redirect(url_for('register'))
+
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
             flash("Email already registered.", "danger")
             return redirect(url_for('register'))
 
-        # Create new user
+        verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
         new_user = User(
             email=email,
             name=name,
             surname=surname,
             date_of_birth=datetime.strptime(date_of_birth, '%Y-%m-%d'),
-            occupation=occupation
+            occupation=occupation,
+            verification_code=verification_code
         )
-        new_user.set_password(password)  # Hash the password
+        new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
 
-        flash("Registration successful. Please log in.", "success")
-        return redirect(url_for('login'))
+        if send_verification_email(email, verification_code):
+            flash("Registration successful! Please check your email for the verification code.", "success")
+            session['pending_user_id'] = new_user.id
+            return redirect(url_for('verify_email'))
+        else:
+            flash("Failed to send verification email. Please try again.", "danger")
+            db.session.delete(new_user)
+            db.session.commit()
+            return redirect(url_for('register'))
 
     return render_template('register.html', occupations=occupations)
 
+@app.route('/verify-email', methods=['GET', 'POST'])
+def verify_email():
+    if 'pending_user_id' not in session:
+        flash("No pending verification found.", "danger")
+        return redirect(url_for('register'))
+
+    if request.method == 'POST':
+        code = request.form['code']
+        user = User.query.get(session['pending_user_id'])
+
+        if user and user.verification_code == code:
+            user.is_verified = True
+            user.verification_code = None
+            db.session.commit()
+            session.pop('pending_user_id')
+            flash("Email verified successfully! Please log in.", "success")
+            return redirect(url_for('login'))
+        else:
+            flash("Invalid verification code.", "danger")
+
+    return render_template('verify_email.html')
+
+@app.route('/resend-verification', methods=['POST'])
+def resend_verification():
+    if 'pending_user_id' not in session:
+        return jsonify({'success': False, 'message': 'No pending verification found.'})
+
+    user = User.query.get(session['pending_user_id'])
+    if not user:
+        session.pop('pending_user_id', None)
+        return jsonify({'success': False, 'message': 'User not found.'})
+
+    verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    user.verification_code = verification_code
+    db.session.commit()
+
+    if send_verification_email(user.email, verification_code):
+        return jsonify({'success': True, 'message': 'New verification code sent to your email.'})
+    else:
+        return jsonify({'success': False, 'message': 'Failed to send verification code. Please try again.'})
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-
-        # Find user by email
         user = User.query.filter_by(email=email).first()
-        if user and user.check_password(password):
+        if user and user.is_verified and user.check_password(password):
             session['user_id'] = user.id
             flash("Welcome back!", "success")
             return redirect(url_for('home'))
+        elif user and not user.is_verified:
+            flash("Please verify your email before logging in.", "danger")
         else:
             flash("Invalid email or password.", "danger")
-
     return render_template('login.html')
 
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email']
+        user = User.query.filter_by(email=email).first()
+        if user:
+            reset_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            user.verification_code = reset_code
+            db.session.commit()
+
+            if send_reset_code(email, reset_code):
+                flash("A reset code has been sent to your email.", "success")
+                session['reset_user_id'] = user.id
+                return redirect(url_for('reset_password'))
+            else:
+                flash("Failed to send reset code. Please try again.", "danger")
+        else:
+            flash("Email not found.", "danger")
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    if 'reset_user_id' not in session:
+        flash("No reset request found.", "danger")
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        code = request.form['code']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        user = User.query.get(session['reset_user_id'])
+
+        if password != confirm_password:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for('reset_password'))
+
+        if not is_strong_password(password):
+            flash("Password must be at least 8 characters, with an uppercase letter, number, and special character.", "danger")
+            return redirect(url_for('reset_password'))
+
+        if user and user.verification_code == code:
+            user.set_password(password)
+            user.verification_code = None
+            db.session.commit()
+            session.pop('reset_user_id')
+            flash("Password reset successfully! Please log in.", "success")
+            return redirect(url_for('login'))
+        else:
+            flash("Invalid reset code.", "danger")
+
+    return render_template('reset_password.html')
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -1138,13 +1299,39 @@ def profile():
 
     return render_template('profile.html', user=user, occupations=occupations, user_email=user.email)
 
+@app.route('/change-password', methods=['POST'])
+@login_required
+def change_password():
+    user = User.query.get(session['user_id'])
+    current_password = request.form['current_password']
+    new_password = request.form['new_password']
+    confirm_new_password = request.form['confirm_new_password']
 
+    if not user.check_password(current_password):
+        flash("Current password is incorrect.", "danger")
+        return redirect(url_for('profile'))
+
+    if new_password != confirm_new_password:
+        flash("New passwords do not match.", "danger")
+        return redirect(url_for('profile'))
+
+    if not is_strong_password(new_password):
+        flash("New password must be at least 8 characters, with an uppercase letter, number, and special character.", "danger")
+        return redirect(url_for('profile'))
+
+    user.set_password(new_password)
+    db.session.commit()
+    flash("Password changed successfully!", "success")
+    return redirect(url_for('profile'))
 
 @app.route('/logout')
 def logout():
     session.pop('user_id', None)
+    session.pop('pending_user_id', None)
+    session.pop('reset_user_id', None)
     flash("You have been logged out.", "info")
     return redirect(url_for('home'))
+
 
 #ICD -11 tree view
 @app.route('/icd11')

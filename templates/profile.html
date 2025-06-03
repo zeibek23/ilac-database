@@ -14,6 +14,9 @@
             background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
             color: #2c3e50;
             margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .navbar {
             background: #2c3e50 !important;
@@ -59,29 +62,30 @@
         .search-form .btn:hover {
             background: #0096b2;
         }
-        .content-section {
-            padding: 100px 20px;
-            min-height: calc(100vh - 200px);
+        .profile-section {
+            padding: 60px 20px;
+            flex: 1;
             display: flex;
-            align-items: center;
             justify-content: center;
+            align-items: center;
         }
         .profile-card {
-            background: #fff;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            max-width: 700px;
+            background: linear-gradient(135deg, #ffffff, #f1f1f1);
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 600px;
             width: 100%;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            animation: fadeIn 1s ease-in-out;
         }
         .profile-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
         }
         .profile-card h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
+            font-size: 2rem;
+            font-weight: 600;
             color: #2c3e50;
             margin-bottom: 20px;
             text-align: center;
@@ -93,22 +97,19 @@
         }
         .profile-card .form-control, .profile-card .form-select {
             border-radius: 10px;
-            font-size: 1rem;
             padding: 10px;
-            border: 1px solid #ced4da;
-            transition: border-color 0.3s ease;
+            font-size: 1rem;
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
         }
         .profile-card .form-control:focus, .profile-card .form-select:focus {
+            box-shadow: 0 0 8px rgba(0, 180, 216, 0.3);
             border-color: #00b4d8;
-            box-shadow: 0 0 5px rgba(0, 180, 216, 0.3);
-        }
-        .profile-card .btn {
-            border-radius: 25px;
-            font-weight: 500;
-            padding: 10px;
-            font-size: 1rem;
         }
         .profile-card .btn-primary {
+            width: 100%;
+            border-radius: 25px;
+            padding: 12px;
+            font-weight: 500;
             background: #00b4d8;
             border: none;
         }
@@ -116,12 +117,38 @@
             background: #0096b2;
         }
         .profile-card .btn-secondary {
+            width: 100%;
+            border-radius: 25px;
+            padding: 12px;
+            font-weight: 500;
             background: #6c757d;
             border: none;
+            margin-top: 10px;
         }
         .profile-card .btn-secondary:hover {
             background: #5a6268;
         }
+        .profile-card .text-danger {
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        .password-toggle {
+            cursor: pointer;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .password-strength {
+            height: 5px;
+            margin-top: 5px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .strength-weak { background-color: #dc3545; width: 33%; }
+        .strength-medium { background-color: #ffc107; width: 66%; }
+        .strength-strong { background-color: #28a745; width: 100%; }
         footer {
             background: #2c3e50;
             color: #fff;
@@ -138,22 +165,26 @@
         footer a:hover {
             color: #fff;
         }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
         }
-        .fade-in-up {
-            animation: fadeInUp 0.8s ease-out;
+        .toast {
+            border-radius: 10px;
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         @media (max-width: 768px) {
-            .content-section {
-                padding: 60px 15px;
-            }
-            .profile-card {
-                padding: 30px;
+            .profile-section {
+                padding: 40px 15px;
             }
             .profile-card h1 {
-                font-size: 2rem;
+                font-size: 1.5rem;
             }
             .profile-card .form-label {
                 font-size: 1rem;
@@ -161,12 +192,16 @@
             .profile-card .form-control, .profile-card .form-select {
                 font-size: 0.9rem;
             }
+            .search-form {
+                max-width: 100%;
+                margin: 10px 0;
+            }
         }
     </style>
 </head>
 <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">Drugly</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -199,24 +234,49 @@
         </div>
     </nav>
 
-    <!-- Content Section -->
-    <div class="content-section">
-        <div class="profile-card fade-in-up">
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="toast align-items-center text-bg-{{ 'primary' if category == 'success' else 'danger' if category == 'danger' else 'info' }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                {{ message }}
+                            </div>
+                            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Profile Section -->
+    <div class="profile-section">
+        <div class="profile-card">
             <h1>Your Profile</h1>
-            <form action="/profile" method="post" class="mt-4">
-                <div class="mb-3">
+            <form method="POST" id="profileForm" onsubmit="showSpinner()">
+                <div class="form-group mb-3">
+                    <label for="email" class="form-label">Email (Read-only)</label>
+                    <input type="email" id="email" class="form-control" value="{{ user.email }}" disabled>
+                </div>
+                <div class="form-group mb-3">
                     <label for="name" class="form-label">Name</label>
                     <input type="text" name="name" id="name" class="form-control" value="{{ user.name }}" required>
+                    <small id="nameError" class="text-danger"></small>
                 </div>
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     <label for="surname" class="form-label">Surname</label>
                     <input type="text" name="surname" id="surname" class="form-control" value="{{ user.surname }}" required>
+                    <small id="surnameError" class="text-danger"></small>
                 </div>
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     <label for="date_of_birth" class="form-label">Date of Birth</label>
                     <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" value="{{ user.date_of_birth.strftime('%Y-%m-%d') }}" required>
+                    <small id="dobError" class="text-danger"></small>
                 </div>
-                <div class="mb-3">
+                <div class="form-group mb-3">
                     <label for="occupation" class="form-label">Occupation</label>
                     <select name="occupation" id="occupation" class="form-select" required>
                         <option value="" disabled>Select your occupation</option>
@@ -226,10 +286,41 @@
                         </option>
                         {% endfor %}
                     </select>
+                    <small id="occupationError" class="text-danger"></small>
                 </div>
-                <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+                <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Save Changes</button>
+                <div id="spinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
             </form>
-            <a href="/" class="btn btn-secondary mt-3 w-100">Back to Home</a>
+            <hr class="my-4">
+            <h2 class="fs-4 mt-4">Change Password</h2>
+            <form method="POST" action="/change-password" id="passwordForm" onsubmit="showPasswordSpinner()">
+                <div class="form-group mb-3 position-relative">
+                    <label for="current_password" class="form-label">Current Password</label>
+                    <input type="password" name="current_password" id="current_password" class="form-control" required>
+                    <i class="fas fa-eye password-toggle" id="toggleCurrentPassword"></i>
+                    <small id="currentPasswordError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3 position-relative">
+                    <label for="new_password" class="form-label">New Password</label>
+                    <input type="password" name="new_password" id="new_password" class="form-control" required>
+                    <i class="fas fa-eye password-toggle" id="toggleNewPassword"></i>
+                    <small id="newPasswordError" class="text-danger"></small>
+                    <div class="password-strength" id="passwordStrength"></div>
+                </div>
+                <div class="form-group mb-3 position-relative">
+                    <label for="confirm_new_password" class="form-label">Confirm New Password</label>
+                    <input type="password" name="confirm_new_password" id="confirm_new_password" class="form-control" required>
+                    <i class="fas fa-eye password-toggle" id="toggleConfirmNewPassword"></i>
+                    <small id="confirmNewPasswordError" class="text-danger"></small>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3" id="passwordSubmitBtn">Change Password</button>
+                <div id="passwordSpinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </form>
+            <a href="/" class="btn btn-secondary mt-3">Back to Home</a>
         </div>
     </div>
 
@@ -240,5 +331,166 @@
         <a href="/about">About Us</a> |
         <a href="/terms">Terms of Service</a>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show toasts
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(toastElement => {
+                const toast = new bootstrap.Toast(toastElement);
+                toast.show();
+            });
+
+            // Password toggle
+            const toggleCurrentPassword = document.getElementById('toggleCurrentPassword');
+            const toggleNewPassword = document.getElementById('toggleNewPassword');
+            const toggleConfirmNewPassword = document.getElementById('toggleConfirmNewPassword');
+            const currentPassword = document.getElementById('current_password');
+            const newPassword = document.getElementById('new_password');
+            const confirmNewPassword = document.getElementById('confirm_new_password');
+
+            toggleCurrentPassword.addEventListener('click', () => {
+                const type = currentPassword.type === 'password' ? 'text' : 'password';
+                currentPassword.type = type;
+                toggleCurrentPassword.classList.toggle('fa-eye');
+                toggleCurrentPassword.classList.toggle('fa-eye-slash');
+            });
+
+            toggleNewPassword.addEventListener('click', () => {
+                const type = newPassword.type === 'password' ? 'text' : 'password';
+                newPassword.type = type;
+                toggleNewPassword.classList.toggle('fa-eye');
+                toggleNewPassword.classList.toggle('fa-eye-slash');
+            });
+
+            toggleConfirmNewPassword.addEventListener('click', () => {
+                const type = confirmNewPassword.type === 'password' ? 'text' : 'password';
+                confirmNewPassword.type = type;
+                toggleConfirmNewPassword.classList.toggle('fa-eye');
+                toggleConfirmNewPassword.classList.toggle('fa-eye-slash');
+            });
+
+            // Profile form validation
+            const profileForm = document.getElementById('profileForm');
+            const nameInput = document.getElementById('name');
+            const surnameInput = document.getElementById('surname');
+            const dobInput = document.getElementById('date_of_birth');
+            const occupationInput = document.getElementById('occupation');
+            const nameError = document.getElementById('nameError');
+            const surnameError = document.getElementById('surnameError');
+            const dobError = document.getElementById('dobError');
+            const occupationError = document.getElementById('occupationError');
+
+            profileForm.addEventListener('submit', (e) => {
+                let isValid = true;
+                nameError.textContent = '';
+                surnameError.textContent = '';
+                dobError.textContent = '';
+                occupationError.textContent = '';
+
+                if (!nameInput.value.trim()) {
+                    nameError.textContent = 'Name is required.';
+                    isValid = false;
+                }
+
+                if (!surnameInput.value.trim()) {
+                    surnameError.textContent = 'Surname is required.';
+                    isValid = false;
+                }
+
+                if (!dobInput.value) {
+                    dobError.textContent = 'Date of birth is required.';
+                    isValid = false;
+                }
+
+                if (!occupationInput.value) {
+                    occupationError.textContent = 'Please select an occupation.';
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('spinner').style.display = 'none';
+                }
+            });
+
+            // Password form validation
+            const passwordForm = document.getElementById('passwordForm');
+            const currentPasswordInput = document.getElementById('current_password');
+            const newPasswordInput = document.getElementById('new_password');
+            const confirmNewPasswordInput = document.getElementById('confirm_new_password');
+            const currentPasswordError = document.getElementById('currentPasswordError');
+            const newPasswordError = document.getElementById('newPasswordError');
+            const confirmNewPasswordError = document.getElementById('confirmNewPasswordError');
+            const passwordStrength = document.getElementById('passwordStrength');
+
+            function validatePasswordStrength(password) {
+                let strength = 0;
+                if (password.length >= 8) strength++;
+                if (/[A-Z]/.test(password)) strength++;
+                if (/[0-9]/.test(password)) strength++;
+                if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) strength++;
+                
+                passwordStrength.className = 'password-strength';
+                if (strength <= 1) {
+                    passwordStrength.classList.add('strength-weak');
+                } else if (strength <= 3) {
+                    passwordStrength.classList.add('strength-medium');
+                } else {
+                    passwordStrength.classList.add('strength-strong');
+                }
+                return strength;
+            }
+
+            newPasswordInput.addEventListener('input', () => {
+                const strength = validatePasswordStrength(newPasswordInput.value);
+                newPasswordError.textContent = strength < 4 ? 'Password must be at least 8 characters, with an uppercase letter, number, and special character.' : '';
+            });
+
+            confirmNewPasswordInput.addEventListener('input', () => {
+                confirmNewPasswordError.textContent = newPasswordInput.value !== confirmNewPasswordInput.value ? 'Passwords do not match.' : '';
+            });
+
+            passwordForm.addEventListener('submit', (e) => {
+                let isValid = true;
+                currentPasswordError.textContent = '';
+                newPasswordError.textContent = '';
+                confirmNewPasswordError.textContent = '';
+
+                if (!currentPasswordInput.value) {
+                    currentPasswordError.textContent = 'Current password is required.';
+                    isValid = false;
+                }
+
+                const strength = validatePasswordStrength(newPasswordInput.value);
+                if (strength < 4) {
+                    newPasswordError.textContent = 'Password must be at least 8 characters, with an uppercase letter, number, and special character.';
+                    isValid = false;
+                }
+
+                if (newPasswordInput.value !== confirmNewPasswordInput.value) {
+                    confirmNewPasswordError.textContent = 'Passwords do not match.';
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    document.getElementById('passwordSubmitBtn').disabled = false;
+                    document.getElementById('passwordSpinner').style.display = 'none';
+                }
+            });
+        });
+
+        function showSpinner() {
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('spinner').style.display = 'inline-block';
+        }
+
+        function showPasswordSpinner() {
+            document.getElementById('passwordSubmitBtn').disabled = true;
+            document.getElementById('passwordSpinner').style.display = 'inline-block';
+        }
+    </script>
 </body>
 </html>

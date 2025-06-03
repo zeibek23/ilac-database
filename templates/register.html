@@ -3,53 +3,412 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register</title>
+    <title>Register - Drugly</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            color: #2c3e50;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .navbar {
+            background: #2c3e50 !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            padding: 15px 0;
+        }
+        .navbar-brand {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff !important;
+        }
+        .nav-link {
+            color: #fff !important;
+            font-weight: 400;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #00b4d8 !important;
+        }
+        .btn-outline-light, .btn-light, .btn-warning {
+            border-radius: 25px;
+            padding: 8px 20px;
+            font-weight: 500;
+        }
+        .search-form {
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: 20px;
+        }
+        .search-form .form-control {
+            border-radius: 25px 0 0 25px;
+            border: 1px solid #ced4da;
+            font-size: 0.9rem;
+            padding: 8px 15px;
+        }
+        .search-form .btn {
+            border-radius: 0 25px 25px 0;
+            padding: 8px 15px;
+            background: #00b4d8;
+            border: none;
+            color: #fff;
+        }
+        .search-form .btn:hover {
+            background: #0096b2;
+        }
+        .register-section {
+            padding: 60px 20px;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .register-card {
+            background: linear-gradient(135deg, #ffffff, #f1f1f1);
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            animation: fadeIn 1s ease-in-out;
+        }
+        .register-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+        }
+        .register-card h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .register-card .form-control, .register-card .form-select {
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 1rem;
+        }
+        .register-card .btn-primary {
+            width: 100%;
+            border-radius: 25px;
+            padding: 12px;
+            font-weight: 500;
+            background: #00b4d8;
+            border: none;
+        }
+        .register-card .btn-primary:hover {
+            background: #0096b2;
+        }
+        .register-card .text-danger {
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        .password-toggle {
+            cursor: pointer;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .password-strength {
+            height: 5px;
+            margin-top: 5px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .strength-weak { background-color: #dc3545; width: 33%; }
+        .strength-medium { background-color: #ffc107; width: 66%; }
+        .strength-strong { background-color: #28a745; width: 100%; }
+        footer {
+            background: #2c3e50;
+            color: #fff;
+            padding: 30px 0;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        footer a {
+            color: #00b4d8;
+            margin: 0 15px;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        footer a:hover {
+            color: #fff;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        .toast {
+            border-radius: 10px;
+        }
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .register-section {
+                padding: 40px 15px;
+            }
+            .register-card h2 {
+                font-size: 1.5rem;
+            }
+            .search-form {
+                max-width: 100%;
+                margin: 10px 0;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center">Register</h1>
-        <form action="/register" method="post" class="mt-4">
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" name="email" id="email" class="form-control" required>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Drugly</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="druglyNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#news">News</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+                </ul>
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light active">Register</a>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" name="password" id="password" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label for="confirm_password" class="form-label">Confirm Password</label>
-                <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label for="name" class="form-label">Name</label>
-                <input type="text" name="name" id="name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label for="surname" class="form-label">Surname</label>
-                <input type="text" name="surname" id="surname" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label for="date_of_birth" class="form-label">Date of Birth</label>
-                <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" required>
-            </div>
-            <div class="mb-3">
-                <label for="occupation" class="form-label">Occupation</label>
-                <select name="occupation" id="occupation" class="form-control" required>
-                    <option value="" disabled selected>Select your occupation</option>
-                    {% for occ in occupations %}
-                    <option value="{{ occ.name }}">{{ occ.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            
-            <button type="submit" class="btn btn-primary w-100">Register</button>
-        </form>
-        <p class="text-center mt-3">
-            Already have an account? <a href="/login">Login here</a>.
-        </p>
+        </div>
+    </nav>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="toast align-items-center text-bg-{{ 'primary' if category == 'success' else 'danger' if category == 'danger' else 'info' }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                {{ message }}
+                            </div>
+                            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
     </div>
+
+    <!-- Register Section -->
+    <div class="register-section">
+        <div class="register-card">
+            <h2>Join Drugly</h2>
+            <form method="POST" id="registerForm" onsubmit="showSpinner()">
+                <div class="form-group mb-3 position-relative">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" name="email" id="email" class="form-control" required>
+                    <small id="emailError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3 position-relative">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" name="password" id="password" class="form-control" required>
+                    <i class="fas fa-eye password-toggle" id="togglePassword"></i>
+                    <small id="passwordError" class="text-danger"></small>
+                    <div class="password-strength" id="passwordStrength"></div>
+                </div>
+                <div class="form-group mb-3 position-relative">
+                    <label for="confirm_password" class="form-label">Confirm Password</label>
+                    <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
+                    <i class="fas fa-eye password-toggle" id="toggleConfirmPassword"></i>
+                    <small id="confirmPasswordError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="name" class="form-label">Name</label>
+                    <input type="text" name="name" id="name" class="form-control" required>
+                    <small id="nameError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="surname" class="form-label">Surname</label>
+                    <input type="text" name="surname" id="surname" class="form-control" required>
+                    <small id="surnameError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="date_of_birth" class="form-label">Date of Birth</label>
+                    <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" required>
+                    <small id="dobError" class="text-danger"></small>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="occupation" class="form-label">Occupation</label>
+                    <select name="occupation" id="occupation" class="form-select" required>
+                        <option value="" disabled selected>Select your occupation</option>
+                        {% for occ in occupations %}
+                        <option value="{{ occ.name }}">{{ occ.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <small id="occupationError" class="text-danger"></small>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Register</button>
+                <div id="spinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </form>
+            <p class="text-center mt-3">
+                Already have an account? <a href="/login" class="text-primary">Login here</a>.
+            </p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2025 Drugly. All rights reserved.</p>
+        <a href="/contact">Contact Us</a> |
+        <a href="/about">About Us</a> |
+        <a href="/terms">Terms of Service</a>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show toasts
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(toastElement => {
+                const toast = new bootstrap.Toast(toastElement);
+                toast.show();
+            });
+
+            // Password toggle
+            const togglePassword = document.getElementById('togglePassword');
+            const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+            const password = document.getElementById('password');
+            const confirmPassword = document.getElementById('confirm_password');
+
+            togglePassword.addEventListener('click', () => {
+                const type = password.type === 'password' ? 'text' : 'password';
+                password.type = type;
+                togglePassword.classList.toggle('fa-eye');
+                togglePassword.classList.toggle('fa-eye-slash');
+            });
+
+            toggleConfirmPassword.addEventListener('click', () => {
+                const type = confirmPassword.type === 'password' ? 'text' : 'password';
+                confirmPassword.type = type;
+                toggleConfirmPassword.classList.toggle('fa-eye');
+                toggleConfirmPassword.classList.toggle('fa-eye-slash');
+            });
+
+            // Form validation
+            const form = document.getElementById('registerForm');
+            const email = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+            const nameInput = document.getElementById('name');
+            const surnameInput = document.getElementById('surname');
+            const dobInput = document.getElementById('date_of_birth');
+            const occupationInput = document.getElementById('occupation');
+            const emailError = document.getElementById('emailError');
+            const passwordError = document.getElementById('passwordError');
+            const confirmPasswordError = document.getElementById('confirmPasswordError');
+            const nameError = document.getElementById('nameError');
+            const surnameError = document.getElementById('surnameError');
+            const dobError = document.getElementById('dobError');
+            const occupationError = document.getElementById('occupationError');
+            const passwordStrength = document.getElementById('passwordStrength');
+
+            function validatePasswordStrength(password) {
+                let strength = 0;
+                if (password.length >= 8) strength++;
+                if (/[A-Z]/.test(password)) strength++;
+                if (/[0-9]/.test(password)) strength++;
+                if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) strength++;
+                
+                passwordStrength.className = 'password-strength';
+                if (strength <= 1) {
+                    passwordStrength.classList.add('strength-weak');
+                } else if (strength <= 3) {
+                    passwordStrength.classList.add('strength-medium');
+                } else {
+                    passwordStrength.classList.add('strength-strong');
+                }
+                return strength;
+            }
+
+            passwordInput.addEventListener('input', () => {
+                const strength = validatePasswordStrength(passwordInput.value);
+                passwordError.textContent = strength < 4 ? 'Password must be at least 8 characters, with an uppercase letter, number, and special character.' : '';
+            });
+
+            confirmPasswordInput.addEventListener('input', () => {
+                confirmPasswordError.textContent = passwordInput.value !== confirmPasswordInput.value ? 'Passwords do not match.' : '';
+            });
+
+            form.addEventListener('submit', (e) => {
+                let isValid = true;
+                emailError.textContent = '';
+                passwordError.textContent = '';
+                confirmPasswordError.textContent = '';
+                nameError.textContent = '';
+                surnameError.textContent = '';
+                dobError.textContent = '';
+                occupationError.textContent = '';
+
+                if (!email.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                    emailError.textContent = 'Please enter a valid email address.';
+                    isValid = false;
+                }
+
+                const strength = validatePasswordStrength(passwordInput.value);
+                if (strength < 4) {
+                    passwordError.textContent = 'Password must be at least 8 characters, with an uppercase letter, number, and special character.';
+                    isValid = false;
+                }
+
+                if (passwordInput.value !== confirmPasswordInput.value) {
+                    confirmPasswordError.textContent = 'Passwords do not match.';
+                    isValid = false;
+                }
+
+                if (!nameInput.value.trim()) {
+                    nameError.textContent = 'Name is required.';
+                    isValid = false;
+                }
+
+                if (!surnameInput.value.trim()) {
+                    surnameError.textContent = 'Surname is required.';
+                    isValid = false;
+                }
+
+                if (!dobInput.value) {
+                    dobError.textContent = 'Date of birth is required.';
+                    isValid = false;
+                }
+
+                if (!occupationInput.value) {
+                    occupationError.textContent = 'Please select an occupation.';
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    document.getElementById('submitBtn').disabled = false;
+                    document.getElementById('spinner').style.display = 'none';
+                }
+            });
+        });
+
+        function showSpinner() {
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('spinner').style.display = 'inline-block';
+        }
+    </script>
 </body>
 </html>
