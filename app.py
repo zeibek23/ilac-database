@@ -2616,6 +2616,7 @@ def search():
     salts = []
     target_molecules = []
     side_effects = []
+    categories = []  # New list for categories
 
     if query:  # Only search if there's a query
         # Search drugs by name
@@ -2668,6 +2669,20 @@ def search():
             for detail in related_details:
                 drugs.add(detail.drug)  # Add the parent drug
 
+        # Search drug categories
+        matching_categories = DrugCategory.query.filter(
+            DrugCategory.name.ilike(f'%{query}%')
+        ).all()
+
+        for category in matching_categories:
+            # Get drugs in this category
+            related_drugs = Drug.query.filter(Drug.category_id == category.id).all()
+            categories.append({
+                'category': category,
+                'related_drugs': related_drugs
+            })
+            drugs.update(related_drugs)  # Add category drugs to the main drugs set
+
     return render_template(
         'search.html',
         query=query,
@@ -2675,7 +2690,8 @@ def search():
         diseases=diseases,
         salts=salts,
         target_molecules=target_molecules,
-        side_effects=side_effects
+        side_effects=side_effects,
+        categories=categories  # Pass categories to template
     )
 
 

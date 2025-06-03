@@ -106,8 +106,8 @@
                         <ul>
                             {% for related_drug in disease.related_drugs %}
                             <li>
-                                <a href="{{ url_for('drug_detail', drug_id=related_drug.drug_id) }}">
-                                    {{ related_drug.drug.name_en }}
+                                <a href="{{ url_for('drug_detail', drug_id=related_drug.id) }}">
+                                    {{ related_drug.name_en }}
                                 </a>
                             </li>
                             {% endfor %}
@@ -155,6 +155,40 @@
             <p class="no-results">No target molecules found.</p>
             {% endif %}
 
+            <!-- Display Drug Categories -->
+            {% if categories %}
+            <div class="result-section">
+                <h3>Drug Categories</h3>
+                {% for cat in categories %}
+                <div class="card">
+                    <div class="card-header">
+                        {{ cat.category.name }}
+                        {% if cat.category.parent %}
+                            (Parent: {{ cat.category.parent.name }})
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text"><strong>Related Drugs:</strong></p>
+                        {% if cat.related_drugs %}
+                        <ul>
+                            {% for drug in cat.related_drugs %}
+                            <li>
+                                <a href="{{ url_for('drug_detail', drug_id=drug.id) }}">
+                                    {{ drug.name_en }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p>No drugs found in this category.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="no-results">No drug categories found.</p>
+            {% endif %}
             <!-- Display Side Effects -->
             {% if side_effects %}
             <div class="result-section">
