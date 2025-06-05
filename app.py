@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint
+from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -76,7 +76,7 @@ from sqlalchemy.types import JSON, DateTime
 from io import BytesIO
 from Bio import Entrez
 from flask_login import UserMixin
-from flask_login import current_user
+from flask_login import current_user, login_required
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List, Optional
 from http import HTTPStatus
@@ -164,6 +164,15 @@ pathway_drug = db.Table(
     'pathway_drug',
     db.Column('pathway_id', db.Integer, db.ForeignKey('public.pathway.id'), primary_key=True),
     db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    schema='public',
+    extend_existing=True
+)
+
+# Junction table for DrugInteraction and RouteOfAdministration
+interaction_route = db.Table(
+    'interaction_route',
+    db.Column('interaction_id', db.Integer, db.ForeignKey('public.drug_interaction.id'), primary_key=True),
+    db.Column('route_id', db.Integer, db.ForeignKey('public.route_of_administration.id'), primary_key=True),
     schema='public',
     extend_existing=True
 )
@@ -298,30 +307,39 @@ class Target(db.Model):
     name_tr = db.Column(db.String(255), nullable=False)  # Increased to 255
     name_en = db.Column(db.String(255), nullable=False)  # Increased to 255
 
+
+class Severity(db.Model):
+    __tablename__ = 'severity'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    interactions = db.relationship('DrugInteraction', backref='severity_level', lazy='dynamic')
+
 class DrugInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     drug1_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     drug2_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
-    route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=True)  # Uygulama yolu
     interaction_type = db.Column(db.String(50), nullable=False)
     interaction_description = db.Column(db.Text, nullable=False)
-    severity = db.Column(db.String(20), nullable=False, default="Hafif")  # Şiddet kategorisi
-    mechanism = db.Column(db.Text, nullable=True)  # Mekanizma açıklaması
-    pharmacokinetics = db.Column(db.Text, nullable=True)  # Farmakokinetik bilgi
-    monitoring = db.Column(db.Text, nullable=True)  # İzleme önerileri
-    alternatives = db.Column(db.Text, nullable=True)  # Alternatif ilaçlar
-    reference = db.Column(db.Text, nullable=True)  # Kaynak/referans
-    predicted_severity = db.Column(db.String(50), nullable=True) #AI'nin şiddet tahmini
-    prediction_confidence = db.Column(db.Float)  # Confidence score from AI prediction
-    processed = db.Column(db.Boolean, default=False)  # Track processing status
-    time_to_peak = db.Column(db.Float, nullable=True)  # Hours until max risk
-    
-    # İlişkiler
+    severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)
+    mechanism = db.Column(db.Text, nullable=True)
+    pharmacokinetics = db.Column(db.Text, nullable=True)
+    monitoring = db.Column(db.Text, nullable=True)
+    alternatives = db.Column(db.Text, nullable=True)
+    reference = db.Column(db.Text, nullable=True)
+    predicted_severity = db.Column(db.String(50), nullable=True)
+    prediction_confidence = db.Column(db.Float, nullable=True)
+    processed = db.Column(db.Boolean, default=False)
+    time_to_peak = db.Column(db.Float, nullable=True)
     drug1 = db.relationship("Drug", foreign_keys=[drug1_id])
     drug2 = db.relationship("Drug", foreign_keys=[drug2_id])
-    route = db.relationship("RouteOfAdministration", backref="interactions")  # Uygulama yolu ilişkisi
-
+    routes = db.relationship(
+        "RouteOfAdministration",
+        secondary='public.interaction_route',
+        backref=db.backref("interactions", lazy='dynamic')
+    )
 
 class RouteOfAdministration(db.Model):
     __tablename__ = 'route_of_administration'
@@ -2605,49 +2623,50 @@ def manage_targets():
     # targets_paginated değişkenini şablona gönder
     return render_template('targets.html', targets_paginated=targets_paginated)
 
-
-
 @app.route('/search', methods=['GET', 'POST'])
 def search():
-    query = request.form.get('query', '').strip()  # Get the search query from the form
+    # Check if user is logged in
+    user_id = session.get('user_id')
+    if not user_id:
+        flash("Please log in to access the search page.", "danger")
+        return redirect(url_for('login'))
 
-    drugs = set()  # Use a set to avoid duplicates
+    # Fetch user from database
+    user = User.query.get(user_id)
+    user_email = user.email if user else None
+
+    query = request.form.get('query', '').strip()
+    drugs = set()
     diseases = []
     salts = []
     target_molecules = []
     side_effects = []
-    categories = []  # New list for categories
+    categories = []
 
-    if query:  # Only search if there's a query
-        # Search drugs by name
+    if query:
         drugs.update(Drug.query.filter(
             (Drug.name_en.ilike(f'%{query}%')) | (Drug.name_tr.ilike(f'%{query}%'))
         ).all())
 
-        # Search salts
         salts = Salt.query.filter(
             (Salt.name_en.ilike(f'%{query}%')) | (Salt.name_tr.ilike(f'%{query}%'))
         ).all()
 
-        # Search diseases (indications)
         indications = Indication.query.filter(
             (Indication.name_en.ilike(f'%{query}%')) | (Indication.name_tr.ilike(f'%{query}%'))
         ).all()
 
-        # Find drugs related to the indications
         for indication in indications:
             related_details = DrugDetail.query.filter(
                 DrugDetail.indications.contains(str(indication.id))
             ).all()
             for detail in related_details:
-                drugs.add(detail.drug)  # Add the parent drug
-
+                drugs.add(detail.drug)
             diseases.append({
                 'indication': indication,
                 'related_drugs': [detail.drug for detail in related_details]
             })
 
-        # Search target molecules
         target_molecules = Target.query.filter(
             Target.name_en.ilike(f'%{query}%')
         ).all()
@@ -2657,43 +2676,97 @@ def search():
                 DrugDetail.target_molecules.contains(str(target.id))
             ).all()
             for detail in related_details:
-                drugs.add(detail.drug)  # Add the parent drug
+                drugs.add(detail.drug)
 
-        # Search side effects
         side_effects = SideEffect.query.filter(
             (SideEffect.name_en.ilike(f'%{query}%')) | (SideEffect.name_tr.ilike(f'%{query}%'))
         ).all()
 
         for side_effect in side_effects:
-            related_details = side_effect.details.all()  # Fetch related DrugDetails
+            related_details = side_effect.details.all()
             for detail in related_details:
-                drugs.add(detail.drug)  # Add the parent drug
+                drugs.add(detail.drug)
 
-        # Search drug categories
         matching_categories = DrugCategory.query.filter(
             DrugCategory.name.ilike(f'%{query}%')
         ).all()
 
         for category in matching_categories:
-            # Get drugs in this category
             related_drugs = Drug.query.filter(Drug.category_id == category.id).all()
             categories.append({
                 'category': category,
                 'related_drugs': related_drugs
             })
-            drugs.update(related_drugs)  # Add category drugs to the main drugs set
+            drugs.update(related_drugs)
 
     return render_template(
         'search.html',
         query=query,
-        drugs=list(drugs),  # Convert set back to list for rendering
+        drugs=list(drugs),
         diseases=diseases,
         salts=salts,
         target_molecules=target_molecules,
         side_effects=side_effects,
-        categories=categories  # Pass categories to template
+        categories=categories,
+        user=user,
+        user_email=user_email
     )
 
+@app.route('/search_suggestions', methods=['POST'])
+def search_suggestions():
+    # Check if user is logged in
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    query = request.json.get('query', '').strip()
+    suggestions = {
+        'drugs': [],
+        'salts': [],
+        'diseases': [],
+        'target_molecules': [],
+        'side_effects': [],
+        'categories': []
+    }
+
+    if query:
+        # Drugs
+        drugs = Drug.query.filter(
+            (Drug.name_en.ilike(f'%{query}%')) | (Drug.name_tr.ilike(f'%{query}%'))
+        ).limit(5).all()
+        suggestions['drugs'] = [{'id': d.id, 'name': d.name_en or d.name_tr} for d in drugs]
+
+        # Salts
+        salts = Salt.query.filter(
+            (Salt.name_en.ilike(f'%{query}%')) | (Salt.name_tr.ilike(f'%{query}%'))
+        ).limit(5).all()
+        suggestions['salts'] = [{'id': s.id, 'name': s.name_en or s.name_tr} for s in salts]
+
+        # Diseases (Indications)
+        indications = Indication.query.filter(
+            (Indication.name_en.ilike(f'%{query}%')) | (Indication.name_tr.ilike(f'%{query}%'))
+        ).limit(5).all()
+        suggestions['diseases'] = [{'indication': {'id': i.id, 'name_en': i.name_en or i.name_tr}} for i in indications]
+
+        # Target Molecules
+        targets = Target.query.filter(
+            Target.name_en.ilike(f'%{query}%')
+        ).limit(5).all()
+        suggestions['target_molecules'] = [{'id': t.id, 'name': t.name_en} for t in targets]
+
+        # Side Effects
+        side_effects = SideEffect.query.filter(
+            (SideEffect.name_en.ilike(f'%{query}%')) | (SideEffect.name_tr.ilike(f'%{query}%'))
+        ).limit(5).all()
+        suggestions['side_effects'] = [{'id': s.id, 'name': s.name_en or s.name_tr} for s in side_effects]
+
+        # Categories
+        categories = DrugCategory.query.filter(
+            DrugCategory.name.ilike(f'%{query}%')
+        ).limit(5).all()
+        suggestions['categories'] = [{'category': {'id': c.id, 'name': c.name}} for c in categories]
+
+    return jsonify(suggestions)
 
 
 
@@ -3376,6 +3449,8 @@ def get_salts():
     ])
 
 
+
+
 @app.route('/interactions', methods=['GET', 'POST'])
 @login_required
 def check_interactions():
@@ -3388,14 +3463,12 @@ def check_interactions():
         logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}")
 
         try:
-            # Cast to integers and validate
             drug1_id = int(drug1_id) if drug1_id else None
             drug2_id = int(drug2_id) if drug2_id else None
             if not drug1_id or not drug2_id:
                 logger.error("Invalid drug IDs provided")
                 return render_template('interactions.html', drugs=drugs, interaction_results=[])
 
-            # Query interactions
             interactions = DrugInteraction.query.filter(
                 or_(
                     and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
@@ -3406,19 +3479,19 @@ def check_interactions():
             logger.debug(f"Found {len(interactions)} interactions")
 
             for interaction in interactions:
-                predicted_severity = getattr(interaction, 'predicted_severity', 'Not Available')
+                predicted_severity = getattr(interaction, 'predicted_severity', 'Bilinmiyor')
                 interaction_results.append({
-                    'drug1': interaction.drug1.name_en if interaction.drug1 else "Unknown",
-                    'drug2': interaction.drug2.name_en if interaction.drug2 else "Unknown",
-                    'route': interaction.route.name if interaction.route else "General",
+                    'drug1': interaction.drug1.name_en if interaction.drug1 else "Bilinmeyen",
+                    'drug2': interaction.drug2.name_en if interaction.drug2 else "Bilinmeyen",
+                    'route': ', '.join([route.name for route in interaction.routes]) if interaction.routes else "Genel",
                     'interaction_type': interaction.interaction_type,
                     'interaction_description': interaction.interaction_description,
-                    'severity': interaction.severity,
+                    'severity': interaction.severity_level.name if interaction.severity_level else "Bilinmiyor",
                     'predicted_severity': predicted_severity,
-                    'mechanism': interaction.mechanism or "Not Provided",
-                    'monitoring': interaction.monitoring or "Not Provided",
-                    'alternatives': interaction.alternatives or "Not Provided",
-                    'reference': interaction.reference or "Not Provided",
+                    'mechanism': interaction.mechanism or "Belirtilmemiş",
+                    'monitoring': interaction.monitoring or "Belirtilmemiş",
+                    'alternatives': interaction.alternatives or "Belirtilmemiş",
+                    'reference': interaction.reference or "Belirtilmemiş",
                 })
 
         except ValueError as e:
@@ -3430,12 +3503,59 @@ def check_interactions():
 
     return render_template('interactions.html', drugs=drugs, interaction_results=interaction_results)
 
+# Initialize zero-shot classifier
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
+# Fetch abstracts from PubMed
+def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
+    Entrez.email = "eczeneszeybek@gmail.com"
+    Entrez.api_key = "51921ae5597d83823b3ce5499a5e7676d808"  # Add your API key if available
+    term = f"{drug1} AND {drug2} AND interaction"
+    logger.debug(f"Fetching PubMed abstracts for term: {term}")
+    retries = 0
+    while retries < max_retries:
+        try:
+            handle = Entrez.esearch(db="pubmed", term=term, retmax=10)
+            record = Entrez.read(handle)
+            ids = record["IdList"]
+            handle.close()  # Ensure handle is closed
+            if not ids:
+                logger.debug(f"No PubMed results for: {drug1} AND {drug2}")
+                return []
+            time.sleep(1)
+            fetch_handle = Entrez.efetch(db="pubmed", id=ids, rettype="abstract", retmode="text")
+            abstracts = fetch_handle.read().split("\n\n")
+            fetch_handle.close()
+            logger.debug(f"Fetched {len(abstracts)} abstracts for {drug1} AND {drug2}")
+            return abstracts
+        except Exception as e:
+            retries += 1
+            logger.error(f"Error fetching PubMed data for {drug1} AND {drug2} (attempt {retries}/{max_retries}): {e}")
+            time.sleep(2)
+    logger.error(f"Failed to fetch PubMed data for {drug1} AND {drug2} after {max_retries} attempts")
+    return []
+
+# Classify severity
+def classify_severity(description, evidence):
+    labels = ["Mild", "Moderate", "Severe", "Critical"]
+    label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Kritik"}
+    text = f"Description: {description}\nEvidence: {evidence}" if evidence else f"Description: {description}"
+    try:
+        result = classifier(text, labels)
+        predicted_label = label_map[result["labels"][0]]
+        confidence = result["scores"][0]
+    except Exception as e:
+        logger.error(f"Error classifying severity: {e}")
+        predicted_label = "Hafif"  # Default to Hafif on error
+        confidence = 0.0
+    return predicted_label, confidence
 
 @app.route('/interactions/manage', methods=['GET', 'POST'])
+@login_required
 def manage_interactions():
     drugs = Drug.query.all()
     routes = RouteOfAdministration.query.all()
+    severities = Severity.query.all()
     page = request.args.get('page', 1, type=int)
     per_page = 10
     order_by_column = request.args.get('order_by', 'id')
@@ -3447,50 +3567,84 @@ def manage_interactions():
     interactions = interactions_query.paginate(page=page, per_page=per_page)
 
     if request.method == 'POST':
-        drug1_id = request.form.get('drug1_id')
-        drug2_id = request.form.get('drug2_id')
-        route_id = request.form.get('route_id')
-        interaction_type = request.form.get('interaction_type')
-        interaction_description = request.form.get('interaction_description')
-        severity = request.form.get('severity')
-        reference = request.form.get('reference')
-        mechanism = request.form.get('mechanism')
-        monitoring = request.form.get('monitoring')
-        # Get list of alternative drug IDs
-        alternatives = request.form.getlist('alternatives')  # Changed to getlist
+        try:
+            drug1_id = request.form.get('drug1_id')
+            drug2_id = request.form.get('drug2_id')
+            route_ids = request.form.getlist('route_ids')
+            interaction_type = request.form.get('interaction_type')
+            interaction_description = request.form.get('interaction_description')
+            severity_id = request.form.get('severity_id')
+            reference = request.form.get('reference')
+            mechanism = request.form.get('mechanism')
+            monitoring = request.form.get('monitoring')
+            alternatives = request.form.getlist('alternatives')
 
-        # Convert list of drug IDs to a comma-separated string of drug names
-        if alternatives:
-            alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
-            alternatives_str = ', '.join([drug.name_en for drug in alternative_drugs])
-        else:
+            # Validate inputs
+            if not all([drug1_id, drug2_id, interaction_type, interaction_description, severity_id]):
+                raise ValueError("Required fields are missing")
+
+            # Convert alternatives to comma-separated string
             alternatives_str = ''
+            if alternatives:
+                alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
+                alternatives_str = ', '.join([drug.name_en for drug in alternative_drugs])
 
-        new_interaction = DrugInteraction(
-            drug1_id=drug1_id,
-            drug2_id=drug2_id,
-            route_id=route_id if route_id else None,
-            interaction_type=interaction_type,
-            interaction_description=interaction_description,
-            severity=severity,
-            reference=reference,
-            mechanism=mechanism,
-            monitoring=monitoring,
-            alternatives=alternatives_str  # Store as comma-separated string
-        )
-        db.session.add(new_interaction)
-        db.session.commit()
+            # Fetch drugs for PubMed query
+            drug1 = Drug.query.get(drug1_id)
+            drug2 = Drug.query.get(drug2_id)
+            if not drug1 or not drug2:
+                raise ValueError("Invalid drug IDs")
 
-        return redirect(url_for('manage_interactions'))
+            # Predict severity
+            abstracts = fetch_pubmed_abstracts(drug1.name_en, drug2.name_en)
+            combined_evidence = " ".join(abstracts) if abstracts else "No evidence found"
+            predicted_severity, prediction_confidence = classify_severity(interaction_description, combined_evidence)
+
+            # Create new interaction
+            new_interaction = DrugInteraction(
+                drug1_id=drug1_id,
+                drug2_id=drug2_id,
+                interaction_type=interaction_type,
+                interaction_description=interaction_description,
+                severity_id=severity_id,
+                reference=reference,
+                mechanism=mechanism,
+                monitoring=monitoring,
+                alternatives=alternatives_str,
+                predicted_severity=predicted_severity,
+                prediction_confidence=prediction_confidence,
+                processed=True
+            )
+
+            # Assign routes
+            if route_ids:
+                routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
+                new_interaction.routes = routes
+
+            db.session.add(new_interaction)
+            db.session.commit()
+
+            logger.info(f"New interaction created with ID: {new_interaction.id}, Predicted Severity: {predicted_severity}")
+            return redirect(url_for('manage_interactions'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating interaction: {str(e)}")
+            return render_template(
+                'manage_interactions.html',
+                drugs=drugs,
+                routes=routes,
+                severities=severities,
+                interactions=interactions,
+                error=str(e)
+            )
 
     return render_template(
         'manage_interactions.html',
         drugs=drugs,
         routes=routes,
+        severities=severities,
         interactions=interactions
     )
-
-
 
 @app.route('/interactions/update/<int:interaction_id>', methods=['GET', 'POST'])
 @login_required
@@ -3498,57 +3652,89 @@ def update_interaction(interaction_id):
     interaction = DrugInteraction.query.get_or_404(interaction_id)
     drugs = Drug.query.all()
     routes = RouteOfAdministration.query.all()
+    severities = Severity.query.all()
 
     if request.method == 'POST':
         try:
             interaction.drug1_id = request.form.get('drug1_id')
             interaction.drug2_id = request.form.get('drug2_id')
-            interaction.route_id = request.form.get('route_id') if request.form.get('route_id') else None
+            route_ids = request.form.getlist('route_ids')
             interaction.interaction_type = request.form.get('interaction_type')
             interaction.interaction_description = request.form.get('interaction_description')
-            interaction.severity = request.form.get('severity')
+            interaction.severity_id = request.form.get('severity_id')
             interaction.reference = request.form.get('reference')
             interaction.mechanism = request.form.get('mechanism')
             interaction.monitoring = request.form.get('monitoring')
-            # Get list of alternative drug IDs
             alternatives = request.form.getlist('alternatives')
-            # Convert to comma-separated string of drug names
+
+            if not all([interaction.drug1_id, interaction.drug2_id, interaction.interaction_type, 
+                       interaction.interaction_description, interaction.severity_id]):
+                raise ValueError("Required fields are missing")
+
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
                 interaction.alternatives = ', '.join([drug.name_en for drug in alternative_drugs])
             else:
                 interaction.alternatives = ''
 
+            drug1 = Drug.query.get(interaction.drug1_id)
+            drug2 = Drug.query.get(interaction.drug2_id)
+            if not drug1 or not drug2:
+                raise ValueError("Invalid drug IDs")
+            abstracts = fetch_pubmed_abstracts(drug1.name_en, drug2.name_en)
+            combined_evidence = " ".join(abstracts) if abstracts else "No evidence found"
+            interaction.predicted_severity, interaction.prediction_confidence = classify_severity(
+                interaction.interaction_description, combined_evidence
+            )
+
+            if route_ids:
+                routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
+                interaction.routes = routes
+            else:
+                interaction.routes = []
+
+            interaction.processed = True
             db.session.commit()
-            logger.info(f"Interaction {interaction_id} updated successfully")
+            logger.info(f"Interaction {interaction_id} updated successfully, Predicted Severity: {interaction.predicted_severity}")
             return redirect(url_for('manage_interactions'))
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error updating interaction {interaction_id}: {str(e)}")
-            return f"Error updating interaction: {str(e)}", 500
+            return render_template(
+                'update_interaction.html',
+                interaction=interaction,
+                drugs=drugs,
+                routes=routes,
+                severities=severities,
+                selected_alternative_ids=[],
+                selected_route_ids=[],
+                error=str(e)
+            )
 
-    # Prepopulate alternatives for editing
     selected_alternatives = []
     if interaction.alternatives:
         try:
             alternative_names = [name.strip() for name in interaction.alternatives.split(',') if name.strip()]
-            logger.debug(f"Alternative names: {alternative_names}")
             alternative_drugs = Drug.query.filter(Drug.name_en.in_(alternative_names)).all()
             selected_alternatives = [
                 {'id': drug.id, 'text': f"{drug.name_en} ({drug.name_tr})"}
                 for drug in alternative_drugs
                 if drug.name_en and drug.name_tr  # Ensure no None values
             ]
-            logger.debug(f"Selected alternatives: {selected_alternatives}")
         except Exception as e:
             logger.error(f"Error preparing selected_alternatives: {str(e)}")
-            selected_alternatives = []
 
-    return render_template('update_interaction.html',
-                           interaction=interaction,
-                           drugs=drugs,
-                           routes=routes,
-                           selected_alternatives=selected_alternatives)
+    selected_route_ids = [route.id for route in interaction.routes] if interaction.routes else []
+
+    return render_template(
+        'update_interaction.html',
+        interaction=interaction,
+        drugs=drugs,
+        routes=routes,
+        severities=severities,
+        selected_alternatives=selected_alternatives,
+        selected_route_ids=selected_route_ids
+    )
 
 @app.route('/interactions/delete/<int:interaction_id>', methods=['POST'])
 def delete_interaction(interaction_id):
@@ -3570,25 +3756,24 @@ def get_interactions():
         0: DrugInteraction.id,
         1: Drug.name_en,  # drug1_name
         2: Drug.name_en,  # drug2_name
-        3: RouteOfAdministration.name,
+        3: DrugInteraction.id,  # routes (handled in data)
         4: DrugInteraction.interaction_type,
         5: DrugInteraction.interaction_description,
-        6: DrugInteraction.severity,
+        6: Severity.name,  # severity
         7: DrugInteraction.predicted_severity,
         8: DrugInteraction.mechanism,
         9: DrugInteraction.monitoring,
         10: DrugInteraction.alternatives,
         11: DrugInteraction.reference,
-        12: DrugInteraction.id,  # "actions" kolonu; ID baz alabiliriz
+        12: DrugInteraction.id,  # actions
     }
     order_column = column_map.get(order_column_index, DrugInteraction.id)
 
     total_records = DrugInteraction.query.count()
 
-    # JOIN
     query = DrugInteraction.query \
         .join(Drug, DrugInteraction.drug1_id == Drug.id) \
-        .outerjoin(RouteOfAdministration, DrugInteraction.route_id == RouteOfAdministration.id)
+        .join(Severity, DrugInteraction.severity_id == Severity.id)
 
     if search_value:
         query = query.filter(
@@ -3609,7 +3794,6 @@ def get_interactions():
 
     data = []
     for interaction in interactions:
-        # Edit ve Delete linklerini/formlarını HTML olarak döndürüyoruz
         edit_url = url_for('update_interaction', interaction_id=interaction.id)
         delete_url = url_for('delete_interaction', interaction_id=interaction.id)
         actions_html = f"""
@@ -3621,14 +3805,16 @@ def get_interactions():
         </div>
         """
 
+        routes_str = ', '.join([route.name for route in interaction.routes]) if interaction.routes else 'Genel'
+
         data.append({
             "id": interaction.id,
             "drug1_name": interaction.drug1.name_en if interaction.drug1 else "N/A",
             "drug2_name": interaction.drug2.name_en if interaction.drug2 else "N/A",
-            "route": interaction.route.name if interaction.route else "Genel",
+            "route": routes_str,
             "interaction_type": interaction.interaction_type,
             "interaction_description": interaction.interaction_description,
-            "severity": interaction.severity,
+            "severity": interaction.severity_level.name if interaction.severity_level else "N/A",
             "predicted_severity": interaction.predicted_severity or "Not Available",
             "mechanism": interaction.mechanism or "Not Provided",
             "monitoring": interaction.monitoring or "Not Provided",
@@ -3643,6 +3829,9 @@ def get_interactions():
         "recordsFiltered": filtered_records,
         "data": data
     })
+
+
+
 
 
 @app.route('/cdss/advanced', methods=['GET', 'POST'])
@@ -3804,59 +3993,6 @@ def adjust_severity(base_severity, age, crcl, boost=0):
     elif score >= 2:
         return "Moderate"
     return "Hafif"
-
-
-import joblib
-
-# Model ve vektörleştiriciyi yükleyin
-#model = joblib.load('interaction_model.pkl')
-#vectorizer = joblib.load('interaction_vectorizer.pkl')
-
-
-from flask import Flask, request, jsonify
-
-@app.route('/predict_severity', methods=['GET', 'POST'])
-def predict_severity():
-    if request.method == 'POST':
-        # Formdan etkileşim açıklamasını al
-        description = request.form.get('interaction_description')
-
-        # TF-IDF ile açıklamayı vektörleştir
-        description_vector = vectorizer.transform([description])
-
-        # Şiddet seviyesini tahmin et
-        severity = model.predict(description_vector)[0]
-
-        # Tahmini JSON olarak döndür
-        return jsonify({"interaction_description": description, "predicted_severity": severity})
-
-    # GET isteği için bir form döndür
-    return render_template('predict_severity.html')
-
-
-@app.route('/view_predictions')
-def view_predictions():
-    import pandas as pd
-    # Tahmin edilen dosyayı oku
-    data = pd.read_csv('predicted_interactions.csv')
-    
-    # Veriyi HTML tablosu olarak gönder
-    return data.to_html()
-
-@app.route('/check_predictions')
-def check_predictions():
-    interactions = DrugInteraction.query.all()
-    results = [
-        {
-            "drug1_id": interaction.drug1_id,
-            "drug2_id": interaction.drug2_id,
-            "description": interaction.interaction_description,
-            "predicted_severity": interaction.predicted_severity,
-        }
-        for interaction in interactions
-    ]
-    return jsonify(results)
-
 
 
 # Model ve scaler'ı yükle

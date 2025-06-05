@@ -42,6 +42,7 @@
             max-width: 300px;
             margin-left: auto;
             margin-right: 20px;
+            position: relative; /* For positioning the dropdown */
         }
         .search-form .form-control {
             border-radius: 25px 0 0 25px;
@@ -58,6 +59,50 @@
         }
         .search-form .btn:hover {
             background: #0096b2;
+        }
+        /* Autocomplete Dropdown */
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        .autocomplete-item:hover {
+            background: #f8f9fa;
+        }
+        .autocomplete-item i {
+            margin-right: 10px;
+            color: #00b4d8;
+        }
+        .autocomplete-item span {
+            font-size: 0.9rem;
+            color: #2c3e50;
+        }
+        .autocomplete-category {
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #6c757d;
+            background: #f1f1f1;
+            text-transform: uppercase;
         }
         .hero-section {
             background: linear-gradient(to right, #007bff, #6610f2);
@@ -102,8 +147,8 @@
         }
         .features-section .row {
             display: flex;
-            justify-content: center; /* Center the feature cards horizontally */
-            flex-wrap: wrap; /* Ensure responsiveness */
+            justify-content: center;
+            flex-wrap: wrap;
         }
         .feature-card {
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
@@ -167,11 +212,11 @@
             margin-bottom: 10px;
         }
         .news-card .news-type-badge.news {
-            background: #28a745; /* Green for news */
+            background: #28a745;
             color: #fff;
         }
         .news-card .news-type-badge.update {
-            background: #ffc107; /* Yellow for updates */
+            background: #ffc107;
             color: #212529;
         }
         .news-card h5 {
@@ -214,7 +259,6 @@
         .toast {
             border-radius: 10px;
         }
-        /* Animations */
         @keyframes fadeInDown {
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -250,6 +294,9 @@
             .feature-card {
                 margin-bottom: 20px;
             }
+            .autocomplete-dropdown {
+                max-width: 100%;
+            }
         }
         @media (max-width: 992px) {
             .features-section .row > div {
@@ -281,9 +328,10 @@
                     <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
                 </ul>
                 {% if user_email %}
-                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
-                        <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
+                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
+                        <input class="form-control" type="search" name="query" id="searchInput" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
                         <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
                     </form>
                 {% endif %}
                 {% if user and user.is_admin %}
@@ -417,6 +465,89 @@
                 const toast = new bootstrap.Toast(toastElement);
                 toast.show();
             });
+
+            // Autocomplete functionality
+            const searchInput = document.getElementById('searchInput');
+            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+            const searchForm = document.getElementById('searchForm');
+            let debounceTimeout;
+
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(debounceTimeout);
+                    debounceTimeout = setTimeout(() => {
+                        const query = searchInput.value.trim();
+                        if (query.length < 2) {
+                            autocompleteDropdown.classList.remove('show');
+                            autocompleteDropdown.innerHTML = '';
+                            return;
+                        }
+
+                        fetch('/search_suggestions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ query })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            autocompleteDropdown.innerHTML = '';
+                            if (!data.drugs.length && !data.salts.length && !data.diseases.length && !data.target_molecules.length && !data.side_effects.length && !data.categories.length) {
+                                autocompleteDropdown.classList.remove('show');
+                                return;
+                            }
+
+                            // Helper function to create category section
+                            const createCategory = (title, items, iconClass, type) => {
+                                if (items.length) {
+                                    const categoryDiv = document.createElement('div');
+                                    categoryDiv.className = 'autocomplete-category';
+                                    categoryDiv.textContent = title;
+                                    autocompleteDropdown.appendChild(categoryDiv);
+
+                                    items.slice(0, 5).forEach(item => {
+                                        const itemDiv = document.createElement('div');
+                                        itemDiv.className = 'autocomplete-item';
+                                        itemDiv.innerHTML = `<i class="${iconClass}"></i><span>${item.name}</span>`;
+                                        itemDiv.addEventListener('click', () => {
+                                            searchInput.value = item.name;
+                                            autocompleteDropdown.classList.remove('show');
+                                            searchForm.submit();
+                                        });
+                                        autocompleteDropdown.appendChild(itemDiv);
+                                    });
+                                }
+                            };
+
+                            createCategory('Drugs', data.drugs, 'fas fa-capsules', 'drug');
+                            createCategory('Salts', data.salts, 'fas fa-vial', 'salt');
+                            createCategory('Diseases', data.diseases.map(d => ({ name: d.indication.name_en })), 'fas fa-disease', 'disease');
+                            createCategory('Target Molecules', data.target_molecules, 'fas fa-atom', 'target');
+                            createCategory('Side Effects', data.side_effects, 'fas fa-exclamation-triangle', 'side_effect');
+                            createCategory('Categories', data.categories.map(c => ({ name: c.category.name })), 'fas fa-folder', 'category');
+
+                            autocompleteDropdown.classList.add('show');
+                        })
+                        .catch(error => {
+                            console.error('Error fetching suggestions:', error);
+                            autocompleteDropdown.classList.remove('show');
+                        });
+                    }, 300); // Debounce delay
+                });
+
+                // Hide dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!searchForm.contains(e.target)) {
+                        autocompleteDropdown.classList.remove('show');
+                    }
+                });
+
+                // Hide dropdown on form submit
+                searchForm.addEventListener('submit', () => {
+                    autocompleteDropdown.classList.remove('show');
+                });
+            }
         });
     </script>
 </body>

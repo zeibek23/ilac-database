@@ -3,106 +3,300 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search</title>
+    <title>Search - Drugly</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
-            background-color: #f8f9fa;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            color: #2c3e50;
+            margin: 0;
+        }
+        .navbar {
+            background: #2c3e50 !important;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            padding: 15px 0;
+        }
+        .navbar-brand {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff !important;
+        }
+        .nav-link {
+            color: #fff !important;
+            font-weight: 400;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #00b4d8 !important;
+        }
+        .btn-outline-light, .btn-light, .btn-warning {
+            border-radius: 25px;
+            padding: 8px 20px;
+            font-weight: 500;
+        }
+        .search-form {
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .search-form .form-control {
+            border-radius: 25px 0 0 25px;
+            border: 1px solid #ced4da;
+            font-size: 0.9rem;
+            padding: 10px 15px;
+        }
+        .search-form .btn {
+            border-radius: 0 25px 25px 0;
+            padding: 10px 15px;
+            background: #00b4d8;
+            border: none;
+            color: #fff;
+        }
+        .search-form .btn:hover {
+            background: #0096b2;
         }
         .search-container {
-            margin-top: 50px;
+            padding: 60px 20px;
+            text-align: center;
         }
-        h1 {
-            font-weight: bold;
-            color: #343a40;
+        .search-container h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            animation: fadeInDown 1s ease-in-out;
+        }
+        .search-container h2 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 30px 0 20px;
+            color: #2c3e50;
+            animation: fadeInUp 1s ease-in-out;
         }
         .result-section {
-            margin-top: 30px;
+            margin-top: 40px;
+            animation: fadeIn 1s ease-in-out;
         }
         .result-section h3 {
-            margin-bottom: 20px;
-            color: #007bff;
+            font-size: 1.8rem;
             font-weight: 600;
-        }
-        .card {
-            border: none;
+            color: #007bff;
             margin-bottom: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: left;
         }
-        .card-header {
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
-        }
-        .card-body {
-            padding: 20px;
-            background-color: white;
-        }
-        .btn-primary {
-            background-color: #007bff;
+        .result-card {
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             border: none;
+            border-radius: 15px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #ffffff, #f1f1f1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
-        .btn-primary:hover {
-            background-color: #0056b3;
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+        }
+        .result-card .card-header {
+            background: #007bff;
+            color: #fff;
+            font-weight: 600;
+            padding: 10px 15px;
+            border-radius: 15px 15px 0 0;
+        }
+        .result-card .card-body {
+            padding: 20px;
+        }
+        .result-card h5 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .result-card p, .result-card li {
+            font-size: 1rem;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .result-card a.btn {
+            border-radius: 25px;
+            font-weight: 500;
+            padding: 8px 20px;
         }
         .no-results {
             font-size: 1.2rem;
             color: #dc3545;
             font-weight: 600;
             text-align: center;
+            margin: 20px 0;
+            animation: fadeIn 1s ease-in-out;
+        }
+        footer {
+            background: #2c3e50;
+            color: #fff;
+            padding: 30px 0;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        footer a {
+            color: #00b4d8;
+            margin: 0 15px;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        footer a:hover {
+            color: #fff;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+        .toast {
+            border-radius: 10px;
+        }
+        /* Animations */
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @media (max-width: 768px) {
+            .search-container {
+                padding: 40px 15px;
+            }
+            .search-container h1 {
+                font-size: 2rem;
+            }
+            .search-container h2 {
+                font-size: 1.8rem;
+            }
+            .result-section h3 {
+                font-size: 1.5rem;
+            }
+            .search-form {
+                max-width: 100%;
+            }
+            .result-card {
+                margin-bottom: 15px;
+            }
+        }
+        @media (max-width: 576px) {
+            .result-section .row > div {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container search-container">
-        <h1 class="text-center">Search for Drugs, Diseases, Salts, or More</h1>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Drugly</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="druglyNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+                </ul>
+                {% if user_email %}
+                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
+                        <input class="form-control" type="search" name="query" id="searchInput" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
+                        <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+                    </form>
+                {% endif %}
+                {% if user and user.is_admin %}
+                    <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+                {% endif %}
+                {% if user_email %}
+                    <a href="/profile" class="btn btn-light me-2">Profile</a>
+                    <a href="/logout" class="btn btn-outline-light">Logout</a>
+                {% else %}
+                    <a href="/login" class="btn btn-light me-2">Login</a>
+                    <a href="/register" class="btn btn-outline-light">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
 
-        <!-- Search Form -->
-        <form method="POST" class="d-flex my-4">
-            <input class="form-control me-2" type="text" name="query" placeholder="Enter a keyword..." value="{{ query or '' }}">
-            <button class="btn btn-primary" type="submit">Search</button>
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+        <div class="toast align-items-center text-bg-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+            <div class="d-flex">
+                <div class="toast-body">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    <!-- Search Container -->
+    <div class="search-container container">
+        <h1>Search for Drugs, Diseases, Salts, or More</h1>
+        <form method="POST" class="search-form d-flex my-4">
+            <input class="form-control" type="text" name="query" placeholder="Enter a keyword..." value="{{ query or '' }}" required>
+            <button class="btn" type="submit"><i class="fas fa-search"></i></button>
         </form>
 
         {% if query %}
-            <h2 class="mt-4">Results for "{{ query }}"</h2>
+            <h2>Results for "{{ query }}"</h2>
 
             <!-- Display Drugs -->
-            {% if drugs %}
             <div class="result-section">
                 <h3>Drugs</h3>
+                {% if drugs %}
                 <div class="row">
                     {% for drug in drugs %}
                     <div class="col-md-4">
-                        <div class="card">
+                        <div class="result-card">
                             <div class="card-body">
-                                <h5 class="card-title">{{ drug.name_en }}</h5>
-                                <p class="card-text">{{ drug.name_tr or "N/A" }}</p>
+                                <h5>{{ drug.name_en }}</h5>
+                                <p>{{ drug.name_tr or "N/A" }}</p>
                                 <a href="{{ url_for('drug_detail', drug_id=drug.id) }}" class="btn btn-primary">View Details</a>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+                {% else %}
+                <p class="no-results">No drugs found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No drugs found.</p>
-            {% endif %}
 
             <!-- Display Diseases -->
-            {% if diseases %}
             <div class="result-section">
                 <h3>Diseases</h3>
+                {% if diseases %}
                 {% for disease in diseases %}
-                <div class="card">
+                <div class="result-card">
                     <div class="card-header">
                         {{ disease.indication.name_en }} ({{ disease.indication.name_tr or "N/A" }})
                     </div>
                     <div class="card-body">
-                        <p class="card-text"><strong>Related Drugs:</strong></p>
+                        <p><strong>Related Drugs:</strong></p>
                         <ul>
                             {% for related_drug in disease.related_drugs %}
                             <li>
@@ -115,52 +309,56 @@
                     </div>
                 </div>
                 {% endfor %}
+                {% else %}
+                <p class="no-results">No diseases found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No diseases found.</p>
-            {% endif %}
 
             <!-- Display Salts -->
-            {% if salts %}
             <div class="result-section">
                 <h3>Salts</h3>
+                {% if salts %}
                 <div class="row">
                     {% for salt in salts %}
                     <div class="col-md-4">
-                        <div class="card">
+                        <div class="result-card">
                             <div class="card-body">
-                                <h5 class="card-title">{{ salt.name_en }}</h5>
-                                <p class="card-text">{{ salt.name_tr or "N/A" }}</p>
+                                <h5>{{ salt.name_en }}</h5>
+                                <p>{{ salt.name_tr or "N/A" }}</p>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
+                {% else %}
+                <p class="no-results">No salts found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No salts found.</p>
-            {% endif %}
 
             <!-- Display Target Molecules -->
-            {% if target_molecules %}
             <div class="result-section">
                 <h3>Target Molecules</h3>
-                <ul>
-                    {% for target in target_molecules %}
-                    <li>{{ target.name_en }}</li>
-                    {% endfor %}
-                </ul>
+                {% if target_molecules %}
+                <div class="result-card">
+                    <div class="card-body">
+                        <ul>
+                            {% for target in target_molecules %}
+                            <li>{{ target.name_en }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% else %}
+                <p class="no-results">No target molecules found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No target molecules found.</p>
-            {% endif %}
 
             <!-- Display Drug Categories -->
-            {% if categories %}
             <div class="result-section">
                 <h3>Drug Categories</h3>
+                {% if categories %}
                 {% for cat in categories %}
-                <div class="card">
+                <div class="result-card">
                     <div class="card-header">
                         {{ cat.category.name }}
                         {% if cat.category.parent %}
@@ -168,7 +366,7 @@
                         {% endif %}
                     </div>
                     <div class="card-body">
-                        <p class="card-text"><strong>Related Drugs:</strong></p>
+                        <p><strong>Related Drugs:</strong></p>
                         {% if cat.related_drugs %}
                         <ul>
                             {% for drug in cat.related_drugs %}
@@ -185,24 +383,127 @@
                     </div>
                 </div>
                 {% endfor %}
+                {% else %}
+                <p class="no-results">No drug categories found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No drug categories found.</p>
-            {% endif %}
+
             <!-- Display Side Effects -->
-            {% if side_effects %}
             <div class="result-section">
                 <h3>Side Effects</h3>
-                <ul>
-                    {% for side_effect in side_effects %}
-                    <li>{{ side_effect.name_en }} ({{ side_effect.name_tr or "N/A" }})</li>
-                    {% endfor %}
-                </ul>
+                {% if side_effects %}
+                <div class="result-card">
+                    <div class="card-body">
+                        <ul>
+                            {% for side_effect in side_effects %}
+                            <li>{{ side_effect.name_en }} ({{ side_effect.name_tr or "N/A" }})</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% else %}
+                <p class="no-results">No side effects found.</p>
+                {% endif %}
             </div>
-            {% else %}
-            <p class="no-results">No side effects found.</p>
-            {% endif %}
         {% endif %}
     </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2025 Drugly. All rights reserved.</p>
+        <a href="/contact">Contact Us</a> |
+        <a href="/about">About Us</a> |
+        <a href="/terms">Terms of Service</a>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toastElements = document.querySelectorAll('.toast');
+            toastElements.forEach(toastElement => {
+                const toast = new bootstrap.Toast(toastElement);
+                toast.show();
+            });
+
+            // Autocomplete functionality (copied from index.html for consistency)
+            const searchInput = document.getElementById('searchInput');
+            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+            const searchForm = document.getElementById('searchForm');
+            let debounceTimeout;
+
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(debounceTimeout);
+                    debounceTimeout = setTimeout(() => {
+                        const query = searchInput.value.trim();
+                        if (query.length < 2) {
+                            autocompleteDropdown.classList.remove('show');
+                            autocompleteDropdown.innerHTML = '';
+                            return;
+                        }
+
+                        fetch('/search_suggestions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ query })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            autocompleteDropdown.innerHTML = '';
+                            if (!data.drugs.length && !data.salts.length && !data.diseases.length && !data.target_molecules.length && !data.side_effects.length && !data.categories.length) {
+                                autocompleteDropdown.classList.remove('show');
+                                return;
+                            }
+
+                            const createCategory = (title, items, iconClass, type) => {
+                                if (items.length) {
+                                    const categoryDiv = document.createElement('div');
+                                    categoryDiv.className = 'autocomplete-category';
+                                    categoryDiv.textContent = title;
+                                    autocompleteDropdown.appendChild(categoryDiv);
+
+                                    items.slice(0, 5).forEach(item => {
+                                        const itemDiv = document.createElement('div');
+                                        itemDiv.className = 'autocomplete-item';
+                                        itemDiv.innerHTML = `<i class="${iconClass}"></i><span>${item.name}</span>`;
+                                        itemDiv.addEventListener('click', () => {
+                                            searchInput.value = item.name;
+                                            autocompleteDropdown.classList.remove('show');
+                                            searchForm.submit();
+                                        });
+                                        autocompleteDropdown.appendChild(itemDiv);
+                                    });
+                                }
+                            };
+
+                            createCategory('Drugs', data.drugs, 'fas fa-capsules', 'drug');
+                            createCategory('Salts', data.salts, 'fas fa-vial', 'salt');
+                            createCategory('Diseases', data.diseases.map(d => ({ name: d.indication.name_en })), 'fas fa-disease', 'disease');
+                            createCategory('Target Molecules', data.target_molecules, 'fas fa-atom', 'target');
+                            createCategory('Side Effects', data.side_effects, 'fas fa-exclamation-triangle', 'side_effect');
+                            createCategory('Categories', data.categories.map(c => ({ name: c.category.name })), 'fas fa-folder', 'category');
+
+                            autocompleteDropdown.classList.add('show');
+                        })
+                        .catch(error => {
+                            console.error('Error fetching suggestions:', error);
+                            autocompleteDropdown.classList.remove('show');
+                        });
+                    }, 300);
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!searchForm.contains(e.target)) {
+                        autocompleteDropdown.classList.remove('show');
+                    }
+                });
+
+                searchForm.addEventListener('submit', () => {
+                    autocompleteDropdown.classList.remove('show');
+                });
+            }
+        });
+    </script>
 </body>
 </html>

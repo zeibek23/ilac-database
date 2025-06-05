@@ -12,11 +12,10 @@
         .card { border-radius: 10px; }
         .form-control, .form-select { border-radius: 5px; }
         .select2-container--default .select2-selection--multiple { min-height: 60px; }
-        .severity-low { background-color: #d4edda; }
-        .severity-moderate { background-color: #fff3cd; }
-        .severity-high { background-color: #f8d7da; }
-        .severity-critical { background-color: #d9534f; color: white; }
-        .severity-potential-risk { background-color: #d1ecf1; }
+        .severity-Hafif { background-color: #d4edda; }
+        .severity-Orta { background-color: #fff3cd; }
+        .severity-Şiddetli { background-color: #f8d7da; }
+        .severity-Kritik { background-color: #d9534f; color: white; }
     </style>
 </head>
 <body>
@@ -27,6 +26,9 @@
             <h4 class="mb-0">Etkileşim Bilgilerini Güncelle</h4>
         </div>
         <div class="card-body">
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
             <form method="post">
                 <div class="mb-3">
                     <label for="drug1_id" class="form-label">İlaç 1</label>
@@ -37,11 +39,11 @@
                     <select id="drug2_id" name="drug2_id" class="form-select" required></select>
                 </div>
                 <div class="mb-3">
-                    <label for="route_id" class="form-label">Uygulama Yolu</label>
-                    <select class="form-select" id="route_id" name="route_id">
+                    <label for="route_ids" class="form-label">Uygulama Yolları</label>
+                    <select class="form-select select2" id="route_ids" name="route_ids" multiple>
                         <option value="">Genel (Tüm Uygulama Yolları)</option>
                         {% for route in routes %}
-                            <option value="{{ route.id }}" {% if interaction.route_id == route.id %}selected{% endif %}>{{ route.name }}</option>
+                            <option value="{{ route.id }}" {% if route.id in selected_route_ids %}selected{% endif %}>{{ route.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -57,13 +59,12 @@
                     <textarea class="form-control" id="interaction_description" name="interaction_description" rows="3" required>{{ interaction.interaction_description | safe }}</textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="severity" class="form-label">Etkileşimin Şiddeti</label>
-                    <select name="severity" id="severity" class="form-select" required>
-                        <option value="düşük" {% if interaction.severity == 'düşük' %}selected{% endif %}>Düşük</option>
-                        <option value="orta" {% if interaction.severity == 'orta' %}selected{% endif %}>Orta</option>
-                        <option value="yüksek" {% if interaction.severity == 'yüksek' %}selected{% endif %}>Yüksek</option>
-                        <option value="hayati tehlike" {% if interaction.severity == 'hayati tehlike' %}selected{% endif %}>Hayati Tehlike</option>
-                        <option value="potansiyel risk" {% if interaction.severity == 'potansiyel risk' %}selected{% endif %}>Potansiyel Risk</option>
+                    <label for="severity_id" class="form-label">Etkileşimin Şiddeti</label>
+                    <select name="severity_id" id="severity_id" class="form-select" required>
+                        <option value="">Şiddet Seçin</option>
+                        {% for severity in severities %}
+                            <option value="{{ severity.id }}" {% if interaction.severity_id == severity.id %}selected{% endif %}>{{ severity.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="mb-3">
@@ -76,13 +77,16 @@
                 </div>
                 <div class="mb-3">
                     <label for="alternatives" class="form-label">Alternatifler</label>
-                    <select id="alternatives" name="alternatives" class="form-select" multiple="multiple"></select>
+                    <select id="alternatives" name="alternatives" class="form-select select2" multiple="multiple"></select>
                 </div>
                 <div class="mb-3">
                     <label for="reference" class="form-label">Referans</label>
                     <textarea class="form-control" id="reference" name="reference" rows="2" required>{{ interaction.reference | safe }}</textarea>
                 </div>
-                <button type="submit" class="btn btn-primary w-100" id="submitBtn">Etkileşimi Güncelle</button>
+                <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                    <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+                    Etkileşimi Güncelle
+                </button>
             </form>
         </div>
     </div>
@@ -194,17 +198,25 @@ $(document).ready(function () {
     // Prepopulate alternatives
     var selectedAlternatives = {{ selected_alternatives | tojson | safe }};
     selectedAlternatives.forEach(function (drug) {
-        if (drug.id && drug.text) { // Ensure no undefined values
+        if (drug.id && drug.text) {
             var option = new Option(drug.text, drug.id, true, true);
             $('#alternatives').append(option).trigger('change');
         }
     });
 
-    // Form submission handling
+    // Initialize Select2 for route_ids
+    $('#route_ids').select2({
+        placeholder: 'Uygulama yollarını seçin',
+        allowClear: true,
+        multiple: true
+    });
+
+    // Form submission handling with loading spinner
     $('form').on('submit', function (e) {
         e.preventDefault();
         var $btn = $('#submitBtn');
         $btn.prop('disabled', true).text('Kaydediliyor...');
+        $btn.find('.spinner-border').removeClass('d-none');
 
         $.ajax({
             url: '/interactions/update/{{ interaction.id }}',
@@ -212,10 +224,12 @@ $(document).ready(function () {
             data: $(this).serialize(),
             success: function () {
                 $btn.prop('disabled', false).text('Etkileşimi Güncelle');
+                $btn.find('.spinner-border').addClass('d-none');
                 window.location.href = '/interactions/manage';
             },
             error: function (xhr) {
                 $btn.prop('disabled', false).text('Etkileşimi Güncelle');
+                $btn.find('.spinner-border').addClass('d-none');
                 alert('Etkileşim güncellenirken bir hata oluştu: ' + xhr.responseText);
             }
         });
