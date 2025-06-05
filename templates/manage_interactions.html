@@ -15,11 +15,10 @@
         .card { border-radius: 10px; }
         .table-hover tbody tr:hover { background-color: #f1f1f1; }
         .form-control, .form-select { border-radius: 5px; }
-        .severity-low { background-color: #d4edda; }
-        .severity-moderate { background-color: #fff3cd; }
-        .severity-high { background-color: #f8d7da; }
-        .severity-critical { background-color: #d9534f; color: white; }
-        .severity-potential-risk { background-color: #d1ecf1; }
+        .severity-Hafif { background-color: #d4edda; }
+        .severity-Orta { background-color: #fff3cd; }
+        .severity-Şiddetli { background-color: #f8d7da; }
+        .severity-Kritik { background-color: #d9534f; color: white; }
     </style>
 </head>
 <body>
@@ -40,8 +39,8 @@
                     <select id="drug2_id" name="drug2_id" class="form-select" required></select>
                 </div>
                 <div class="mb-3">
-                    <label for="route_id" class="form-label">Uygulama Yolu</label>
-                    <select class="form-select" id="route_id" name="route_id">
+                    <label for="route_ids" class="form-label">Uygulama Yolları</label>
+                    <select class="form-select select2" id="route_ids" name="route_ids" multiple>
                         <option value="">Genel (Tüm Uygulama Yolları)</option>
                         {% for route in routes %}
                             <option value="{{ route.id }}">{{ route.name }}</option>
@@ -60,13 +59,12 @@
                     <textarea class="form-control" id="interaction_description" name="interaction_description" rows="3" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="severity" class="form-label">Etkileşimin Şiddeti</label>
-                    <select name="severity" id="severity" class="form-select" required>
-                        <option value="düşük">Düşük</option>
-                        <option value="orta">Orta</option>
-                        <option value="yüksek">Yüksek</option>
-                        <option value="hayati tehlike">Hayati Tehlike</option>
-                        <option value="potansiyel risk">Potansiyel Risk</option>
+                    <label for="severity_id" class="form-label">Etkileşimin Şiddeti</label>
+                    <select name="severity_id" id="severity_id" class="form-select" required>
+                        <option value="">Şiddet Seçin</option>
+                        {% for severity in severities %}
+                            <option value="{{ severity.id }}">{{ severity.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="mb-3">
@@ -79,7 +77,7 @@
                 </div>
                 <div class="mb-3">
                     <label for="alternatives" class="form-label">Alternatifler</label>
-                    <select id="alternatives" name="alternatives" class="form-select" multiple="multiple"></select>
+                    <select id="alternatives" name="alternatives" class="form-select select2" multiple="multiple"></select>
                 </div>
                 <div class="mb-3">
                     <label for="reference" class="form-label">Referans</label>
@@ -99,11 +97,11 @@
             <th>ID</th>
             <th>İlaç 1</th>
             <th>İlaç 2</th>
-            <th>Uygulama Yolu</th>
+            <th>Uygulama Yolları</th>
             <th>Etkileşim Türü</th>
             <th>Etkileşim Açıklaması</th>
             <th>Şiddet</th>
-            <th>Predicted Severity by AI</th>
+            <th>AI Tarafından Öngörülen Şiddet</th>
             <th>Mekanizma</th>
             <th>Takip</th>
             <th>Alternatifler</th>
@@ -208,6 +206,13 @@ $(document).ready(function () {
         language: 'tr'
     });
 
+    // Initialize Select2 for route_ids (multi-select)
+    $('#route_ids').select2({
+        placeholder: 'Uygulama yollarını seçin',
+        allowClear: true,
+        multiple: true
+    });
+
     // Initialize DataTable
     let table = $('#interactionsTable').DataTable({
         processing: true,
@@ -223,7 +228,20 @@ $(document).ready(function () {
             { data: "route" },
             { data: "interaction_type" },
             { data: "interaction_description" },
-            { data: "severity" },
+            {
+                data: "severity",
+                render: function (data, type, row) {
+                    let className = '';
+                    switch (data) {
+                        case 'Hafif': className = 'severity-Hafif'; break;
+                        case 'Orta': className = 'severity-Orta'; break;
+                        case 'Şiddetli': className = 'severity-Şiddetli'; break;
+                        case 'Kritik': className = 'severity-Kritik'; break;
+                        default: className = '';
+                    }
+                    return `<span class="${className}">${data}</span>`;
+                }
+            },
             { data: "predicted_severity" },
             { data: "mechanism" },
             { data: "monitoring" },
@@ -241,11 +259,12 @@ $(document).ready(function () {
         table.search(this.value).draw();
     });
 
-    // Form submission handling
+    // Form submission handling with loading spinner
     $('form').on('submit', function (e) {
         e.preventDefault();
         var $btn = $('#submitBtn');
         $btn.prop('disabled', true).text('Kaydediliyor...');
+        $btn.prepend('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>');
 
         $.ajax({
             url: '/interactions/manage',
@@ -253,10 +272,12 @@ $(document).ready(function () {
             data: $(this).serialize(),
             success: function () {
                 $btn.prop('disabled', false).text('Etkileşim Ekle');
+                $btn.find('.spinner-border').remove();
                 window.location.href = '/interactions/manage';
             },
             error: function (xhr) {
                 $btn.prop('disabled', false).text('Etkileşim Ekle');
+                $btn.find('.spinner-border').remove();
                 alert('Etkileşim eklenirken bir hata oluştu: ' + xhr.responseText);
             }
         });
