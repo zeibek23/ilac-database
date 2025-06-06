@@ -8190,15 +8190,14 @@ def convert_ligand():
         return jsonify({"error": "SMILES not available for this DrugDetail."}), 404
 
     try:
-        # Log PATH and obabel location
         app.logger.info(f"PATH: {os.environ.get('PATH')}")
         obabel_path = shutil.which("obabel")
         app.logger.info(f"obabel binary: {obabel_path}")
         if not obabel_path:
             raise FileNotFoundError("Open Babel (obabel) not found in PATH")
 
-        smiles_file = os.path.abspath(f"static/smiles_{uuid.uuid4().hex}.smi")
-        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
+        smiles_file = os.path.abspath(f"/tmp/smiles_{uuid.uuid4().hex}.smi")
+        pdb_file = os.path.abspath(f"/tmp/ligand_{uuid.uuid4().hex}.pdb")
 
         with open(smiles_file, "w") as file:
             file.write(drug_detail.smiles)
@@ -8226,6 +8225,11 @@ def convert_ligand():
     except Exception as e:
         app.logger.error(f"Unexpected error in convert_ligand: {str(e)}")
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+    finally:
+        # Temizleme
+        for path in [smiles_file, pdb_file]:
+            if path and os.path.exists(path):
+                os.remove(path)
 
 # Updated endpoint with fpocket for binding site prediction
 @app.route('/api/get_receptor_structure', methods=['GET'])
@@ -8263,37 +8267,39 @@ def get_receptor_structure():
     }), 200
     
 def get_pocket_coords(pdb_content, pdb_id):
+    temp_pdb_path = None
+    output_dir_path = None
     try:
-        # Log PATH and fpocket location
+        # Log PATH ve fpocket konumu
         app.logger.info(f"PATH: {os.environ.get('PATH')}")
         fpocket_path = shutil.which("fpocket")
         app.logger.info(f"fpocket binary: {fpocket_path}")
         if not fpocket_path:
             raise FileNotFoundError("fpocket not found in PATH")
 
-        # Write PDB content to temporary file
-        temp_pdb = f"temp_{pdb_id}.pdb"
+        # Geçici PDB dosyasını /tmp altında oluştur
+        temp_pdb = f"/tmp/temp_{pdb_id}.pdb"
         temp_pdb_path = os.path.abspath(temp_pdb)
         with open(temp_pdb_path, "w") as f:
             f.write(pdb_content)
         if not os.path.exists(temp_pdb_path):
             raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-        # Run fpocket
-        output_dir = f"fpocket_{pdb_id}_out"
+        # Fpocket'ı çalıştır
+        output_dir = f"/tmp/fpocket_{pdb_id}_out"
         output_dir_path = os.path.abspath(output_dir)
         fpocket_cmd = [fpocket_path, "-f", temp_pdb_path]
         app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
         result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
         app.logger.info(f"fpocket output: {result.stdout}")
 
-        # Check for output
+        # Çıktıyı kontrol et
         pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
         info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
         if not os.path.exists(pocket_file) or not os.path.exists(info_file):
             raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
 
-        # Parse top pocket centroid from info.txt
+        # En iyi pocket'ın centroid'unu parse et
         with open(info_file, "r") as f:
             lines = f.readlines()
             for line in lines:
@@ -8315,10 +8321,11 @@ def get_pocket_coords(pdb_content, pdb_id):
         app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
         return {"x": 0, "y": 0, "z": 0}
     finally:
+        # Temizleme işlemini güvenli yap
         for path in [temp_pdb_path, output_dir_path]:
-            if os.path.exists(path):
+            if path and os.path.exists(path):
                 if os.path.isdir(path):
-                    shutil.rmtree(path)
+                    shutil.rmtree(path, ignore_errors=True)
                 else:
                     os.remove(path)
 
