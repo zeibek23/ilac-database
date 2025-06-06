@@ -1,59 +1,64 @@
-# Use Python 3.11 slim base image
-FROM python:3.11-slim
+# Python 3.11 slim yerine Ubuntu tabanlı bir imaj kullanalım (daha güvenilir bağımlılık yönetimi için)
+FROM ubuntu:22.04
 
-# Set working directory
-WORKDIR /app
+# Ortam değişkenlerini ayarla
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
-# Install system dependencies
+# Sistem bağımlılıklarını kur
 RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
     unzip \
+    python3 \
+    python3-pip \
     openbabel \
     && rm -rf /var/lib/apt/lists/*
 
-# Install fpocket2
+# Fpocket2'yi kaynaktan kur
 RUN wget https://sourceforge.net/projects/fpocket/files/fpocket2.tar.gz/download -O fpocket2.tar.gz && \
     tar -xzf fpocket2.tar.gz && \
     mv fpocket* fpocket2 && \
     cd fpocket2 && \
-    make && \
-    make install && \
+    make && make install && \
     cd .. && \
     rm -rf fpocket2 fpocket2.tar.gz
 
-# Verify installations
+# Binary'lerin PATH'te olduğunu doğrula
 RUN which fpocket && fpocket -h && \
     which obabel && obabel -V || { echo "ERROR: fpocket or obabel not found"; exit 1; }
 
-# Install Python dependencies
+# Çalışma dizinini oluştur
+WORKDIR /app
+
+# Python bağımlılıklarını kur
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir gunicorn==22.0.0
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt && \
+    pip3 install --no-cache-dir gunicorn==22.0.0
 
-# Pre-download NLTK data
-RUN python -c 'import nltk; nltk.download("brown"); nltk.download("punkt")'
+# NLTK verilerini indir
+RUN python3 -c 'import nltk; nltk.download("brown"); nltk.download("punkt")'
 
-# Copy application code
+# Uygulama dosyalarını kopyala
 COPY . .
 
-# Create static directory with correct permissions
-RUN mkdir -p /opt/render/project/src/static && \
-    chmod -R 755 /opt/render/project/src/static
+# Statik dizini oluştur ve izinleri ayarla
+RUN mkdir -p /app/static && \
+    chmod -R 755 /app/static
 
-# Create app user and set permissions
+# Uygulama kullanıcısı oluştur ve izinleri ayarla
 RUN useradd -m appuser && \
-    chown -R appuser:appuser /app /opt/render/project/src/static
+    chown -R appuser:appuser /app /app/static
 
-# Switch to appuser
+# appuser'a geç
 USER appuser
 
-# Ensure /app is writable
+# /app dizininin yazılabilir olduğundan emin ol
 RUN chmod -R u+rw /app
 
-# Expose port
+# Portu aç
 EXPOSE 8000
 
-# Debug PATH and binaries at runtime
+# Runtime'da PATH ve binary'leri kontrol et, ardından gunicorn'u başlat
 CMD ["/bin/bash", "-c", "echo 'Runtime PATH: $PATH' && which fpocket && which obabel && exec gunicorn -b 0.0.0.0:$PORT --timeout 1200 --workers 4 --threads 4 app:app"]
