@@ -10,10 +10,6 @@ services:
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
       - key: PYTHONUNBUFFERED
         value: 1
-      - key: FLASK_ENV
-        value: production
-      - key: PORT
-        value: 8000
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
