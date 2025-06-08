@@ -8185,30 +8185,24 @@ def convert_ligand():
     except ValueError:
         return jsonify({"error": "Invalid Drug ID format."}), 400
 
-    drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
+    drug_detail = db.session.query(DrugDetail).filter_by(drug_id=drug_id).first()
     if not drug_detail or not drug_detail.smiles:
         return jsonify({"error": "SMILES not available for this DrugDetail."}), 404
 
     try:
-        # Log PATH and obabel location
-        app.logger.info(f"PATH: {os.environ.get('PATH')}")
-        obabel_path = shutil.which("obabel")
-        app.logger.info(f"obabel binary: {obabel_path}")
-        if not obabel_path:
-            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
+        # SMILES’tan 3D yapı oluştur
+        mol = Chem.MolFromSmiles(drug_detail.smiles)
+        if mol is None:
+            return jsonify({"error": "Invalid SMILES string.", "smiles": drug_detail.smiles}), 400
 
-        smiles_file = os.path.abspath(f"static/smiles_{uuid.uuid4().hex}.smi")
+        # Hidrojen ekle ve 3D koordinat oluştur
+        mol = Chem.AddHs(mol)
+        AllChem.EmbedMolecule(mol, randomSeed=42)
+        AllChem.UFFOptimizeMolecule(mol)
+
+        # PDB dosyasına yaz
         pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
-
-        with open(smiles_file, "w") as file:
-            file.write(drug_detail.smiles)
-
-        app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d")
-        result = subprocess.run(
-            [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
-            capture_output=True, text=True, check=True
-        )
-        app.logger.info(f"Open Babel output: {result.stdout}")
+        Chem.MolToPDBFile(mol, pdb_file)
 
         if not os.path.exists(pdb_file):
             return jsonify({"error": "Failed to generate 3D PDB file."}), 500
@@ -8216,17 +8210,20 @@ def convert_ligand():
         with open(pdb_file, 'r') as pdb:
             pdb_content = pdb.read()
 
-        return jsonify({"pdb": pdb_content}), 200
-    except subprocess.CalledProcessError as e:
-        app.logger.error(f"Open Babel failed: {e.stderr}")
-        return jsonify({"error": "Open Babel conversion failed.", "details": e.stderr}), 500
-    except FileNotFoundError as e:
-        app.logger.error(f"Open Babel not found: {str(e)}")
-        return jsonify({"error": "Open Babel not installed or not found.", "details": str(e)}), 500
-    except Exception as e:
-        app.logger.error(f"Unexpected error in convert_ligand: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        # Clean up
+        if os.path.exists(pdb_file):
+            os.remove(pdb_file)
+            app.logger.info(f"Cleaned up: {pdb_file}")
 
+        return jsonify({"pdb": pdb_content}), 200
+    except Exception as e:
+        app.logger.error(f"RDKit conversion failed: {str(e)}")
+        return jsonify({
+            "error": "Failed to convert SMILES to PDB.",
+            "details": str(e),
+            "smiles": drug_detail.smiles
+        }), 500
+    
 # Updated endpoint with fpocket for binding site prediction
 @app.route('/api/get_receptor_structure', methods=['GET'])
 def get_receptor_structure():
@@ -8263,13 +8260,17 @@ def get_receptor_structure():
     }), 200
     
 def get_pocket_coords(pdb_content, pdb_id):
+    """
+    Predict binding site coordinates using AutoSite (OpenBabel).
+    Returns centroid coordinates of the predicted binding site.
+    """
     try:
-        # Log PATH and fpocket location
+        # Check if OpenBabel is available
+        obabel_path = shutil.which("obabel")
         app.logger.info(f"PATH: {os.environ.get('PATH')}")
-        fpocket_path = shutil.which("fpocket")
-        app.logger.info(f"fpocket binary: {fpocket_path}")
-        if not fpocket_path:
-            raise FileNotFoundError("fpocket not found in PATH")
+        app.logger.info(f"obabel binary: {obabel_path}")
+        if not obabel_path:
+            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
 
         # Write PDB content to temporary file
         temp_pdb = f"temp_{pdb_id}.pdb"
@@ -8279,48 +8280,64 @@ def get_pocket_coords(pdb_content, pdb_id):
         if not os.path.exists(temp_pdb_path):
             raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-        # Run fpocket
-        output_dir = f"fpocket_{pdb_id}_out"
-        output_dir_path = os.path.abspath(output_dir)
-        fpocket_cmd = [fpocket_path, "-f", temp_pdb_path]
-        app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
-        result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
-        app.logger.info(f"fpocket output: {result.stdout}")
+        # Run AutoSite to predict binding site
+        output_pdb = f"autosite_{pdb_id}.pdb"
+        output_pdb_path = os.path.abspath(output_pdb)
+        autosite_cmd = [obabel_path, temp_pdb_path, "-O", output_pdb_path, "--autosite"]
+        app.logger.info(f"Running AutoSite: {' '.join(autosite_cmd)}")
+        result = subprocess.run(
+            autosite_cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        app.logger.info(f"AutoSite output: {result.stdout}")
 
-        # Check for output
-        pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
-        info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
-        if not os.path.exists(pocket_file) or not os.path.exists(info_file):
-            raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
+        # Check if output file was created
+        if not os.path.exists(output_pdb_path):
+            raise FileNotFoundError(f"AutoSite output not found: {output_pdb_path}")
 
-        # Parse top pocket centroid from info.txt
-        with open(info_file, "r") as f:
-            lines = f.readlines()
-            for line in lines:
-                if "Pocket 1" in line:
-                    match = re.search(r"Center of mass: X=([\d.-]+) Y=([\d.-]+) Z=([\d.-]+)", line)
-                    if match:
-                        x = float(match.group(1))
-                        y = float(match.group(2))
-                        z = float(match.group(3))
-                        app.logger.info(f"fpocket binding site for {pdb_id}: {{'x': {x}, 'y': {y}, 'z': {z}}}")
-                        return {"x": x, "y": y, "z": z}
+        # Parse AutoSite output for binding site coordinates
+        coords = []
+        with open(output_pdb_path, "r") as f:
+            for line in f:
+                if line.startswith("HETATM") or line.startswith("ATOM"):
+                    try:
+                        x = float(line[30:38].strip())
+                        y = float(line[38:46].strip())
+                        z = float(line[46:54].strip())
+                        coords.append([x, y, z])
+                    except ValueError:
+                        app.logger.warning(f"Invalid coordinate line in {output_pdb_path}: {line.strip()}")
+                        continue
 
-        app.logger.error(f"No centroid found in {info_file}")
-        return {"x": 0, "y": 0, "z": 0}
+        if not coords:
+            app.logger.error(f"No valid coordinates found in {output_pdb_path}")
+            return {"x": 0, "y": 0, "z": 0}
+
+        # Calculate centroid of the binding site
+        centroid = np.mean(coords, axis=0)
+        app.logger.info(
+            f"AutoSite binding site for {pdb_id}: {{'x': {centroid[0]}, 'y': {centroid[1]}, 'z': {centroid[2]}}}"
+        )
+        return {
+            "x": float(centroid[0]),
+            "y": float(centroid[1]),
+            "z": float(centroid[2])
+        }
+
     except subprocess.CalledProcessError as e:
-        app.logger.error(f"fpocket failed for {pdb_id}: {e.stderr}")
+        app.logger.error(f"AutoSite failed for {pdb_id}: {e.stderr}")
         return {"x": 0, "y": 0, "z": 0}
     except Exception as e:
-        app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
+        app.logger.error(f"AutoSite failed for {pdb_id}: {str(e)}")
         return {"x": 0, "y": 0, "z": 0}
     finally:
-        for path in [temp_pdb_path, output_dir_path]:
+        # Clean up temporary files
+        for path in [temp_pdb_path, output_pdb_path]:
             if os.path.exists(path):
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    os.remove(path)
+                os.remove(path)
+                app.logger.info(f"Cleaned up: {path}")
 
 
 @app.route('/api/get_interaction_data', methods=['GET'])
