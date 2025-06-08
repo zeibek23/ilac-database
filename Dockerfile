@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
 # Install fpocket2
 RUN wget https://sourceforge.net/projects/fpocket/files/fpocket2.tar.gz/download -O fpocket2.tar.gz && \
     tar -xzf fpocket2.tar.gz && \
+    mv fpocket* fpocket2 && \
     cd fpocket2 && \
     make && \
     make install && \
