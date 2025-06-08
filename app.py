@@ -8260,19 +8260,15 @@ def get_receptor_structure():
     }), 200
     
 def get_pocket_coords(pdb_content, pdb_id):
-    """
-    Predict binding site coordinates using AutoSite (OpenBabel).
-    Returns centroid coordinates of the predicted binding site.
-    """
+    temp_pdb_path = None
+    output_pdb_path = None
     try:
-        # Check if OpenBabel is available
         obabel_path = shutil.which("obabel")
         app.logger.info(f"PATH: {os.environ.get('PATH')}")
         app.logger.info(f"obabel binary: {obabel_path}")
         if not obabel_path:
-            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
+            raise FileNotFoundError("Open Babel (obabel) not found in PATH.")
 
-        # Write PDB content to temporary file
         temp_pdb = f"temp_{pdb_id}.pdb"
         temp_pdb_path = os.path.abspath(temp_pdb)
         with open(temp_pdb_path, "w") as f:
@@ -8280,7 +8276,6 @@ def get_pocket_coords(pdb_content, pdb_id):
         if not os.path.exists(temp_pdb_path):
             raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-        # Run AutoSite to predict binding site
         output_pdb = f"autosite_{pdb_id}.pdb"
         output_pdb_path = os.path.abspath(output_pdb)
         autosite_cmd = [obabel_path, temp_pdb_path, "-O", output_pdb_path, "--autosite"]
@@ -8293,11 +8288,9 @@ def get_pocket_coords(pdb_content, pdb_id):
         )
         app.logger.info(f"AutoSite output: {result.stdout}")
 
-        # Check if output file was created
         if not os.path.exists(output_pdb_path):
             raise FileNotFoundError(f"AutoSite output not found: {output_pdb_path}")
 
-        # Parse AutoSite output for binding site coordinates
         coords = []
         with open(output_pdb_path, "r") as f:
             for line in f:
@@ -8315,7 +8308,6 @@ def get_pocket_coords(pdb_content, pdb_id):
             app.logger.error(f"No valid coordinates found in {output_pdb_path}")
             return {"x": 0, "y": 0, "z": 0}
 
-        # Calculate centroid of the binding site
         centroid = np.mean(coords, axis=0)
         app.logger.info(
             f"AutoSite binding site for {pdb_id}: {{'x': {centroid[0]}, 'y': {centroid[1]}, 'z': {centroid[2]}}}"
@@ -8325,7 +8317,6 @@ def get_pocket_coords(pdb_content, pdb_id):
             "y": float(centroid[1]),
             "z": float(centroid[2])
         }
-
     except subprocess.CalledProcessError as e:
         app.logger.error(f"AutoSite failed for {pdb_id}: {e.stderr}")
         return {"x": 0, "y": 0, "z": 0}
@@ -8333,11 +8324,13 @@ def get_pocket_coords(pdb_content, pdb_id):
         app.logger.error(f"AutoSite failed for {pdb_id}: {str(e)}")
         return {"x": 0, "y": 0, "z": 0}
     finally:
-        # Clean up temporary files
         for path in [temp_pdb_path, output_pdb_path]:
-            if os.path.exists(path):
-                os.remove(path)
-                app.logger.info(f"Cleaned up: {path}")
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                    app.logger.info(f"Cleaned up: {path}")
+                except Exception as e:
+                    app.logger.warning(f"Failed to clean up {path}: {str(e)}")
 
 
 @app.route('/api/get_interaction_data', methods=['GET'])
