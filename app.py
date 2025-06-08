@@ -80,7 +80,7 @@ from flask_login import current_user, login_required
 from pydantic import BaseModel, field_validator, ValidationError
 from typing import List, Optional
 from http import HTTPStatus
-from Bio.PDB import PDBParser
+from Bio.PDB import PDBParser, PDBIO
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 from scipy.integrate import odeint
