@@ -88,8 +88,9 @@
         </div>
     </div>
     <h2 class="text-center text-secondary mb-4">Mevcut Etkileşimler</h2>
-    <div class="mb-3">
-        <input type="text" id="searchInput" class="form-control" placeholder="Etkileşimlerde ara..." />
+    <div class="mb-3 d-flex justify-content-between">
+        <input type="text" id="searchInput" class="form-control w-50" placeholder="Etkileşimlerde ara..." />
+        <button id="deleteAllBtn" class="btn btn-danger">Tüm Etkileşimleri Sil</button>
     </div>
     <table id="interactionsTable" class="table table-bordered">
         <thead>
@@ -281,6 +282,23 @@ $(document).ready(function () {
                 alert('Etkileşim eklenirken bir hata oluştu: ' + xhr.responseText);
             }
         });
+    });
+
+    // Delete All Interactions button handler
+    $('#deleteAllBtn').on('click', function () {
+        if (confirm('Tüm etkileşimleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+            $.ajax({
+                url: '/interactions/delete_all',
+                type: 'POST',
+                success: function () {
+                    table.ajax.reload(); // Refresh the DataTable
+                    alert('Tüm etkileşimler başarıyla silindi.');
+                },
+                error: function (xhr) {
+                    alert('Etkileşimler silinirken bir hata oluştu: ' + xhr.responseText);
+                }
+            });
+        }
     });
 });
 </script>
