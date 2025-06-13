@@ -86,6 +86,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, date
 from scipy.integrate import odeint
 from functools import wraps, lru_cache
+from markupsafe import Markup
 import sqlalchemy
 from sqlalchemy import and_, or_, nullslast, extract, inspect
 from rdkit import Chem
@@ -270,6 +271,7 @@ class DrugDetail(db.Model):
     half_life = db.Column(db.Float, nullable=True)  # Hours
     clearance_rate = db.Column(db.Float, nullable=True)  # mL/min
     bioavailability = db.Column(db.Float, nullable=True)  # Fraction (0-1)
+    references = db.Column(db.Text, nullable=True)  # New references field
 
     # İlişkiler
     drug = db.relationship('Drug', backref=db.backref('details', lazy=True))
@@ -1551,6 +1553,14 @@ def add_detail():
                     tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
                     attributes={'span': ['style'], 'a': ['href']}
                 ) if request.form.get('mechanism_of_action') else None
+            
+            # Sanitize references field
+            references = bleach.clean(
+                request.form.get('references'),
+                tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                attributes={'span': ['style'], 'a': ['href']},
+                styles=['color', 'background-color']
+            ) if request.form.get('references') else None
 
             smiles = request.form.get('smiles')
             logger.debug(f"SMILES received: {smiles}")
@@ -1685,7 +1695,7 @@ def add_detail():
                 black_box_details=black_box_details, indications=indications, target_molecules=target_molecules,
                 pharmacokinetics=pharmacokinetics, boiling_point=boiling_point, melting_point=melting_point,
                 density=density, flash_point=flash_point, fda_approved=fda_approved,
-                ema_approved=ema_approved, titck_approved=titck_approved
+                ema_approved=ema_approved, titck_approved=titck_approved, references=references
             )
             db.session.add(new_detail)
             db.session.commit()
@@ -2008,7 +2018,8 @@ def view_details():
             'routes': routes_info,
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
-            'mechanism_of_action': detail.mechanism_of_action  # Added for completeness
+            'mechanism_of_action': detail.mechanism_of_action,
+            'references': detail.references  #Last added section
         })
 
     return render_template('details_list.html', details=enriched_details)
@@ -3094,6 +3105,7 @@ def drug_detail(drug_id):
             'side_effects': side_effects_list,
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
+            'references': detail.references  # Add this line
         })
 
     return render_template(
@@ -7987,14 +7999,26 @@ def parse_kegg_details(raw_data):
     return details
 
 
+#ANNOUNCEMENT SECTION!!!
+def wrap_plain_text(text):
+    """Wrap plain text in <p> tags if it’s not already HTML."""
+    # Check if the text contains HTML tags
+    if text.strip() and not text.startswith('<') and not text.endswith('>'):
+        return f'<p>{text}</p>'
+    return text
 
 @app.route('/news/manage', methods=['GET', 'POST'])
 @admin_required
 def manage_news():
     if request.method == 'POST':
-        # Add new news entry
         title = request.form['title']
-        description = request.form['description']
+        raw_description = request.form['description']
+        # Wrap plain text in <p> if needed
+        description = wrap_plain_text(raw_description)
+        # Sanitize HTML
+        allowed_tags = ['p', 'strong', 'em', 'u', 'span', 'a', 'ul', 'ol', 'li']
+        allowed_attributes = {'a': ['href'], 'span': ['style']}
+        description = bleach.clean(description, tags=allowed_tags, attributes=allowed_attributes)
         category = request.form['category']
         publication_date = request.form['publication_date']
         news_item = News(
@@ -8008,20 +8032,23 @@ def manage_news():
         flash("News item added successfully.", "success")
         return redirect(url_for('manage_news'))
 
-    # Fetch announcements and updates
     announcements = News.query.filter_by(category='Announcement').order_by(News.publication_date.desc()).all()
     updates = News.query.filter_by(category='Update').order_by(News.publication_date.desc()).all()
     return render_template('manage_news.html', announcements=announcements, updates=updates)
 
-# Route for editing news
 @app.route('/news/edit/<int:news_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_news(news_id):
     news_item = News.query.get_or_404(news_id)
     if request.method == 'POST':
-        # Update the news item
         news_item.title = request.form['title']
-        news_item.description = request.form['description']
+        raw_description = request.form['description']
+        # Wrap plain text in <p> if needed
+        description = wrap_plain_text(raw_description)
+        # Sanitize HTML
+        allowed_tags = ['p', 'strong', 'em', 'u', 'span', 'a', 'ul', 'ol', 'li']
+        allowed_attributes = {'a': ['href'], 'span': ['style']}
+        news_item.description = bleach.clean(description, tags=allowed_tags, attributes=allowed_attributes)
         news_item.category = request.form['category']
         news_item.publication_date = datetime.strptime(request.form['publication_date'], '%Y-%m-%d')
         db.session.commit()
