@@ -151,7 +151,7 @@
                         <thead>
                             <tr>
                                 <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
-                                <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th> <!-- New Column -->
+                                <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th> 
                                 <th><i class="fas fa-vial section-icon"></i>Salt</th>
                                 <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
                                 <th><i class="fas fa-info-circle section-icon"></i>Warning Details</th>
@@ -184,6 +184,7 @@
                                 <th><i class="fas fa-check-circle section-icon"></i>EMA Approved</th>
                                 <th><i class="fas fa-check-circle section-icon"></i>TITCK Approved</th>
                                 <th><i class="fas fa-route section-icon"></i>Routes & Indications</th>
+                                <th><i class="fas fa-book section-icon"></i>References</th> 
                                 <th><i class="fas fa-cog section-icon"></i>Actions</th>
                             </tr>
                         </thead>
@@ -325,6 +326,7 @@
                                     <span class="text-gray-500">No Data</span>
                                     {% endif %}
                                 </td>
+                                <td class="rich-text">{{ detail.references|safe if detail.references else 'N/A' }}</td> <!-- Add this line -->
                                 <td>
                                     <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600">
                                         <i class="fas fa-edit mr-1"></i>Update
@@ -364,7 +366,7 @@
                 pageLength: 10,
                 scrollX: true,
                 columnDefs: [
-                    { width: '200px', targets: [26, 27, 28, 32] }, // Adjusted for new column (indications, side effects, targets, routes)
+                    { width: '200px', targets: [26, 27, 28, 32, 34] }, // Adjusted for new column (indications, side effects, targets, routes)
                     { width: '100px', targets: [8, 10] }, // Synthesis, SMILES
                     { width: '120px', targets: [6] }, // 3D Structure column
                     { width: '150px', targets: [1] } // Mechanism of Action column

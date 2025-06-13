@@ -428,27 +428,27 @@
         </div>
     </div>
 
-    <!-- News Section -->
-    <div class="news-section container" id="news">
-        <h2>Latest News & Updates</h2>
-        <div class="row mt-4">
-            {% for news in announcements + updates %}
-            <div class="col-md-6">
-                <div class="card news-card p-3">
-                    <span class="news-type-badge {{ 'news' if news in announcements else 'update' }}">
-                        {{ 'News' if news in announcements else 'Update' }}
-                    </span>
-                    <h5>{{ news.title }}</h5>
-                    <p>{{ news.description }}</p>
-                    <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
-                </div>
+<!-- News Section -->
+<div class="news-section container" id="news">
+    <h2>Latest News & Updates</h2>
+    <div class="row mt-4">
+        {% for news in announcements + updates %}
+        <div class="col-md-6">
+            <div class="card news-card p-3">
+                <span class="news-type-badge {{ 'news' if news in announcements else 'update' }}">
+                    {{ 'News' if news in announcements else 'Update' }}
+                </span>
+                <h5>{{ news.title }}</h5>
+                <p>{{ news.description | safe }}</p> <!-- Add | safe to render HTML -->
+                <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
             </div>
-            {% endfor %}
-            {% if not (announcements or updates) %}
-            <p class="text-center">No news available at the moment. Stay tuned!</p>
-            {% endif %}
         </div>
+        {% endfor %}
+        {% if not (announcements or updates) %}
+        <p class="text-center">No news available at the moment. Stay tuned!</p>
+        {% endif %}
     </div>
+</div>
 
     <!-- Footer -->
     <footer>

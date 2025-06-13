@@ -228,6 +228,13 @@
                 <!-- Bu alan dinamik olarak doldurulacak -->
             </div>
 
+            <!-- References -->
+            <div class="mb-3">
+                <label for="references" class="form-label" data-bs-toggle="tooltip" title="References or sources for the drug information">References</label>
+                <div id="references_editor" style="height: 200px;"></div>
+                <input type="hidden" id="references" name="references">
+            </div>
+
             <div class="text-center mt-4">
                 <button type="submit" class="btn btn-primary">Save</button>
             </div>
@@ -256,7 +263,10 @@
                 theme: 'snow',
                 modules: { toolbar: toolbarOptions }
             });
-
+            const referencesQuill = new Quill('#references_editor', {
+                theme: 'snow',
+                modules: { toolbar: toolbarOptions }
+            });
             const pkQuill = new Quill('#pharmacokinetics_editor', {
                 theme: 'snow',
                 modules: { toolbar: toolbarOptions }
@@ -273,6 +283,7 @@
                 $('#pharmacodynamics').val(pdQuill.root.innerHTML);
                 $('#pharmacokinetics').val(pkQuill.root.innerHTML);
                 $('#synthesis').val(synthesisQuill.root.innerHTML);
+                $('#references').val(referencesQuill.root.innerHTML);
             });
 
             // Initialize tooltips
