@@ -3,10 +3,16 @@
 <head>
     <title>Advanced CDSS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
     <style>
         .severity-low { background-color: #d4edda; }
         .severity-moderate { background-color: #fff3cd; }
         .severity-severe { background-color: #f8d7da; }
+        .select2-container { width: 100% !important; }
+        .select2-selection__choice { font-size: 0.9rem; }
+        .select2-selection__rendered { line-height: 1.5 !important; }
+        .select2-results__option small { color: #6c757d; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -22,21 +28,21 @@
             <div class="row mb-3">
                 <div class="col">
                     <label for="age" class="form-label">Age</label>
-                    <input type="number" class="form-control" id="age" name="age" min="0" value="30" required>
+                    <input type="number" class="form-control" id="age" name="age" min="0" value="{{ request.form.get('age', 30) }}" required>
                 </div>
                 <div class="col">
                     <label for="weight" class="form-label">Weight (kg)</label>
-                    <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="0" value="70.0" required>
+                    <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="0" value="{{ request.form.get('weight', 70.0) }}" required>
                 </div>
                 <div class="col">
                     <label for="crcl" class="form-label">Creatinine Clearance (mL/min, optional)</label>
-                    <input type="number" class="form-control" id="crcl" name="crcl" step="0.1" min="0" placeholder="Auto-calculated if blank">
+                    <input type="number" class="form-control" id="crcl" name="crcl" step="0.1" min="0" placeholder="Auto-calculated if blank" value="{{ request.form.get('crcl', '') }}">
                 </div>
                 <div class="col">
                     <label for="gender" class="form-label">Gender</label>
                     <select class="form-control" id="gender" name="gender" required>
-                        <option value="M">Male</option>
-                        <option value="F">Female</option>
+                        <option value="M" {% if request.form.get('gender', 'M') == 'M' %}selected{% endif %}>Male</option>
+                        <option value="F" {% if request.form.get('gender', 'M') == 'F' %}selected{% endif %}>Female</option>
                     </select>
                 </div>
             </div>
@@ -44,28 +50,51 @@
             <div class="mb-3">
                 <label for="indications" class="form-label">Existing Conditions</label>
                 <select class="form-control" id="indications" name="indications" multiple>
-                    {% for indication in indications %}
-                    <option value="{{ indication.id }}">{{ indication.name_en }}</option>
-                    {% endfor %}
+                    {% if request.form.getlist('indications') %}
+                        {% for ind_id in request.form.getlist('indications') %}
+                            {% set indication = indications|selectattr('id', 'equalto', ind_id|int)|first %}
+                            {% if indication %}
+                                <option value="{{ indication.id }}" selected>{{ indication.name_en }} ({{ indication.code or 'N/A' }})</option>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                 </select>
-                <small class="form-text text-muted">Hold Ctrl (or Cmd) to select multiple</small>
+                <small class="form-text text-muted">Type to search and select multiple conditions</small>
             </div>
-
+            <div class="mb-3">
+                <label for="lab_tests" class="form-label">Select Lab Tests</label>
+                <select class="form-control" id="lab_tests" name="lab_tests" multiple>
+                    {% if request.form.getlist('lab_tests') %}
+                        {% for test_id in request.form.getlist('lab_tests') %}
+                            {% set lab_test = lab_tests|selectattr('id', 'equalto', test_id|int)|first %}
+                            {% if lab_test %}
+                                <option value="{{ lab_test.id }}" selected>{{ lab_test.name_en }} ({{ lab_test.unit or 'N/A' }})</option>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </select>
+                <small class="form-text text-muted">Type to search and select multiple lab tests</small>
+            </div>
             <div class="mb-3">
                 <label for="drugs" class="form-label">Select Drugs</label>
                 <select class="form-control" id="drugs" name="drugs" multiple required>
-                    {% for drug in drugs %}
-                    <option value="{{ drug.id }}">{{ drug.name_en }}</option>
-                    {% endfor %}
+                    {% if request.form.getlist('drugs') %}
+                        {% for drug_id in request.form.getlist('drugs') %}
+                            {% set drug = drugs|selectattr('id', 'equalto', drug_id|int)|first %}
+                            {% if drug %}
+                                <option value="{{ drug.id }}" selected>{{ drug.name_en }} ({{ drug.name_tr }})</option>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                 </select>
-                <small class="form-text text-muted">Hold Ctrl (or Cmd) to select multiple</small>
+                <small class="form-text text-muted">Type to search and select multiple drugs</small>
             </div>
             <div class="mb-3">
                 <label for="route_id" class="form-label">Route of Administration</label>
                 <select class="form-control" id="route_id" name="route_id">
                     <option value="">General</option>
                     {% for route in routes %}
-                    <option value="{{ route.id }}">{{ route.name }}</option>
+                        <option value="{{ route.id }}" {% if request.form.get('route_id')|string == route.id|string %}selected{% endif %}>{{ route.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -73,39 +102,146 @@
             <button type="submit" class="btn btn-primary">Analyze</button>
         </form>
 
+        <!-- Debug output for form data -->
+        {% if request.method == 'POST' %}
+            <p class="text-muted">Debug: Selected drugs={{ request.form.getlist('drugs') }}, conditions={{ request.form.getlist('indications') }}</p>
+        {% endif %}
+
         {% if interaction_results %}
-        <h3 class="mt-4">Interaction Results</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Type</th>
-                    <th>Drug</th>
-                    <th>Related To</th>
-                    <th>Base Severity</th>
-                    <th>Predicted Severity</th>
-                    <th>Description</th>
-                    <th>Monitoring</th>
-                    <th>Alternatives</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for result in interaction_results %}
-                <tr class="{% if result.predicted_severity == 'Severe' %}severity-severe{% elif result.predicted_severity == 'Moderate' %}severity-moderate{% else %}severity-low{% endif %}">
-                    <td>{{ result.type }}</td>
-                    <td>{{ result.drug1 }}</td>
-                    <td>{{ result.drug2 }}</td>
-                    <td>{{ result.severity }}</td>
-                    <td>{{ result.predicted_severity }}</td>
-                    <td>{{ result.description }}</td>
-                    <td>{{ result.monitoring }}</td>
-                    <td>{{ result.alternatives }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+            <h3 class="mt-4">Interaction Results</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Drug</th>
+                        <th>Related To</th>
+                        <th>Base Severity</th>
+                        <th>Predicted Severity</th>
+                        <th>Description</th>
+                        <th>Monitoring</th>
+                        <th>Alternatives</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in interaction_results %}
+                    <tr class="{% if result.predicted_severity == 'Severe' %}severity-severe{% elif result.predicted_severity == 'Moderate' %}severity-moderate{% else %}severity-low{% endif %}">
+                        <td>{{ result.type }}</td>
+                        <td>{{ result.drug1 }}</td>
+                        <td>{{ result.drug2 }}</td>
+                        <td>{{ result.severity }}</td>
+                        <td>{{ result.predicted_severity }}</td>
+                        <td>{{ result.description }}</td>
+                        <td>{{ result.monitoring }}</td>
+                        <td>{{ result.alternatives }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% elif request.method == 'POST' %}
+            <div class="alert alert-info mt-4">No interactions found for the selected drugs and conditions.</div>
         {% endif %}
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2 for Drugs
+            $('#drugs').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Search for drugs...',
+                minimumInputLength: 2,
+                allowClear: true,
+                ajax: {
+                    url: '{{ url_for("get_active_ingredients") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            q: params.term,
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.results,
+                            pagination: { more: data.pagination.more }
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+            $('#lab_tests').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Search for lab tests...',
+                minimumInputLength: 2,
+                allowClear: true,
+                ajax: {
+                    url: '{{ url_for("search_lab_tests") }}', // Add this endpoint
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            q: params.term,
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.results,
+                            pagination: { more: data.pagination.more }
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+
+            // Initialize Select2 for Indications
+            $('#indications').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Search for conditions...',
+                minimumInputLength: 2,
+                allowClear: true,
+                ajax: {
+                    url: '{{ url_for("search_indications") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return {
+                            search: params.term,
+                            page: params.page || 1
+                        };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.results,
+                            pagination: { more: data.has_next }
+                        };
+                    },
+                    cache: true
+                },
+                templateResult: function(data) {
+                    if (!data.id) return data.text;
+                    var indent = '  '.repeat(data.depth || 0);
+                    var classKind = data.class_kind ? ` (${data.class_kind})` : '';
+                    return $('<span>' + indent + data.text + classKind + '</span>');
+                },
+                escapeMarkup: function(markup) {
+                    return markup;
+                }
+            });
+            
+            // Ensure form validation works with Select2
+            $('form').on('submit', function(e) {
+                if (!$('#drugs').val()) {
+                    e.preventDefault();
+                    alert('Please select at least one drug.');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
