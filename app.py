@@ -414,6 +414,32 @@ class DrugDiseaseInteraction(db.Model):
     drug = db.relationship("Drug", backref="disease_interactions")
     indication = db.relationship("Indication", backref="drug_interactions")      
 
+# New Model for Drug-Lab Test Interactions
+class LabTest(db.Model):
+    __tablename__ = 'lab_test'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    name_en = db.Column(db.String(255), nullable=False)
+    name_tr = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    reference_range = db.Column(db.String(100), nullable=True)  # e.g., "3.5-5.0 g/dL"
+    unit = db.Column(db.String(50), nullable=True)  # e.g., "g/dL"
+
+class DrugLabTestInteraction(db.Model):
+    __tablename__ = 'drug_lab_test_interaction'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    lab_test_id = db.Column(db.Integer, db.ForeignKey('public.lab_test.id'), nullable=False)
+    interaction_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)  # Changed to foreign key
+    recommendation = db.Column(db.Text, nullable=True)
+    reference = db.Column(db.Text, nullable=True)
+    drug = db.relationship("Drug", backref="lab_test_interactions")
+    lab_test = db.relationship("LabTest", backref="drug_interactions")
+    severity = db.relationship("Severity", backref="lab_test_interactions")
+
 
 class DrugRoute(db.Model):
     __tablename__ = 'drug_route'
@@ -4078,124 +4104,90 @@ def get_interactions():
 
 
 
-
+# Updated /cdss/advanced Route
 @app.route('/cdss/advanced', methods=['GET', 'POST'])
+@login_required
 def cdss_advanced():
     drugs = Drug.query.all()
     routes = RouteOfAdministration.query.all()
     indications = Indication.query.all()
+    lab_tests = LabTest.query.all()
     interaction_results = None
+    error = None
 
     if request.method == 'POST':
-        age = request.form.get('age', type=int, default=30)
-        weight = request.form.get('weight', type=float, default=70.0)
-        crcl = request.form.get('crcl', type=float, default=None)
-        gender = request.form.get('gender', default='M')
-        selected_indications = request.form.getlist('indications')  # Condition IDs
-        selected_drugs = request.form.getlist('drugs')
-        selected_route = request.form.get('route_id')
+        try:
+            age = request.form.get('age', type=int, default=30)
+            weight = request.form.get('weight', type=float, default=70.0)
+            crcl = request.form.get('crcl', type=float, default=None)
+            gender = request.form.get('gender', default='M')
+            selected_drugs = request.form.getlist('drugs')
+            selected_indications = request.form.getlist('indications')
+            selected_lab_tests = request.form.getlist('lab_tests')
+            selected_route = request.form.get('route_id')
 
-        if age < 0 or weight <= 0 or (crcl is not None and crcl < 0):
-            return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
-                                 indications=indications, interaction_results=None, 
-                                 error="Invalid input—check age, weight, or CrCl!")
+            logger.debug(f"Form data: drugs={selected_drugs}, indications={selected_indications}, "
+                        f"lab_tests={selected_lab_tests}, route={selected_route}, age={age}, "
+                        f"weight={weight}, crcl={crcl}, gender={gender}")
 
-        if crcl is None and age and weight and gender:
-            crcl = calculate_crcl(age, weight, gender)
+            # Input validation
+            if age < 0 or weight <= 0 or (crcl is not None and crcl < 0):
+                logger.warning("Invalid input detected")
+                error = "Invalid input—check age, weight, or CrCl!"
+            elif not selected_drugs:
+                error = "At least one drug must be selected!"
 
-        interaction_results = analyze_interactions(
-            selected_drugs, selected_route, age, weight, crcl, 
-            [int(i) for i in selected_indications]
-        )
+            if error:
+                return render_template('cdss_advanced.html', drugs=drugs, routes=routes,
+                                     indications=indications, lab_tests=lab_tests,
+                                     interaction_results=None, error=error)
 
-    return render_template('cdss_advanced.html', drugs=drugs, routes=routes, 
-                         indications=indications, interaction_results=interaction_results)
+            # Calculate CrCl if not provided
+            if crcl is None and age and weight and gender:
+                crcl = calculate_crcl(age, weight, gender)
 
+            # Analyze all interactions
+            interaction_results = analyze_interactions(
+                selected_drugs=selected_drugs,
+                route_id=selected_route,
+                age=age,
+                weight=weight,
+                crcl=crcl,
+                conditions=[int(i) for i in selected_indications if i],
+                lab_tests=[int(t) for t in selected_lab_tests if t]
+            )
+            logger.debug(f"Interaction results: {len(interaction_results)} found")
+
+        except Exception as e:
+            logger.error(f"Error processing CDSS request: {str(e)}")
+            error = "An error occurred while processing your request."
+
+    return render_template('cdss_advanced.html', drugs=drugs, routes=routes,
+                         indications=indications, lab_tests=lab_tests,
+                         interaction_results=interaction_results, error=error)
+
+# Helper Functions
 def calculate_crcl(age, weight, gender, serum_creatinine=1.0):
     """Calculate CrCl using Cockcroft-Gault formula."""
-    if gender.upper() == 'F':
-        factor = 0.85
-    else:
-        factor = 1.0
+    factor = 0.85 if gender.upper() == 'F' else 1.0
     return ((140 - age) * weight * factor) / (72 * serum_creatinine)
 
-def analyze_interactions(drug_ids, route_id, age, weight, crcl, conditions):
-    results = []
-    drug_ids = [int(d) for d in drug_ids]
-
-    # 1. Multi-Drug Interactions
-    for drug1_id, drug2_id in combinations(drug_ids, 2):
-        interactions = DrugInteraction.query.filter(
-            db.or_(
-                db.and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
-                db.and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
-            )
-        ).filter(
-            db.or_(DrugInteraction.route_id == route_id, DrugInteraction.route_id == None)
-        ).all()
-
-        for interaction in interactions:
-            drug1 = Drug.query.get(drug1_id)
-            drug2 = Drug.query.get(drug2_id)
-            detail1 = DrugDetail.query.filter_by(drug_id=drug1_id).first() or DrugDetail()
-            detail2 = DrugDetail.query.filter_by(drug_id=drug2_id).first() or DrugDetail()
-
-            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl)
-
-            result = {
-                'type': 'Drug-Drug Interaction',
-                'drug1': drug1.name_en,
-                'drug2': drug2.name_en,
-                'route': RouteOfAdministration.query.get(route_id).name if route_id else "General",
-                'interaction_type': interaction.interaction_type,
-                'description': interaction.interaction_description,
-                'severity': interaction.severity,
-                'predicted_severity': adjust_severity(interaction.severity, age, crcl),
-                'peak_risk': interaction.time_to_peak or time_points[risk_profile.argmax()],
-                'risk_profile': list(zip(time_points, risk_profile)),
-                'mechanism': interaction.mechanism or "Not Provided",
-                'monitoring': interaction.monitoring or "Not Provided",
-                'alternatives': interaction.alternatives or "Not Provided",
-                'reference': interaction.reference or "Not Provided"
-            }
-            results.append(result)
-
-    # 2. Condition Checks (Only this remains!)
-    condition_risks = {
-        "renal failure": {"severity_boost": 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
-        "liver disease": {"severity_boost": 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
-        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"}
-    }
-
-    if conditions:
-        for drug_id in drug_ids:
-            drug = Drug.query.get(drug_id)
-            for condition_id in conditions:
-                condition = Indication.query.get(condition_id)
-                if condition and condition.name_en.lower() in condition_risks:  # Fixed to name_en
-                    risk_info = condition_risks[condition.name_en.lower()]
-                    base_severity = "Moderate"
-                    adjusted_severity = adjust_severity(base_severity, age, crcl, boost=risk_info["severity_boost"])
-                    results.append({
-                        'type': 'Drug-Condition Alert',
-                        'drug1': drug.name_en,
-                        'drug2': condition.name_en,  # Fixed to name_en
-                        'route': "N/A",
-                        'interaction_type': "Potential Risk",
-                        'description': f"Caution: {drug.name_en} with {condition.name_en}. {risk_info['desc']}",
-                        'severity': base_severity,
-                        'predicted_severity': adjusted_severity,
-                        'peak_risk': 0,
-                        'risk_profile': [(0, 2 + risk_info["severity_boost"])],
-                        'mechanism': "Condition-Drug Interaction",
-                        'monitoring': risk_info["monitoring"],
-                        'alternatives': "Consider alternative therapy",
-                        'reference': "Clinical guideline"
-                    })
-
-    return results
+def adjust_severity(base_severity, age, crcl, boost=0):
+    """Adjust severity based on patient factors."""
+    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}
+    score = severity_map.get(base_severity, 2) + boost
+    if age > 75 or crcl < 30:
+        score += 1
+    elif age < 18:
+        score += 0.5
+    if score >= 3:
+        return "Severe"
+    elif score >= 2:
+        return "Moderate"
+    return "Hafif"
 
 def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl):
+    """Simulate pharmacokinetic interaction risk profile."""
     half_life1 = detail1.half_life or 4.0
     half_life2 = detail2.half_life or 4.0
     clearance1 = detail1.clearance_rate or 100.0
@@ -4222,23 +4214,403 @@ def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl):
     time_points = np.linspace(0, 24, 100)
     conc1 = bioavail1 * np.exp(-np.log(2) / half_life1 * time_points) * clearance1
     conc2 = bioavail2 * np.exp(-np.log(2) / half_life2 * time_points) * clearance2
-    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}.get(interaction.severity, 1)
+    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}.get(interaction.severity_level.name, 1)
     risk_profile = base_risk * conc1 * conc2 * (1 if crcl > 30 else 1.5)
     return time_points, risk_profile
 
-def adjust_severity(base_severity, age, crcl, boost=0):
-    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}
-    score = severity_map.get(base_severity, 2) + boost
-    if age > 75 or crcl < 30:
-        score += 1
-    elif age < 18:
-        score += 0.5
-    if score >= 3:
-        return "Severe"
-    elif score >= 2:
-        return "Moderate"
-    return "Hafif"
+def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions, lab_tests):
+    """Analyze drug-drug, drug-disease, and drug-lab test interactions."""
+    results = []
+    drug_ids = [int(d) for d in selected_drugs if d]
+    severity_map_db_to_func = {'Hafif': 'Hafif', 'Orta': 'Moderate', 'Şiddetli': 'Severe', 'Kritik': 'Severe'}
 
+    # 1. Drug-Drug Interactions
+    for drug1_id, drug2_id in combinations(drug_ids, 2):
+        interactions = DrugInteraction.query.filter(
+            or_(
+                and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+            )
+        ).join(
+            interaction_route,
+            DrugInteraction.id == interaction_route.c.interaction_id
+        ).filter(
+            or_(interaction_route.c.route_id == route_id, interaction_route.c.route_id == None)
+        ).all()
+
+        for interaction in interactions:
+            drug1 = Drug.query.get(drug1_id)
+            drug2 = Drug.query.get(drug2_id)
+            detail1 = DrugDetail.query.filter_by(drug_id=drug1_id).first() or DrugDetail()
+            detail2 = DrugDetail.query.filter_by(drug_id=drug2_id).first() or DrugDetail()
+
+            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl)
+
+            result = {
+                'type': 'Drug-Drug Interaction',
+                'drug1': drug1.name_en,
+                'drug2': drug2.name_en,
+                'route': RouteOfAdministration.query.get(route_id).name if route_id else "General",
+                'interaction_type': interaction.interaction_type,
+                'description': interaction.interaction_description,
+                'severity': severity_map_db_to_func.get(interaction.severity_level.name, 'Moderate'),
+                'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity_level.name, 'Moderate'), age, crcl),
+                'peak_risk': interaction.time_to_peak or time_points[risk_profile.argmax()],
+                'risk_profile': list(zip(time_points, risk_profile)),
+                'mechanism': interaction.mechanism or "Not Provided",
+                'monitoring': interaction.monitoring or "Not Provided",
+                'alternatives': interaction.alternatives or "Not Provided",
+                'reference': interaction.reference or "Not Provided"
+            }
+            results.append(result)
+
+    # 2. Drug-Disease Interactions
+    for drug_id in drug_ids:
+        for condition_id in conditions:
+            interaction = DrugDiseaseInteraction.query.filter_by(
+                drug_id=drug_id, indication_id=condition_id
+            ).first()
+            if interaction:
+                drug = Drug.query.get(drug_id)
+                condition = Indication.query.get(condition_id)
+                result = {
+                    'type': 'Drug-Disease Interaction',
+                    'drug1': drug.name_en,
+                    'drug2': condition.name_en,
+                    'route': "N/A",
+                    'interaction_type': interaction.interaction_type,
+                    'description': interaction.description or "No description provided",
+                    'severity': severity_map_db_to_func.get(interaction.severity, 'Moderate'),
+                    'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity, 'Moderate'), age, crcl),
+                    'peak_risk': 0,
+                    'risk_profile': [(0, 2)],
+                    'mechanism': "Drug-Disease Interaction",
+                    'monitoring': interaction.recommendation or "Not Provided",
+                    'alternatives': "Consider alternative therapy",
+                    'reference': "Database entry"
+                }
+                results.append(result)
+
+    # 3. Drug-Lab Test Interactions
+    for drug_id in drug_ids:
+        for lab_test_id in lab_tests:
+            interaction = DrugLabTestInteraction.query.filter_by(
+                drug_id=drug_id, lab_test_id=lab_test_id
+            ).first()
+            if interaction:
+                drug = Drug.query.get(drug_id)
+                lab_test = LabTest.query.get(lab_test_id)
+                result = {
+                    'type': 'Drug-Lab Test Interaction',
+                    'drug1': drug.name_en,
+                    'drug2': lab_test.name_en,
+                    'route': "N/A",
+                    'interaction_type': interaction.interaction_type,
+                    'description': interaction.description or "No description provided",
+                    'severity': severity_map_db_to_func.get(interaction.severity, 'Moderate'),
+                    'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity, 'Moderate'), age, crcl),
+                    'peak_risk': 0,
+                    'risk_profile': [(0, 2)],
+                    'mechanism': "Drug-Lab Test Interference",
+                    'monitoring': interaction.recommendation or "Confirm with alternative test",
+                    'alternatives': "Use alternative lab test if available",
+                    'reference': "Database entry"
+                }
+                results.append(result)
+
+    # 4. Condition Risk Checks
+    condition_risks = {
+        "renal failure": {"severity_boost": 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
+        "liver disease": {"severity_boost": 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
+        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"}
+    }
+
+    for drug_id in drug_ids:
+        drug = Drug.query.get(drug_id)
+        for condition_id in conditions:
+            condition = Indication.query.get(condition_id)
+            if condition and condition.name_en.lower() in condition_risks:
+                risk_info = condition_risks[condition.name_en.lower()]
+                base_severity = "Moderate"
+                adjusted_severity = adjust_severity(base_severity, age, crcl, boost=risk_info["severity_boost"])
+                result = {
+                    'type': 'Drug-Condition Alert',
+                    'drug1': drug.name_en,
+                    'drug2': condition.name_en,
+                    'route': "N/A",
+                    'interaction_type': "Potential Risk",
+                    'description': f"Caution: {drug.name_en} with {condition.name_en}. {risk_info['desc']}",
+                    'severity': base_severity,
+                    'predicted_severity': adjusted_severity,
+                    'peak_risk': 0,
+                    'risk_profile': [(0, 2 + risk_info["severity_boost"])],
+                    'mechanism': "Condition-Drug Interaction",
+                    'monitoring': risk_info["monitoring"],
+                    'alternatives': "Consider alternative therapy",
+                    'reference': "Clinical guideline"
+                }
+                results.append(result)
+
+    return results
+
+# New Route for Adding Lab Tests
+@app.route('/lab_test/add', methods=['GET', 'POST'])
+@login_required
+def add_lab_test():
+    if request.method == 'POST':
+        name_en = request.form.get('name_en')
+        name_tr = request.form.get('name_tr')
+        description = request.form.get('description')
+        reference_range = request.form.get('reference_range')
+        unit = request.form.get('unit')
+
+        if not name_en:
+            flash("English name is required!", "error")
+            return redirect(url_for('add_lab_test'))
+
+        try:
+            lab_test = LabTest(
+                name_en=name_en,
+                name_tr=name_tr,
+                description=description,
+                reference_range=reference_range,
+                unit=unit
+            )
+            db.session.add(lab_test)
+            db.session.commit()
+            flash("Lab test added successfully!", "success")
+            return redirect(url_for('list_lab_tests'))  # Assumes a list route exists
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding lab test: {str(e)}")
+            flash("An error occurred while adding the lab test.", "error")
+            return redirect(url_for('add_lab_test'))
+
+    return render_template('add_lab_test.html')
+
+@app.route('/lab_test/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_lab_test(id):
+    lab_test = LabTest.query.get_or_404(id)
+    if request.method == 'POST':
+        lab_test.name_en = request.form.get('name_en')
+        lab_test.name_tr = request.form.get('name_tr')
+        lab_test.description = request.form.get('description')
+        lab_test.reference_range = request.form.get('reference_range')
+        lab_test.unit = request.form.get('unit')
+
+        if not lab_test.name_en:
+            flash("English name is required!", "error")
+            return redirect(url_for('edit_lab_test', id=id))
+
+        try:
+            db.session.commit()
+            flash("Lab test updated successfully!", "success")
+            return redirect(url_for('list_lab_tests'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating lab test (ID: {id}): {str(e)}")
+            flash("An error occurred while updating the lab test.", "error")
+            return redirect(url_for('edit_lab_test', id=id))
+
+    return render_template('edit_lab_test.html', lab_test=lab_test)
+
+@app.route('/lab_test/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_lab_test(id):
+    lab_test = LabTest.query.get_or_404(id)
+    try:
+        db.session.delete(lab_test)
+        db.session.commit()
+        flash("Lab test deleted successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting lab test (ID: {id}): {str(e)}")
+        flash("An error occurred while deleting the lab test.", "error")
+    return redirect(url_for('list_lab_tests'))
+
+@app.route('/search_lab_tests', methods=['GET'])
+@login_required
+def search_lab_tests():
+    query = request.args.get('q', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    lab_tests = LabTest.query.filter(
+        or_(
+            LabTest.name_en.ilike(f'%{query}%'),
+            LabTest.name_tr.ilike(f'%{query}%')
+        )
+    ).paginate(page=page, per_page=per_page)
+    results = [
+        {'id': lt.id, 'text': f"{lt.name_en} ({lt.unit or 'N/A'})"}
+        for lt in lab_tests.items
+    ]
+    return jsonify({
+        'results': results,
+        'pagination': {'more': lab_tests.has_next}
+    })    
+
+# Updated Route for Adding Drug-Lab Test Interactions
+@app.route('/drug_lab_test/add', methods=['GET', 'POST'])
+@login_required
+def add_drug_lab_test_interaction():
+    drugs = Drug.query.all()
+    lab_tests = LabTest.query.all()
+    severities = Severity.query.all()
+
+    if request.method == 'POST':
+        drug_id = request.form.get('drug_id', type=int)
+        lab_test_id = request.form.get('lab_test_id', type=int)
+        interaction_type = request.form.get('interaction_type')
+        description = request.form.get('description')
+        severity_id = request.form.get('severity_id', type=int)
+        recommendation = request.form.get('recommendation')
+        reference = request.form.get('reference')
+
+        if not (drug_id and lab_test_id and interaction_type and severity_id):
+            flash("Drug, lab test, interaction type, and severity are required!", "error")
+            return redirect(url_for('add_drug_lab_test_interaction'))
+
+        # Validate severity_id
+        severity = Severity.query.get(severity_id)
+        if not severity:
+            flash("Invalid severity selected!", "error")
+            return redirect(url_for('add_drug_lab_test_interaction'))
+
+        try:
+            interaction = DrugLabTestInteraction(
+                drug_id=drug_id,
+                lab_test_id=lab_test_id,
+                interaction_type=interaction_type,
+                description=description,
+                severity_id=severity_id,  # Store severity_id instead of string
+                recommendation=recommendation,
+                reference=reference
+            )
+            db.session.add(interaction)
+            db.session.commit()
+            flash("Drug-lab test interaction added!", "success")
+            return redirect(url_for('list_drug_lab_test_interactions'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding drug-lab test interaction: {str(e)}")
+            flash("An error occurred while adding the interaction.", "error")
+            return redirect(url_for('add_drug_lab_test_interaction'))
+
+    return render_template('add_drug_lab_test.html', drugs=drugs, lab_tests=lab_tests, severities=severities)
+
+@app.route('/drug_lab_test/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_drug_lab_test_interaction(id):
+    interaction = DrugLabTestInteraction.query.get_or_404(id)
+    drugs = Drug.query.all()
+    lab_tests = LabTest.query.all()
+    severities = Severity.query.all()
+
+    if request.method == 'POST':
+        drug_id = request.form.get('drug_id', type=int)
+        lab_test_id = request.form.get('lab_test_id', type=int)
+        interaction_type = request.form.get('interaction_type')
+        severity_id = request.form.get('severity_id', type=int)
+        description = request.form.get('description')
+        recommendation = request.form.get('recommendation')
+        reference = request.form.get('reference')
+
+        if not (drug_id and lab_test_id and interaction_type and severity_id):
+            flash("Drug, lab test, interaction type, and severity are required!", "error")
+            return redirect(url_for('edit_drug_lab_test_interaction', id=id))
+
+        # Validate inputs
+        drug = Drug.query.get(drug_id)
+        lab_test = LabTest.query.get(lab_test_id)
+        severity = Severity.query.get(severity_id)
+        if not (drug and lab_test and severity):
+            flash("Invalid drug, lab test, or severity selected!", "error")
+            return redirect(url_for('edit_drug_lab_test_interaction', id=id))
+
+        try:
+            interaction.drug_id = drug_id
+            interaction.lab_test_id = lab_test_id
+            interaction.interaction_type = interaction_type
+            interaction.severity_id = severity_id
+            interaction.description = description
+            interaction.recommendation = recommendation
+            interaction.reference = reference
+            db.session.commit()
+            flash("Drug-lab test interaction updated successfully!", "success")
+            return redirect(url_for('list_drug_lab_test_interactions'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating drug-lab test interaction (ID: {id}): {str(e)}")
+            flash("An error occurred while updating the interaction.", "error")
+            return redirect(url_for('edit_drug_lab_test_interaction', id=id))
+
+    return render_template('edit_drug_lab_test_interaction.html', interaction=interaction, drugs=drugs, lab_tests=lab_tests, severities=severities)
+
+@app.route('/drug_lab_test/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_drug_lab_test_interaction(id):
+    interaction = DrugLabTestInteraction.query.get_or_404(id)
+    try:
+        db.session.delete(interaction)
+        db.session.commit()
+        flash("Drug-lab test interaction deleted successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting drug-lab test interaction (ID: {id}): {str(e)}")
+        flash("An error occurred while deleting the interaction.", "error")
+    return redirect(url_for('list_drug_lab_test_interactions'))
+
+@app.route('/drug_lab_test', methods=['GET'])
+@login_required
+def list_drug_lab_test_interactions():
+    interactions = DrugLabTestInteraction.query.all()
+    return render_template('list_drug_lab_test.html', interactions=interactions)
+
+@app.route('/lab_test', methods=['GET'])
+@login_required
+def list_lab_tests():
+    lab_tests = LabTest.query.all()
+    return render_template('list_lab_tests.html', lab_tests=lab_tests)
+
+
+@app.route('/drug_disease/add', methods=['GET', 'POST'])
+def add_drug_disease_interaction():
+    drugs = Drug.query.all()
+    indications = Indication.query.all()
+    severities = Severity.query.all()
+
+    if request.method == 'POST':
+        drug_id = request.form.get('drug_id', type=int)
+        indication_id = request.form.get('indication_id', type=int)
+        interaction_type = request.form.get('interaction_type')
+        description = request.form.get('description')
+        severity = request.form.get('severity')
+        recommendation = request.form.get('recommendation')
+
+        if not (drug_id and indication_id and interaction_type and severity):
+            flash("Drug, disease, interaction type, and severity are required!", "error")
+            return redirect(url_for('add_drug_disease_interaction'))
+
+        interaction = DrugDiseaseInteraction(
+            drug_id=drug_id,
+            indication_id=indication_id,
+            interaction_type=interaction_type,
+            description=description,
+            severity=severity,
+            recommendation=recommendation
+        )
+        db.session.add(interaction)
+        db.session.commit()
+        flash("Drug-disease interaction added!", "success")
+        return redirect(url_for('list_drug_disease_interactions'))
+
+    return render_template('add_drug_disease.html', drugs=drugs, indications=indications, severities=severities)
+
+@app.route('/drug_disease', methods=['GET'])
+def list_drug_disease_interactions():
+    interactions = DrugDiseaseInteraction.query.all()
+    return render_template('list_drug_disease.html', interactions=interactions)
 
 # Model ve scaler'ı yükle
 #model = joblib.load('lab_model.pkl')
@@ -8652,44 +9024,6 @@ def health_check():
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 #Code for drug - disease interactions:
-
-@app.route('/drug_disease/add', methods=['GET', 'POST'])
-def add_drug_disease_interaction():
-    drugs = Drug.query.all()
-    indications = Indication.query.all()
-
-    if request.method == 'POST':
-        drug_id = request.form.get('drug_id', type=int)
-        indication_id = request.form.get('indication_id', type=int)
-        interaction_type = request.form.get('interaction_type')
-        description = request.form.get('description')
-        severity = request.form.get('severity')
-        recommendation = request.form.get('recommendation')
-
-        if not (drug_id and indication_id and interaction_type):
-            flash("Drug, indication, and interaction type are required!", "error")
-            return redirect(url_for('add_drug_disease_interaction'))
-
-        interaction = DrugDiseaseInteraction(
-            drug_id=drug_id,
-            indication_id=indication_id,
-            interaction_type=interaction_type,
-            description=description,
-            severity=severity,
-            recommendation=recommendation
-        )
-        db.session.add(interaction)
-        db.session.commit()
-        flash("Drug-disease interaction added!", "success")
-        return redirect(url_for('list_drug_disease_interactions'))
-
-    return render_template('add_drug_disease.html', drugs=drugs, indications=indications)
-
-@app.route('/drug_disease', methods=['GET'])
-def list_drug_disease_interactions():
-    interactions = DrugDiseaseInteraction.query.all()
-    return render_template('list_drug_disease.html', interactions=interactions)
-
 
 
 

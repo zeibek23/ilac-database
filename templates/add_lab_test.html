@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Laboratory Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .form-container {
+            max-width: 600px;
+            margin: 40px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container form-container">
+        <h2 class="mb-4">Add Laboratory Test</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('add_lab_test') }}">
+            <div class="mb-3">
+                <label for="name_en" class="form-label">Name (English) <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="name_en" name="name_en" required>
+            </div>
+            <div class="mb-3">
+                <label for="name_tr" class="form-label">Name (Turkish)</label>
+                <input type="text" class="form-control" id="name_tr" name="name_tr">
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="4" placeholder="Describe the lab test"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="reference_range" class="form-label">Reference Range</label>
+                <input type="text" class="form-control" id="reference_range" name="reference_range" placeholder="e.g., 3.5-5.0 g/dL">
+            </div>
+            <div class="mb-3">
+                <label for="unit" class="form-label">Unit</label>
+                <input type="text" class="form-control" id="unit" name="unit" placeholder="e.g., g/dL">
+            </div>
+            <div class="d-flex">
+                <button type="submit" class="btn btn-primary me-2">Add Lab Test</button>
+                <a href="{{ url_for('list_lab_tests') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

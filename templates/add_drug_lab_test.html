@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Drug-Lab Test Interaction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <style>
+        .select2-container .select2-selection--single {
+            height: 38px;
+            padding: 6px;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 26px;
+        }
+        .form-container {
+            max-width: 800px;
+            margin: 40px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container form-container">
+        <h2 class="mb-4">Add Drug-Lab Test Interaction</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('add_drug_lab_test_interaction') }}">
+            <div class="mb-3">
+                <label for="drug_id" class="form-label">Drug <span class="text-danger">*</span></label>
+                <select class="form-select" id="drug_id" name="drug_id" required>
+                    <option value="">Select a drug</option>
+                    {% for drug in drugs %}
+                        <option value="{{ drug.id }}">{{ drug.name_en }} ({{ drug.name_tr }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="lab_test_id" class="form-label">Lab Test <span class="text-danger">*</span></label>
+                <select class="form-select" id="lab_test_id" name="lab_test_id" required>
+                    <option value="">Select a lab test</option>
+                    {% for test in lab_tests %}
+                        <option value="{{ test.id }}">{{ test.name_en }} ({{ test.name_tr }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="interaction_type" class="form-label">Interaction Type <span class="text-danger">*</span></label>
+                <select class="form-select" id="interaction_type" name="interaction_type" required>
+                    <option value="">Select interaction type</option>
+                    <option value="Interference">Interference</option>
+                    <option value="False Positive">False Positive</option>
+                    <option value="False Negative">False Negative</option>
+                    <option value="Altered Result">Altered Result</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="severity" class="form-label">Severity <span class="text-danger">*</span></label>
+                <select class="form-select" id="severity" name="severity_id" required>
+                    <option value="">Select severity</option>
+                    {% for severity in severities %}
+                        <option value="{{ severity.id }}">{{ severity.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="4" placeholder="Describe the interaction"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="recommendation" class="form-label">Recommendation</label>
+                <textarea class="form-control" id="recommendation" name="recommendation" rows="4" placeholder="Provide recommendations"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="reference" class="form-label">Reference</label>
+                <textarea class="form-control" id="reference" name="reference" rows="4" placeholder="Enter reference or citation (e.g., PubMed ID, article title)"></textarea>
+            </div>
+            <div class="d-flex">
+                <button type="submit" class="btn btn-primary me-2">Add Interaction</button>
+                <a href="{{ url_for('list_drug_lab_test_interactions') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#drug_id, #lab_test_id, #interaction_type, #severity').select2({
+                placeholder: "Select an option",
+                allowClear: true,
+                width: '100%'
+            });
+        });
+    </script>
+</body>
+</html>
