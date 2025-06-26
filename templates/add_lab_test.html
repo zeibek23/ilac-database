@@ -43,8 +43,13 @@
                 <input type="text" class="form-control" id="reference_range" name="reference_range" placeholder="e.g., 3.5-5.0 g/dL">
             </div>
             <div class="mb-3">
-                <label for="unit" class="form-label">Unit</label>
-                <input type="text" class="form-control" id="unit" name="unit" placeholder="e.g., g/dL">
+            <label for="unit_id">Unit</label>
+                <select name="unit_id">
+                    <option value="">Select a unit</option>
+                    {% for unit in units %}
+                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="d-flex">
                 <button type="submit" class="btn btn-primary me-2">Add Lab Test</button>

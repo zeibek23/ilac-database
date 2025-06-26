@@ -215,6 +215,11 @@
             font-weight: 500;
             margin-left: 4px;
         }
+        /* Pregnancy/Lactation Status Colors */
+        .safety-safe { color: #10b981; font-weight: bold; }
+        .safety-caution { color: #f59e0b; font-weight: bold; }
+        .safety-contraindicated { color: #ef4444; font-weight: bold; }
+        .safety-unknown { color: #6b7280; font-weight: bold; }
         @media (max-width: 1024px) {
             .sidebar {
                 position: static;
@@ -273,9 +278,23 @@
                                 <span class="font-medium text-gray-800">Black Box Warning:</span>
                                 {% if detail.black_box_warning %}
                                 <span class="text-red-500 font-bold">Yes</span>
-                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details or "No details available" }}
+                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details|safe or "No details available" }}
                                 {% else %}
                                 <span class="text-green-500">No</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Pregnancy Safety:</span>
+                                <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
+                                {% if detail.pregnancy_details %}
+                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Lactation Safety:</span>
+                                <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
+                                {% if detail.lactation_details %}
+                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
@@ -319,16 +338,16 @@
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Molecular Formula:</span> {{ detail.molecular_formula or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">IUPAC Name:</span> {{ detail.iupac_name or "N/A" }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">SMILES:</span> {{ detail.smiles or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} °C</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} °C</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} g/cm³</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} °C</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
                         </div>
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Synthesis:</span> {{ detail.synthesis | safe or "N/A" }}</p>
@@ -436,15 +455,15 @@
                                 </p>
                                 <p class="mb-2"><span class="font-medium">Pharmacokinetic Parameters:</span></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} %/h</li>
-                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} L</li>
-                                    <li><span class="font-medium">Protein Binding:</span> {{ route.protein_binding.min | default("N/A") }} - {{ route.protein_binding.max | default("N/A") }} %</li>
-                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} hours</li>
-                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} mL/min</li>
-                                    <li><span class="font-medium">Bioavailability:</span> {{ route.bioavailability.min | default("N/A") }} - {{ route.bioavailability.max | default("N/A") }} %</li>
-                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} hours</li>
-                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} mg/L</li>
-                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit | default("mg/L") }}</li>
+                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
+                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
+                                    <li><span class="font-medium">Protein Binding:</span> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
+                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
+                                    <li><span class="font-medium">Bioavailability:</span> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
+                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
+                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
                                     <li>
                                         <span class="font-medium">Metabolism Organs:</span>
                                         {% if route.metabolism_organs %}
@@ -548,9 +567,23 @@
                                 <span class="font-medium text-gray-800">Black Box Warning:</span>
                                 {% if detail.black_box_warning %}
                                 <span class="text-red-500 font-bold">Yes</span>
-                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details or "No details available" }}
+                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details|safe or "No details available" }}
                                 {% else %}
                                 <span class="text-green-500">No</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Pregnancy Safety:</span>
+                                <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
+                                {% if detail.pregnancy_details %}
+                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <span class="font-medium text-gray-800">Lactation Safety:</span>
+                                <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
+                                {% if detail.lactation_details %}
+                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
@@ -594,16 +627,16 @@
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Molecular Formula:</span> {{ detail.molecular_formula or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">IUPAC Name:</span> {{ detail.iupac_name or "N/A" }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">SMILES:</span> {{ detail.smiles or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} °C</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} °C</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} g/cm³</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} °C</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
                         </div>
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Synthesis:</span> {{ detail.synthesis | safe or "N/A" }}</p>
@@ -711,15 +744,15 @@
                                 </p>
                                 <p class="mb-2"><span class="font-medium">Pharmacokinetic Parameters:</span></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} %/h</li>
-                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} L</li>
-                                    <li><span class="font-medium">Protein Binding:</span> {{ route.protein_binding.min | default("N/A") }} - {{ route.protein_binding.max | default("N/A") }} %</li>
-                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} hours</li>
-                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} mL/min</li>
-                                    <li><span class="font-medium">Bioavailability:</span> {{ route.bioavailability.min | default("N/A") }} - {{ route.bioavailability.max | default("N/A") }} %</li>
-                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} hours</li>
-                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} mg/L</li>
-                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit | default("mg/L") }}</li>
+                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
+                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
+                                    <li><span class="font-medium">Protein Binding:</span> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
+                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
+                                    <li><span class="font-medium">Bioavailability:</span> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
+                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
+                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
                                     <li>
                                         <span class="font-medium">Metabolism Organs:</span>
                                         {% if route.metabolism_organs %}
