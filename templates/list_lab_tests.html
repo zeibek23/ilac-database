@@ -42,7 +42,7 @@
                             <td>{{ test.name_tr or 'N/A' }}</td>
                             <td>{{ test.description or 'N/A' }}</td>
                             <td>{{ test.reference_range or 'N/A' }}</td>
-                            <td>{{ test.unit or 'N/A' }}</td>
+                            <td>{{ test.unit.name if test.unit else 'N/A' }}</td>
                             <td>
                                 <div class="action-buttons">
                                     <a href="{{ url_for('edit_lab_test', id=test.id) }}" class="btn btn-sm btn-info">Edit</a>

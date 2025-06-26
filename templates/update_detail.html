@@ -8,20 +8,67 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
+    <!-- Summernote CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs5.min.css" rel="stylesheet">
     
     <style>
         body {
             background-color: #f8f9fa;
+            font-family: 'Arial', sans-serif;
         }
         .container {
-            max-width: 900px;
+            max-width: 1200px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-group-pair {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .form-group-pair label {
+            min-width: 150px;
+            font-weight: bold;
+        }
+        .route-group {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .error-message {
+            color: #dc3545;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        select, input, textarea {
+            border-radius: 5px;
+        }
+        h5 {
+            color: #333;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div class="container my-5">
         <h1 class="text-center mb-4">Update Drug Detail</h1>
-        <form method="POST">
+        {% if error_message %}
+        <div class="alert alert-danger error-message">{{ error_message }}</div>
+        {% endif %}
+        <form method="POST" enctype="multipart/form-data">
             <!-- Drug Name -->
             <div class="mb-3">
                 <label for="drug_id" class="form-label">Drug Name</label>
@@ -46,138 +93,159 @@
             <!-- Molecular Formula -->
             <div class="mb-3">
                 <label for="molecular_formula" class="form-label">Molecular Formula</label>
-                <input type="text" class="form-control" id="molecular_formula" name="molecular_formula" value="{{ detail.molecular_formula }}">
+                <input type="text" class="form-control" id="molecular_formula" name="molecular_formula" value="{{ detail.molecular_formula or '' }}">
             </div>
-            
-            <div class="form-group">
-                <label for="molecular_weight">Molecular Weight</label>
-                <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" placeholder="Enter molecular weight">
+
+            <!-- Molecular Weight -->
+            <div class="form-group-pair">
+                <label for="molecular_weight" class="form-label">Molecular Weight</label>
+                <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" value="{{ detail.molecular_weight or '' }}">
+                <select class="form-control" id="molecular_weight_unit_id" name="molecular_weight_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.molecular_weight_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
+
             <!-- Structure (Image) -->
             <div class="mb-3">
                 <label for="structure" class="form-label">Structure (Image)</label>
                 {% if detail.structure %}
-                <a href="/static/uploads/{{ detail.structure }}" target="_blank">View Existing Image</a>
+                <div><a href="/static/{{ detail.structure }}" target="_blank">View Existing Image</a></div>
                 {% endif %}
-                <input type="file" class="form-control" id="structure" name="structure">
+                <input type="file" class="form-control" id="structure" name="structure" accept="image/*,.svg">
             </div>
 
-            <!-- Synthesis -->
+            <!-- 3D Structure -->
             <div class="mb-3">
-                <label for="synthesis" class="form-label">Synthesis</label>
-                <textarea class="form-control" id="synthesis" name="synthesis" rows="3">{{ detail.synthesis }}</textarea>
-            </div>
-
-            <!-- IUPAC Name -->
-            <div class="mb-3">
-                <label for="iupac_name" class="form-label">IUPAC Name</label>
-                <input type="text" class="form-control" id="iupac_name" name="iupac_name" value="{{ detail.iupac_name }}">
+                <label class="form-label">3D Structure (PDB)</label>
+                {% if detail.structure_3d %}
+                <div><a href="/static/{{ detail.structure_3d }}" target="_blank">View Existing 3D Structure</a></div>
+                {% endif %}
+                <p>Upload a new SMILES to regenerate 3D structure.</p>
             </div>
 
             <!-- SMILES -->
             <div class="mb-3">
                 <label for="smiles" class="form-label">SMILES</label>
-                <input type="text" class="form-control" id="smiles" name="smiles" value="{{ detail.smiles }}">
+                <input type="text" class="form-control" id="smiles" name="smiles" value="{{ detail.smiles or '' }}">
             </div>
 
-            <!-- CAS ID -->
+            <!-- Synthesis -->
             <div class="mb-3">
-                <label for="cas_id" class="form-label">CAS ID</label>
-                <input type="text" class="form-control" id="cas_id" name="cas_id" value="{{ detail.cas_id }}">
+                <label for="synthesis" class="form-label">Synthesis</label>
+                <textarea class="form-control summernote" id="synthesis" name="synthesis">{{ detail.synthesis or '' }}</textarea>
             </div>
 
-            <!-- RXCUI -->
-            <div class="mb-3">
-                <label for="rxcui" class="form-label">RXCUI</label>
-                <input type="text" class="form-control" id="rxcui" name="rxcui" value="{{ detail.rxcui }}">
-            </div>
-
-            <!-- PubChem CID -->
-            <div class="mb-3">
-                <label for="pubchem_cid" class="form-label">PubChem CID</label>
-                <input type="text" class="form-control" id="pubchem_cid" name="pubchem_cid" value="{{ detail.pubchem_cid }}">
-            </div>
-
-            <!-- PubChem SID -->
-            <div class="mb-3">
-                <label for="pubchem_sid" class="form-label">PubChem SID</label>
-                <input type="text" class="form-control" id="pubchem_sid" name="pubchem_sid" value="{{ detail.pubchem_sid }}">
-            </div>
-
-            <!-- InChIKey -->
-            <div class="mb-3">
-                <label for="inchikey" class="form-label">InChIKey</label>
-                <input type="text" class="form-control" id="inchikey" name="inchikey" value="{{ detail.inchikey }}">
-            </div>
-
-            <!-- EC Number -->
-            <div class="mb-3">
-                <label for="ec_number" class="form-label">EC Number</label>
-                <input type="text" class="form-control" id="ec_number" name="ec_number" value="{{ detail.ec_number }}">
-            </div>
-
-            <!-- NCI Code -->
-            <div class="mb-3">
-                <label for="nci_code" class="form-label">NCI Code</label>
-                <input type="text" class="form-control" id="nci_code" name="nci_code" value="{{ detail.nci_code }}">
-            </div>
-
-            <!-- SNOMED ID -->
-            <div class="mb-3">
-                <label for="snomed_id" class="form-label">SNOMED ID</label>
-                <input type="text" class="form-control" id="snomed_id" name="snomed_id" value="{{ detail.snomed_id }}">
-            </div>
-
-            <!-- Boiling Point -->
-            <div class="mb-3">
-                <label for="boiling_point" class="form-label">Boiling Point (°C)</label>
-                <input type="text" class="form-control" id="boiling_point" name="boiling_point" value="{{ detail.boiling_point }}">
-            </div>
-
-            <!-- Melting Point -->
-            <div class="mb-3">
-                <label for="melting_point" class="form-label">Melting Point (°C)</label>
-                <input type="text" class="form-control" id="melting_point" name="melting_point" value="{{ detail.melting_point }}">
-            </div>
-
-            <!-- Density -->
-            <div class="mb-3">
-                <label for="density" class="form-label">Density (g/cm³)</label>
-                <input type="text" class="form-control" id="density" name="density" value="{{ detail.density }}">
-            </div>
-
-            <!-- Solubility -->
-            <div class="mb-3">
-                <label for="solubility" class="form-label">Solubility</label>
-                <input type="text" class="form-control" id="solubility" name="solubility" value="{{ detail.solubility }}">
-            </div>
-
-            <!-- Flash Point -->
-            <div class="mb-3">
-                <label for="flash_point" class="form-label">Flash Point (°C)</label>
-                <input type="text" class="form-control" id="flash_point" name="flash_point" value="{{ detail.flash_point }}">
-            </div>
-
-            <!-- Pharmacodynamics -->
-            <div class="mb-3">
-                <label for="pharmacodynamics" class="form-label">Pharmacodynamics</label>
-                <textarea class="form-control" id="pharmacodynamics" name="pharmacodynamics" rows="3">{{ detail.pharmacodynamics }}</textarea>
-            </div>
-
-            <div class="mb-3">
-                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics</label>
-                <textarea class="form-control" id="pharmacokinetics" name="pharmacokinetics" rows="3">{{ detail.pharmacokinetics or "" }}</textarea>
-            </div>
-
+            <!-- Mechanism of Action -->
             <div class="mb-3">
                 <label for="mechanism_of_action" class="form-label">Mechanism of Action</label>
-                <textarea class="form-control" id="mechanism_of_action" name="mechanism_of_action" rows="3">{{ detail.mechanism_of_action or "" }}</textarea>
+                <textarea class="form-control summernote" id="mechanism_of_action" name="mechanism_of_action">{{ detail.mechanism_of_action or '' }}</textarea>
             </div>
-            
 
+            <!-- IUPAC Name -->
+            <div class="mb-3">
+                <label for="iupac_name" class="form-label">IUPAC Name</label>
+                <input type="text" class="form-control" id="iupac_name" name="iupac_name" value="{{ detail.iupac_name or '' }}">
+            </div>
+
+            <!-- Identifiers -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="cas_id" class="form-label">CAS ID</label>
+                    <input type="text" class="form-control" id="cas_id" name="cas_id" value="{{ detail.cas_id or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rxcui" class="form-label">RXCUI</label>
+                    <input type="text" class="form-control" id="rxcui" name="rxcui" value="{{ detail.rxcui or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="pubchem_cid" class="form-label">PubChem CID</label>
+                    <input type="text" class="form-control" id="pubchem_cid" name="pubchem_cid" value="{{ detail.pubchem_cid or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="pubchem_sid" class="form-label">PubChem SID</label>
+                    <input type="text" class="form-control" id="pubchem_sid" name="pubchem_sid" value="{{ detail.pubchem_sid or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="inchikey" class="form-label">InChIKey</label>
+                    <input type="text" class="form-control" id="inchikey" name="inchikey" value="{{ detail.inchikey or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="ec_number" class="form-label">EC Number</label>
+                    <input type="text" class="form-control" id="ec_number" name="ec_number" value="{{ detail.ec_number or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="nci_code" class="form-label">NCI Code</label>
+                    <input type="text" class="form-control" id="nci_code" name="nci_code" value="{{ detail.nci_code or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="snomed_id" class="form-label">SNOMED ID</label>
+                    <input type="text" class="form-control" id="snomed_id" name="snomed_id" value="{{ detail.snomed_id or '' }}">
+                </div>
+            </div>
+
+            <!-- Physical Properties -->
+            <div class="form-group-pair">
+                <label for="boiling_point" class="form-label">Boiling Point</label>
+                <input type="number" step="0.01" class="form-control" id="boiling_point" name="boiling_point" value="{{ detail.boiling_point or '' }}">
+                <select class="form-control" id="boiling_point_unit_id" name="boiling_point_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.boiling_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group-pair">
+                <label for="melting_point" class="form-label">Melting Point</label>
+                <input type="number" step="0.01" class="form-control" id="melting_point" name="melting_point" value="{{ detail.melting_point or '' }}">
+                <select class="form-control" id="melting_point_unit_id" name="melting_point_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.melting_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group-pair">
+                <label for="density" class="form-label">Density</label>
+                <input type="number" step="0.01" class="form-control" id="density" name="density" value="{{ detail.density or '' }}">
+                <select class="form-control" id="density_unit_id" name="density_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.density_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group-pair">
+                <label for="solubility" class="form-label">Solubility</label>
+                <input type="number" step="0.01" class="form-control" id="solubility" name="solubility" value="{{ detail.solubility or '' }}">
+                <select class="form-control" id="solubility_unit_id" name="solubility_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.solubility_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group-pair">
+                <label for="flash_point" class="form-label">Flash Point</label>
+                <input type="number" step="0.01" class="form-control" id="flash_point" name="flash_point" value="{{ detail.flash_point or '' }}">
+                <select class="form-control" id="flash_point_unit_id" name="flash_point_unit_id">
+                    {% for unit in units %}
+                    <option value="{{ unit.id }}" {% if unit.id == detail.flash_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Pharmacological Properties -->
+            <div class="mb-3">
+                <label for="pharmacodynamics" class="form-label">Pharmacodynamics</label>
+                <textarea class="form-control summernote" id="pharmacodynamics" name="pharmacodynamics">{{ detail.pharmacodynamics or '' }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics</label>
+                <textarea class="form-control summernote" id="pharmacokinetics" name="pharmacokinetics">{{ detail.pharmacokinetics or '' }}</textarea>
+            </div>
+
+            <!-- Indications -->
             <div class="mb-3">
                 <label for="indications" class="form-label">General Indications</label>
-                <select id="indications" name="indications[]" class="form-control" multiple>
+                <select id="indications" name="indications[]" class="form-control select2" multiple>
                     {% for indication in indications %}
                     <option value="{{ indication.id }}" {% if indication.id|string in selected_indications %}selected{% endif %}>
                         {{ indication.name_en }}
@@ -185,11 +253,11 @@
                     {% endfor %}
                 </select>
             </div>
-            
 
+            <!-- Target Molecules -->
             <div class="mb-3">
                 <label for="target_molecules" class="form-label">Target Molecules</label>
-                <select id="target_molecules" name="target_molecules[]" class="form-control" multiple>
+                <select id="target_molecules" name="target_molecules[]" class="form-control select2" multiple>
                     {% for target in targets %}
                     <option value="{{ target.id }}" {% if target.id|string in selected_targets %}selected{% endif %}>
                         {{ target.name_en }}
@@ -197,260 +265,408 @@
                     {% endfor %}
                 </select>
             </div>
-            
-                
-            
-                            <!-- Side Effects -->
-                            <div class="mb-3">
-                                <label for="side_effects" class="form-label">Side Effects</label>
-                                <select id="side_effects" name="side_effects[]" class="form-select" multiple>
-                                    {% for side_effect in detail.side_effects %}
-                                    <option value="{{ side_effect.id }}" selected>{{ side_effect.name_en }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
 
-                <!-- Routes of Administration -->
-                <div class="mb-3">
-                    <label for="routes" class="form-label">Routes of Administration</label>
-                    <select id="routes" name="route_id[]" class="form-select" multiple>
-                        {% for route in routes %}
-                            <option value="{{ route.id }}" {% if route.id in selected_route_ids %}selected{% endif %}>
-                                {{ route.name }} ({{ route.type }})
+            <!-- Side Effects -->
+            <div class="mb-3">
+                <label for="side_effects" class="form-label">Side Effects</label>
+                <select id="side_effects" name="side_effects[]" class="form-control select2" multiple>
+                    {% for side_effect in side_effects %}
+                    <option value="{{ side_effect.id }}" {% if side_effect.id in selected_side_effects %}selected{% endif %}>
+                        {{ side_effect.name_en }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Routes of Administration -->
+            <div class="mb-3">
+                <label for="routes" class="form-label">Routes of Administration</label>
+                <select id="routes" name="route_id[]" class="form-control select2" multiple>
+                    {% for route in routes %}
+                    <option value="{{ route.id }}" {% if route.id|string in selected_routes|map(attribute='route_id')|list %}selected{% endif %}>
+                        {{ route.name }} ({{ route.type }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Route-Specific Details -->
+            <div id="route-details-container">
+                {% for route in selected_routes %}
+                {% set route_obj = routes|selectattr('id', 'equalto', route.route_id|int)|first %}
+                <div class="route-group">
+                    <h5>Route: {{ route_obj.name if route_obj else 'Unknown Route' }} ({{ route_obj.type if route_obj else 'Unknown Type' }})</h5>
+                    <input type="hidden" name="route_id[]" value="{{ route.route_id }}">
+
+                    <div class="mb-3">
+                        <label for="route_pharmacodynamics_{{ route.route_id }}" class="form-label">Pharmacodynamics</label>
+                        <textarea class="form-control summernote" id="route_pharmacodynamics_{{ route.route_id }}" name="route_pharmacodynamics_{{ route.route_id }}">{{ route.pharmacodynamics or '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="route_pharmacokinetics_{{ route.route_id }}" class="form-label">Pharmacokinetics</label>
+                        <textarea class="form-control summernote" id="route_pharmacokinetics_{{ route.route_id }}" name="route_pharmacokinetics_{{ route.route_id }}">{{ route.pharmacokinetics or '' }}</textarea>
+                    </div>
+
+                    <!-- Route-Specific Pharmacokinetic Parameters -->
+                    <div class="form-group-pair">
+                        <label for="absorption_rate_{{ route.route_id }}" class="form-label">Absorption Rate</label>
+                        <input type="text" class="form-control" id="absorption_rate_{{ route.route_id }}" name="absorption_rate_{{ route.route_id }}" value="{% if route.absorption_rate_min and route.absorption_rate_max %}{{ route.absorption_rate_min }}-{{ route.absorption_rate_max }}{% elif route.absorption_rate_min %}{{ route.absorption_rate_min }}{% endif %}">
+                        <select class="form-control" id="absorption_rate_unit_id_{{ route.route_id }}" name="absorption_rate_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.absorption_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="vod_rate_{{ route.route_id }}" class="form-label">Volume of Distribution</label>
+                        <input type="text" class="form-control" id="vod_rate_{{ route.route_id }}" name="vod_rate_{{ route.route_id }}" value="{% if route.vod_rate_min and route.vod_rate_max %}{{ route.vod_rate_min }}-{{ route.vod_rate_max }}{% elif route.vod_rate_min %}{{ route.vod_rate_min }}{% endif %}">
+                        <select class="form-control" id="vod_rate_unit_id_{{ route.route_id }}" name="vod_rate_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.vod_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="protein_binding_{{ route.route_id }}" class="form-label">Protein Binding (%)</label>
+                        <input type="text" class="form-control" id="protein_binding_{{ route.route_id }}" name="protein_binding_{{ route.route_id }}" value="{% if route.protein_binding_min and route.protein_binding_max %}{{ route.protein_binding_min * 100 }}-{{ route.protein_binding_max * 100 }}{% elif route.protein_binding_min %}{{ route.protein_binding_min * 100 }}{% endif %}">
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="half_life_{{ route.route_id }}" class="form-label">Half-Life</label>
+                        <input type="text" class="form-control" id="half_life_{{ route.route_id }}" name="half_life_{{ route.route_id }}" value="{% if route.half_life_min and route.half_life_max %}{{ route.half_life_min }}-{{ route.half_life_max }}{% elif route.half_life_min %}{{ route.half_life_min }}{% endif %}">
+                        <select class="form-control" id="half_life_unit_id_{{ route.route_id }}" name="half_life_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.half_life_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="clearance_rate_{{ route.route_id }}" class="form-label">Clearance Rate</label>
+                        <input type="text" class="form-control" id="clearance_rate_{{ route.route_id }}" name="clearance_rate_{{ route.route_id }}" value="{% if route.clearance_rate_min and route.clearance_rate_max %}{{ route.clearance_rate_min }}-{{ route.clearance_rate_max }}{% elif route.clearance_rate_min %}{{ route.clearance_rate_min }}{% endif %}">
+                        <select class="form-control" id="clearance_rate_unit_id_{{ route.route_id }}" name="clearance_rate_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.clearance_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="bioavailability_{{ route.route_id }}" class="form-label">Bioavailability (%)</label>
+                        <input type="text" class="form-control" id="bioavailability_{{ route.route_id }}" name="bioavailability_{{ route.route_id }}" value="{% if route.bioavailability_min and route.bioavailability_max %}{{ route.bioavailability_min * 100 }}-{{ route.bioavailability_max * 100 }}{% elif route.bioavailability_min %}{{ route.bioavailability_min * 100 }}{% endif %}">
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="tmax_{{ route.route_id }}" class="form-label">Tmax</label>
+                        <input type="text" class="form-control" id="tmax_{{ route.route_id }}" name="tmax_{{ route.route_id }}" value="{% if route.tmax_min and route.tmax_max %}{{ route.tmax_min }}-{{ route.tmax_max }}{% elif route.tmax_min %}{{ route.tmax_min }}{% endif %}">
+                        <select class="form-control" id="tmax_unit_id_{{ route.route_id }}" name="tmax_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.tmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="cmax_{{ route.route_id }}" class="form-label">Cmax</label>
+                        <input type="text" class="form-control" id="cmax_{{ route.route_id }}" name="cmax_{{ route.route_id }}" value="{% if route.cmax_min and route.cmax_max %}{{ route.cmax_min }}-{{ route.cmax_max }}{% elif route.cmax_min %}{{ route.cmax_min }}{% endif %}">
+                        <select class="form-control" id="cmax_unit_id_{{ route.route_id }}" name="cmax_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.cmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group-pair">
+                        <label for="therapeutic_range_{{ route.route_id }}" class="form-label">Therapeutic Range</label>
+                        <input type="text" class="form-control" id="therapeutic_range_{{ route.route_id }}" name="therapeutic_range_{{ route.route_id }}" value="{% if route.therapeutic_min and route.therapeutic_max %}{{ route.therapeutic_min }}-{{ route.therapeutic_max }}{% elif route.therapeutic_min %}{{ route.therapeutic_min }}{% endif %}">
+                        <select class="form-control" id="therapeutic_unit_id_{{ route.route_id }}" name="therapeutic_unit_id_{{ route.route_id }}">
+                            {% for unit in units %}
+                            <option value="{{ unit.id }}" {% if unit.id == route.therapeutic_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Metabolism Data -->
+                    <div class="mb-3">
+                        <label for="metabolism_organs_{{ route.route_id }}" class="form-label">Metabolism Organs</label>
+                        <select id="metabolism_organs_{{ route.route_id }}" name="metabolism_organs_{{ route.route_id }}[]" class="form-control select2" multiple>
+                            {% for organ in metabolism_organs %}
+                            <option value="{{ organ.id }}" {% if organ.id in route.metabolism_organs %}selected{% endif %}>
+                                {{ organ.name_en }}
                             </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <div id="route-details-container">
-                    {% for route in selected_routes %}
-                    <div class="route-group mb-3">
-                        <h5>Route: {{ route.route_id }}</h5>
-                
-                        <label for="route_pharmacodynamics_{{ route.route_id }}">Pharmacodynamics:</label>
-                        <textarea id="route_pharmacodynamics_{{ route.route_id }}" name="route_pharmacodynamics_{{ route.route_id }}" class="form-control">
-                            {{ route.pharmacodynamics or "" }}
-                        </textarea>
-                
-                        <label for="route_pharmacokinetics_{{ route.route_id }}">Pharmacokinetics:</label>
-                        <textarea id="route_pharmacokinetics_{{ route.route_id }}" name="route_pharmacokinetics_{{ route.route_id }}" class="form-control">
-                            {{ route.pharmacokinetics or "" }}
-                        </textarea>
-                
-                        <label for="route_indications_{{ route.route_id }}" class="form-label">Indications:</label>
-                        <select id="route_indications_{{ route.route_id }}" name="route_indications_{{ route.route_id }}[]" class="form-control" multiple>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="metabolism_enzymes_{{ route.route_id }}" class="form-label">Metabolism Enzymes</label>
+                        <select id="metabolism_enzymes_{{ route.route_id }}" name="metabolism_enzymes_{{ route.route_id }}[]" class="form-control select2" multiple>
+                            {% for enzyme in metabolism_enzymes %}
+                            <option value="{{ enzyme.id }}" {% if enzyme.id in route.metabolism_enzymes %}selected{% endif %}>
+                                {{ enzyme.name_en }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="metabolites_{{ route.route_id }}" class="form-label">Metabolites</label>
+                        <select id="metabolites_{{ route.route_id }}" name="metabolites_{{ route.route_id }}[]" class="form-control select2" multiple>
+                            {% for metabolite in metabolites %}
+                            <option value="{{ metabolite.id }}" {% if metabolite.id in route.metabolites %}selected{% endif %}>
+                                {{ metabolite.name_en }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Route-Specific Indications -->
+                    <div class="mb-3">
+                        <label for="route_indications_{{ route.route_id }}" class="form-label">Indications</label>
+                        <select id="route_indications_{{ route.route_id }}" name="route_indications_{{ route.route_id }}[]" class="form-control select2" multiple>
                             {% for indication in indications %}
-                            <option value="{{ indication.id }}" {% if indication.id|string in route.indications %}selected{% endif %}>
+                            <option value="{{ indication.id }}" {% if indication.id in route.indications %}selected{% endif %}>
                                 {{ indication.name_en }}
                             </option>
                             {% endfor %}
                         </select>
                     </div>
-                    {% endfor %}
                 </div>
-                
-                
-                
-                
-                
-
-            <!-- FDA, EMA, TITCK Approval -->
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="fda_approved" name="fda_approved" {% if detail.fda_approved %}checked{% endif %}>
-                <label class="form-check-label" for="fda_approved">FDA Approved</label>
+                {% endfor %}
             </div>
 
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="ema_approved" name="ema_approved" {% if detail.ema_approved %}checked{% endif %}>
-                <label class="form-check-label" for="ema_approved">EMA Approved</label>
+            <!-- Black Box Warning -->
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="black_box_warning" name="black_box_warning" {% if detail.black_box_warning %}checked{% endif %}>
+                    <label class="form-check-label" for="black_box_warning">Black Box Warning</label>
+                </div>
+                <div id="black_box_details_group" class="mt-2" {% if not detail.black_box_warning %}style="display: none;"{% endif %}>
+                    <label for="black_box_details" class="form-label">Black Box Warning Details</label>
+                    <textarea class="form-control summernote" id="black_box_details" name="black_box_details">{{ detail.black_box_details or '' }}</textarea>
+                </div>
             </div>
 
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="titck_approved" name="titck_approved" {% if detail.titck_approved %}checked{% endif %}>
-                <label class="form-check-label" for="titck_approved">TITCK Approved</label>
+            <!-- References -->
+            <div class="mb-3">
+                <label for="references" class="form-label">References</label>
+                <textarea class="form-control summernote" id="references" name="references">{{ detail.references or '' }}</textarea>
+            </div>
+
+            <!-- Approvals -->
+            <div class="row">
+                <div class="col-md-4 form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="fda_approved" name="fda_approved" {% if detail.fda_approved %}checked{% endif %}>
+                    <label class="form-check-label" for="fda_approved">FDA Approved</label>
+                </div>
+                <div class="col-md-4 form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="ema_approved" name="ema_approved" {% if detail.ema_approved %}checked{% endif %}>
+                    <label class="form-check-label" for="ema_approved">EMA Approved</label>
+                </div>
+                <div class="col-md-4 form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="titck_approved" name="titck_approved" {% if detail.titck_approved %}checked{% endif %}>
+                    <label class="form-check-label" for="titck_approved">TITCK Approved</label>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary">Update</button>
         </form>
     </div>
 
-        <!-- Bootstrap JS -->
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <!-- jQuery -->
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-        <!-- Select2 JS -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
-    
-        <script>
-            $(document).ready(function () {
-                // Target Molecules Searchable Dropdown with Preselected Values
-                $('#target_molecules').select2({
-                    placeholder: "Search target molecules...",
-                    ajax: {
-                        url: "/api/targets", // Flask API endpoint for fetching target molecules
-                        dataType: 'json',
-                        delay: 250,
-                        data: function (params) {
-                            return {
-                                query: params.term // Search term
-                            };
-                        },
-                        processResults: function (data) {
-                            return {
-                                results: data.map(function (item) {
-                                    return { id: item.id, text: item.name_en };
-                                })
-                            };
-                        },
-                        cache: true
-                    },
-                    minimumInputLength: 2
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Select2 JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
+    <!-- Summernote JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs5.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            // Initialize Select2
+            $('.select2').select2({
+                placeholder: "Select or search...",
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Initialize Summernote
+            $('.summernote').summernote({
+                height: 200,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'italic', 'underline']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['color', ['color']],
+                    ['insert', ['link']]
+                ]
+            });
+
+            // Toggle Black Box Details
+            $('#black_box_warning').on('change', function () {
+                $('#black_box_details_group').toggle(this.checked);
+            });
+
+            // Route Selection Handling
+            $('#routes').on('change', function () {
+                const selectedRoutes = $(this).val() || [];
+                const routeDetailsContainer = $('#route-details-container');
+                const existingRouteIds = $('.route-group input[name="route_id[]"]').map(function() { return $(this).val(); }).get();
+
+                // Remove unselected routes
+                $('.route-group').each(function() {
+                    const routeId = $(this).find('input[name="route_id[]"]').val();
+                    if (!selectedRoutes.includes(routeId)) {
+                        $(this).remove();
+                    }
                 });
-    
-                // Side Effects Searchable Dropdown with Preselected Values
-                $('#side_effects').select2({
-                    placeholder: "Search side effects...",
-                    ajax: {
-                        url: "/api/side_effects", // Flask API endpoint for fetching side effects
-                        dataType: 'json',
-                        delay: 250,
-                        data: function (params) {
-                            return {
-                                query: params.term // Search term
-                            };
-                        },
-                        processResults: function (data) {
-                            return {
-                                results: data.map(function (item) {
-                                    return { id: item.id, text: item.name_en };
-                                })
-                            };
-                        },
-                        cache: true
-                    },
-                    minimumInputLength: 2
+
+                // Add new routes
+                selectedRoutes.forEach(routeId => {
+                    if (!existingRouteIds.includes(routeId)) {
+                        const routeName = $('#routes option[value="' + routeId + '"]').text();
+                        const routeGroup = `
+                            <div class="route-group">
+                                <h5>Route: ${routeName}</h5>
+                                <input type="hidden" name="route_id[]" value="${routeId}">
+                                <div class="mb-3">
+                                    <label for="route_pharmacodynamics_${routeId}" class="form-label">Pharmacodynamics</label>
+                                    <textarea class="form-control summernote" id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="route_pharmacokinetics_${routeId}" class="form-label">Pharmacokinetics</label>
+                                    <textarea class="form-control summernote" id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}"></textarea>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="absorption_rate_${routeId}" class="form-label">Absorption Rate</label>
+                                    <input type="text" class="form-control" id="absorption_rate_${routeId}" name="absorption_rate_${routeId}">
+                                    <select class="form-control" id="absorption_rate_unit_id_${routeId}" name="absorption_rate_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="vod_rate_${routeId}" class="form-label">Volume of Distribution</label>
+                                    <input type="text" class="form-control" id="vod_rate_${routeId}" name="vod_rate_${routeId}">
+                                    <select class="form-control" id="vod_rate_unit_id_${routeId}" name="vod_rate_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="protein_binding_${routeId}" class="form-label">Protein Binding (%)</label>
+                                    <input type="text" class="form-control" id="protein_binding_${routeId}" name="protein_binding_${routeId}">
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="half_life_${routeId}" class="form-label">Half-Life</label>
+                                    <input type="text" class="form-control" id="half_life_${routeId}" name="half_life_${routeId}">
+                                    <select class="form-control" id="half_life_unit_id_${routeId}" name="half_life_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="clearance_rate_${routeId}" class="form-label">Clearance Rate</label>
+                                    <input type="text" class="form-control" id="clearance_rate_${routeId}" name="clearance_rate_${routeId}">
+                                    <select class="form-control" id="clearance_rate_unit_id_${routeId}" name="clearance_rate_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="bioavailability_${routeId}" class="form-label">Bioavailability (%)</label>
+                                    <input type="text" class="form-control" id="bioavailability_${routeId}" name="bioavailability_${routeId}">
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="tmax_${routeId}" class="form-label">Tmax</label>
+                                    <input type="text" class="form-control" id="tmax_${routeId}" name="tmax_${routeId}">
+                                    <select class="form-control" id="tmax_unit_id_${routeId}" name="tmax_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="cmax_${routeId}" class="form-label">Cmax</label>
+                                    <input type="text" class="form-control" id="cmax_${routeId}" name="cmax_${routeId}">
+                                    <select class="form-control" id="cmax_unit_id_${routeId}" name="cmax_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group-pair">
+                                    <label for="therapeutic_range_${routeId}" class="form-label">Therapeutic Range</label>
+                                    <input type="text" class="form-control" id="therapeutic_range_${routeId}" name="therapeutic_range_${routeId}">
+                                    <select class="form-control" id="therapeutic_unit_id_${routeId}" name="therapeutic_unit_id_${routeId}">
+                                        {% for unit in units %}
+                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="metabolism_organs_${routeId}" class="form-label">Metabolism Organs</label>
+                                    <select id="metabolism_organs_${routeId}" name="metabolism_organs_${routeId}[]" class="form-control select2" multiple>
+                                        {% for organ in metabolism_organs %}
+                                        <option value="{{ organ.id }}">{{ organ.name_en }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="metabolism_enzymes_${routeId}" class="form-label">Metabolism Enzymes</label>
+                                    <select id="metabolism_enzymes_${routeId}" name="metabolism_enzymes_${routeId}[]" class="form-control select2" multiple>
+                                        {% for enzyme in metabolism_enzymes %}
+                                        <option value="{{ enzyme.id }}">{{ enzyme.name_en }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="metabolites_${routeId}" class="form-label">Metabolites</label>
+                                    <select id="metabolites_${routeId}" name="metabolites_${routeId}[]" class="form-control select2" multiple>
+                                        {% for metabolite in metabolites %}
+                                        <option value="{{ metabolite.id }}">{{ metabolite.name_en }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="route_indications_${routeId}" class="form-label">Indications</label>
+                                    <select id="route_indications_${routeId}" name="route_indications_${routeId}[]" class="form-control select2" multiple>
+                                        {% for indication in indications %}
+                                        <option value="{{ indication.id }}">{{ indication.name_en }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        `;
+                        routeDetailsContainer.append(routeGroup);
+
+                        // Initialize Select2 and Summernote for new elements
+                        $(`#route_indications_${routeId}, #metabolism_organs_${routeId}, #metabolism_enzymes_${routeId}, #metabolites_${routeId}`).select2({
+                            placeholder: "Select or search...",
+                            allowClear: true,
+                            width: '100%'
+                        });
+                        $(`#route_pharmacodynamics_${routeId}, #route_pharmacokinetics_${routeId}`).summernote({
+                            height: 200,
+                            toolbar: [
+                                ['style', ['style']],
+                                ['font', ['bold', 'italic', 'underline']],
+                                ['para', ['ul', 'ol', 'paragraph']],
+                                ['color', ['color']],
+                                ['insert', ['link']]
+                            ]
+                        });
+                    }
                 });
             });
 
-            $(document).ready(function () {
-    // General Indications
-            $('#indications').select2({
-            placeholder: "Search for general indications...",
-            ajax: {
-                url: "/api/indications",
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        search: params.term, // Search query sent to the API
-                        page: params.page || 1, // Current page for pagination
-                        limit: 10  // Number of results per page
-                    };
-                },
-                processResults: function (data) {
-                    return {
-                        results: data.results, // Use the 'results' array from API response
-                        pagination: {
-                            more: data.has_next // Enable pagination if 'has_next' is true
-                        }
-                    };
-                }
-            },
-            minimumInputLength: 2,  // Start searching after 2 characters
-            allowClear: true,       // Allow clearing the selection
-            multiple: true          // Enable multi-select
+            // Initialize Select2 for existing route-specific indications
+            $('select[id^="route_indications_"], select[id^="metabolism_organs_"], select[id^="metabolism_enzymes_"], select[id^="metabolites_"]').each(function () {
+                $(this).select2({
+                    placeholder: "Select or search...",
+                    allowClear: true,
+                    width: '100%'
+                });
+            });
         });
-
-
-    // Route-Specific Indications
-    $('select[id^="route_indications_"]').each(function () {
-        $(this).select2({
-            placeholder: "Search for route-specific indications...",
-            ajax: {
-                url: "/api/indications", // Flask API endpoint
-                dataType: 'json',
-                delay: 250, // Prevent excessive API calls
-                data: function (params) {
-                    return {
-                        search: params.term, // Search query
-                        page: params.page || 1, // For pagination
-                        limit: 10  // Number of results per page
-                    };
-                },
-                processResults: function (data) {
-                    console.log("API Response:", data); // Debugging
-                    return {
-                        results: data.results, // Map results to Select2
-                        pagination: {
-                            more: data.has_next // Enable pagination if more results exist
-                        }
-                    };
-                },
-                cache: true // Cache API results
-            },
-            minimumInputLength: 2, // Start searching after 2 characters
-            allowClear: true, // Allow clearing the selection
-            multiple: true // Enable multi-select
-        });
-    });
-});
-
-$('#routes').on('change', function () {
-    const selectedRoutes = $(this).val() || [];
-    const routeDetailsContainer = $('#route-details-container');
-
-    // Clear existing route details
-    routeDetailsContainer.empty();
-
-    // Add route details dynamically
-    selectedRoutes.forEach(routeId => {
-        const routeGroup = `
-            <div class="route-group mb-3">
-                <h5>Route: ${routeId}</h5>
-
-                <label for="route_pharmacodynamics_${routeId}">Pharmacodynamics:</label>
-                <textarea id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}" class="form-control"></textarea>
-
-                <label for="route_pharmacokinetics_${routeId}">Pharmacokinetics:</label>
-                <textarea id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}" class="form-control"></textarea>
-
-                <label for="route_indications_${routeId}" class="form-label">Indications:</label>
-                <select id="route_indications_${routeId}" name="route_indications_${routeId}[]" class="form-control" multiple></select>
-            </div>
-        `;
-
-        routeDetailsContainer.append(routeGroup);
-
-        // Initialize Select2 for dynamically added indications
-        $(`#route_indications_${routeId}`).select2({
-            placeholder: "Search for route-specific indications...",
-            ajax: {
-                url: "/api/indications",
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        search: params.term,
-                        page: params.page || 1,
-                        limit: 10
-                    };
-                },
-                processResults: function (data) {
-                    return {
-                        results: data.results,
-                        pagination: { more: data.has_next }
-                    };
-                }
-            },
-            minimumInputLength: 2,
-            allowClear: true,
-            multiple: true
-        });
-    });
-});
-
-
-        </script>
-    </body>
-    
-    </html>
+    </script>
+</body>
+</html>

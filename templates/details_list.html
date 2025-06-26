@@ -125,6 +125,11 @@
                 height: 300px;
             }
         }
+        /* Pregnancy/Lactation Status Colors */
+        .safety-safe { color: #10b981; font-weight: bold; }
+        .safety-caution { color: #f59e0b; font-weight: bold; }
+        .safety-contraindicated { color: #ef4444; font-weight: bold; }
+        .safety-unknown { color: #6b7280; font-weight: bold; }
     </style>
 </head>
 <body class="antialiased">
@@ -151,7 +156,7 @@
                         <thead>
                             <tr>
                                 <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
-                                <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th> 
+                                <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th>
                                 <th><i class="fas fa-vial section-icon"></i>Salt</th>
                                 <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
                                 <th><i class="fas fa-info-circle section-icon"></i>Warning Details</th>
@@ -170,11 +175,11 @@
                                 <th><i class="fas fa-id-card-alt section-icon"></i>EC Number</th>
                                 <th><i class="fas fa-id-card section-icon"></i>NCI Code</th>
                                 <th><i class="fas fa-id-badge section-icon"></i>SNOMED ID</th>
-                                <th><i class="fas fa-thermometer section-icon"></i>Boiling Point (°C)</th>
-                                <th><i class="fas fa-thermometer-empty section-icon"></i>Melting Point (°C)</th>
-                                <th><i class="fas fa-cubes section-icon"></i>Density (g/cm³)</th>
+                                <th><i class="fas fa-thermometer section-icon"></i>Boiling Point</th>
+                                <th><i class="fas fa-thermometer-empty section-icon"></i>Melting Point</th>
+                                <th><i class="fas fa-cubes section-icon"></i>Density</th>
                                 <th><i class="fas fa-tint section-icon"></i>Solubility</th>
-                                <th><i class="fas fa-fire section-icon"></i>Flash Point (°C)</th>
+                                <th><i class="fas fa-fire section-icon"></i>Flash Point</th>
                                 <th><i class="fas fa-heartbeat section-icon"></i>Pharmacodynamics</th>
                                 <th><i class="fas fa-clock section-icon"></i>Pharmacokinetics</th>
                                 <th><i class="fas fa-diagnoses section-icon"></i>Indications</th>
@@ -183,8 +188,10 @@
                                 <th><i class="fas fa-check-circle section-icon"></i>FDA Approved</th>
                                 <th><i class="fas fa-check-circle section-icon"></i>EMA Approved</th>
                                 <th><i class="fas fa-check-circle section-icon"></i>TITCK Approved</th>
+                                <th><i class="fas fa-baby section-icon"></i>Pregnancy Safety</th>
+                                <th><i class="fas fa-baby-bottle section-icon"></i>Lactation Safety</th>
                                 <th><i class="fas fa-route section-icon"></i>Routes & Indications</th>
-                                <th><i class="fas fa-book section-icon"></i>References</th> 
+                                <th><i class="fas fa-book section-icon"></i>References</th>
                                 <th><i class="fas fa-cog section-icon"></i>Actions</th>
                             </tr>
                         </thead>
@@ -203,7 +210,7 @@
                                 </td>
                                 <td>
                                     {% if detail.black_box_warning %}
-                                    {{ detail.black_box_details or 'No details available' }}
+                                    {{ detail.black_box_details|safe or 'No details available' }}
                                     {% else %}
                                     N/A
                                     {% endif %}
@@ -226,7 +233,7 @@
                                     <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ detail.molecular_weight or 'N/A' }}</td>
+                                <td>{{ detail.molecular_weight or 'N/A' }} {{ detail.molecular_weight_unit }}</td>
                                 <td class="long-text tooltip-text" title="{{ detail.synthesis|striptags if detail.synthesis else 'N/A' }}">
                                     {{ detail.synthesis|safe if detail.synthesis else 'N/A' }}
                                 </td>
@@ -240,11 +247,11 @@
                                 <td>{{ detail.ec_number or 'N/A' }}</td>
                                 <td>{{ detail.nci_code or 'N/A' }}</td>
                                 <td>{{ detail.snomed_id or 'N/A' }}</td>
-                                <td>{{ detail.boiling_point or 'N/A' }}</td>
-                                <td>{{ detail.melting_point or 'N/A' }}</td>
-                                <td>{{ detail.density or 'N/A' }}</td>
-                                <td>{{ detail.solubility or 'N/A' }}</td>
-                                <td>{{ detail.flash_point or 'N/A' }}</td>
+                                <td>{{ detail.boiling_point or 'N/A' }} {{ detail.boiling_point_unit }}</td>
+                                <td>{{ detail.melting_point or 'N/A' }} {{ detail.melting_point_unit }}</td>
+                                <td>{{ detail.density or 'N/A' }} {{ detail.density_unit }}</td>
+                                <td>{{ detail.solubility or 'N/A' }} {{ detail.solubility_unit }}</td>
+                                <td>{{ detail.flash_point or 'N/A' }} {{ detail.flash_point_unit }}</td>
                                 <td>{{ detail.pharmacodynamics|safe if detail.pharmacodynamics else 'N/A' }}</td>
                                 <td>{{ detail.pharmacokinetics|safe if detail.pharmacokinetics else 'N/A' }}</td>
                                 <td>
@@ -301,6 +308,20 @@
                                     <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
                                     {% endif %}
                                 </td>
+                                <!-- Pregnancy Safety Column -->
+                                <td>
+                                    <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
+                                    {% if detail.pregnancy_details %}
+                                    <br><span class="rich-text text-gray-600">{{ detail.pregnancy_details|safe }}</span>
+                                    {% endif %}
+                                </td>
+                                <!-- Lactation Safety Column -->
+                                <td>
+                                    <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
+                                    {% if detail.lactation_details %}
+                                    <br><span class="rich-text text-gray-600">{{ detail.lactation_details|safe }}</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if detail.routes %}
                                     <ul class="list-disc pl-5">
@@ -309,6 +330,15 @@
                                             <strong>{{ route.name }}</strong><br>
                                             <span class="text-gray-600"><em>Pharmacodynamics:</em> {{ route.pharmacodynamics|safe if route.pharmacodynamics else 'N/A' }}</span><br>
                                             <span class="text-gray-600"><em>Pharmacokinetics:</em> {{ route.pharmacokinetics|safe if route.pharmacokinetics else 'N/A' }}</span><br>
+                                            <span class="text-gray-600"><em>Absorption Rate:</em> {{ route.absorption_rate }} {{ route.absorption_rate_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Volume of Distribution:</em> {{ route.vod_rate }} {{ route.vod_rate_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Protein Binding:</em> {{ route.protein_binding }}</span><br>
+                                            <span class="text-gray-600"><em>Half-Life:</em> {{ route.half_life }} {{ route.half_life_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Clearance Rate:</em> {{ route.clearance_rate }} {{ route.clearance_rate_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Bioavailability:</em> {{ route.bioavailability }}</span><br>
+                                            <span class="text-gray-600"><em>Tmax:</em> {{ route.tmax }} {{ route.tmax_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Cmax:</em> {{ route.cmax }} {{ route.cmax_unit }}</span><br>
+                                            <span class="text-gray-600"><em>Therapeutic Range:</em> {{ route.therapeutic_range }} {{ route.therapeutic_unit }}</span><br>
                                             <span class="text-gray-600"><em>Indications:</em></span>
                                             {% if route.indications %}
                                             <ul class="list-disc pl-5">
@@ -326,7 +356,7 @@
                                     <span class="text-gray-500">No Data</span>
                                     {% endif %}
                                 </td>
-                                <td class="rich-text">{{ detail.references|safe if detail.references else 'N/A' }}</td> <!-- Add this line -->
+                                <td class="rich-text">{{ detail.references|safe if detail.references else 'N/A' }}</td>
                                 <td>
                                     <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600">
                                         <i class="fas fa-edit mr-1"></i>Update
@@ -335,7 +365,8 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="34" class="text-center text-gray-500 py-4">No details available.</td>
+                                <!-- Update colspan to account for new columns -->
+                                <td colspan="36" class="text-center text-gray-500 py-4">No details available.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -347,7 +378,7 @@
         <!-- Modal for 3D Structure -->
         <div id="structureModal" class="modal">
             <div class="modal-content">
-                <span class="modal-close">&times;</span>
+                <span class="modal-close">×</span>
                 <h2 id="modalTitle" class="text-2xl font-bold text-gray-800 mb-4"></h2>
                 <div id="viewer"></div>
             </div>
@@ -366,10 +397,11 @@
                 pageLength: 10,
                 scrollX: true,
                 columnDefs: [
-                    { width: '200px', targets: [26, 27, 28, 32, 34] }, // Adjusted for new column (indications, side effects, targets, routes)
-                    { width: '100px', targets: [8, 10] }, // Synthesis, SMILES
-                    { width: '120px', targets: [6] }, // 3D Structure column
-                    { width: '150px', targets: [1] } // Mechanism of Action column
+                    { width: '200px', targets: [26, 27, 28, 32, 34, 35] }, // Adjusted for new columns (indications, side effects, targets, routes, pregnancy, lactation)
+                    { width: '100px', targets: [9, 11] }, // Synthesis, SMILES
+                    { width: '120px', targets: [7] }, // 3D Structure column
+                    { width: '150px', targets: [1] }, // Mechanism of Action column
+                    { width: '150px', targets: [33, 34] } // Pregnancy and Lactation columns
                 ]
             });
 

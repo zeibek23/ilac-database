@@ -79,6 +79,10 @@
             justify-content: center;
             flex-wrap: wrap;
         }
+        .metabolite-list {
+            font-size: 0.85rem;
+            color: #495057;
+        }
         @media (max-width: 768px) {
             .chart-container {
                 padding: 15px;
@@ -177,6 +181,7 @@
                             <th>Cmax (mg/L)</th>
                             <th>Therapeutic Range</th>
                             <th>AUC (mg/L·h)</th>
+                            <th>Metabolites</th>
                             <th>Metabolism Organs</th>
                             <th>Metabolism Enzymes</th>
                             <th>Pharmacodynamics</th>
@@ -197,6 +202,17 @@
                             <td>{{ entry.cmax_min }} - {{ entry.cmax_max }}</td>
                             <td>{{ entry.therapeutic_min }} - {{ entry.therapeutic_max }} {{ entry.therapeutic_unit }}</td>
                             <td>{{ entry.auc }}</td>
+                            <td>
+                                {% if entry.metabolites %}
+                                <ul class="metabolite-list mb-0">
+                                    {% for met in entry.metabolites %}
+                                    <li>{{ met.name }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                N/A
+                                {% endif %}
+                            </td>
                             <td>{{ entry.metabolism_organs | join(', ') or 'N/A' }}</td>
                             <td>{{ entry.metabolism_enzymes | join(', ') or 'N/A' }}</td>
                             <td>{{ entry.pharmacodynamics }}</td>
@@ -218,6 +234,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     $(document).ready(function () {
+        // Initialize Select2 for drug search
         $('#drug_search').select2({
             theme: 'bootstrap-5',
             placeholder: "Search for a drug...",
@@ -295,27 +312,7 @@
                 plugins: {
                     legend: { position: 'top' },
                     annotation: {
-                        annotations: pkData.map((entry, idx) => {
-                            const unit = entry.therapeutic_unit || 'mg/L';
-                            let yMin = entry.therapeutic_min;
-                            let yMax = entry.therapeutic_max;
-                            // Convert to mg/L for the chart (which assumes mg/L)
-                            if (unit === 'ng/mL') {
-                                yMin = yMin / 1000; // Convert ng/mL to mg/L
-                                yMax = yMax / 1000;
-                            }
-                            return {
-                                type: 'box',
-                                yMin: yMin,
-                                yMax: yMax,
-                                backgroundColor: 'rgba(0, 255, 0, 0.1)',
-                                borderColor: 'rgba(0, 255, 0, 0.5)',
-                                label: { 
-                                    content: `Therapeutic Range (${entry.route_name})`, 
-                                    enabled: true 
-                                }
-                            };
-                        })
+                        annotations: []
                     }
                 },
                 scales: {
@@ -327,13 +324,7 @@
                         title: { display: true, text: 'Concentration (mg/L)' },
                         beginAtZero: true,
                         grid: { color: '#e9ecef' },
-                        suggestedMax: Math.max(...pkData.map(entry => {
-                            let cmax = entry.cmax_max;
-                            if (entry.therapeutic_unit === 'ng/mL') {
-                                cmax = cmax / 1000; // Convert ng/mL to mg/L
-                            }
-                            return cmax;
-                        })) * 1.2
+                        suggestedMax: 0
                     }
                 }
             }
@@ -392,7 +383,7 @@
                     datalabels: {
                         anchor: 'end',
                         align: 'top',
-                        formatter: (value) => value.toFixed(2),
+                        formatter: value => value.toFixed(2),
                         color: '#000',
                         font: { weight: 'bold' }
                     }
@@ -411,23 +402,27 @@
             }
         });
 
-        function simulateSteadyState(dose, interval, entry) {
+        function calculateConcentration(dose, entry, time, steadyState = false, interval = 0) {
             const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
             const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
             const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
             const ke = Math.log(2) / halfLife;
-            const time = concentrationChart.data.labels;
-            const doses = Math.ceil(time[time.length - 1] / interval);
             let concentrations = Array(time.length).fill(0);
 
-            for (let d = 0; d < doses; d++) {
-                const doseTime = d * interval;
+            if (steadyState && interval > 0) {
+                const doses = Math.ceil(time[time.length - 1] / interval);
+                for (let d = 0; d < doses; d++) {
+                    const doseTime = d * interval;
+                    const c0 = (dose * bio) / vod;
+                    time.forEach((t, i) => {
+                        if (t >= doseTime) {
+                            concentrations[i] += c0 * Math.exp(-ke * (t - doseTime));
+                        }
+                    });
+                }
+            } else {
                 const c0 = (dose * bio) / vod;
-                time.forEach((t, i) => {
-                    if (t >= doseTime) {
-                        concentrations[i] += c0 * Math.exp(-ke * (t - doseTime));
-                    }
-                });
+                concentrations = time.map(t => c0 * Math.exp(-ke * t));
             }
             return concentrations;
         }
@@ -446,11 +441,11 @@
             const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
             const ke = Math.log(2) / halfLife;
             const clearance = ((entry.clearance_rate_min + entry.clearance_rate_max) / 2) * 0.06;
-            let therapeuticMin = entry.therapeutic_min;
-            let therapeuticMax = entry.therapeutic_max;
+            let therapeuticMin = entry.therapeutic_min || 0;
+            let therapeuticMax = entry.therapeutic_max || 0;
             const unit = entry.therapeutic_unit || 'mg/L';
 
-            // Convert therapeutic range to mg/L for optimization
+            // Convert therapeutic range to mg/L
             if (unit === 'ng/mL') {
                 therapeuticMin = therapeuticMin / 1000;
                 therapeuticMax = therapeuticMax / 1000;
@@ -462,41 +457,22 @@
 
             let CssMin, CssMax, maxIterations = 100, iteration = 0;
             do {
-                const Css = simulateSteadyState(dose, interval, entry);
-                CssMin = Math.min(...Css.slice(-24));
-                CssMax = Math.max(...Css.slice(-24));
+                const concentrations = calculateConcentration(dose, entry, concentrationChart.data.labels, true, interval);
+                CssMin = Math.min(...concentrations.slice(-24));
+                CssMax = Math.max(...concentrations.slice(-24));
                 if (CssMax > therapeuticMax) dose *= 0.9;
                 if (CssMin < therapeuticMin) dose *= 1.1;
                 iteration++;
             } while ((CssMin < therapeuticMin || CssMax > therapeuticMax) && iteration < maxIterations);
 
-            return { dose: dose.toFixed(2), interval: interval.toFixed(1), concentrations: simulateSteadyState(dose, interval, entry) };
+            return { dose: dose.toFixed(2), interval: interval.toFixed(1), concentrations: calculateConcentration(dose, entry, concentrationChart.data.labels, true, interval) };
         }
 
         function updateConcentrationChart(dose, optimize = false) {
             const datasets = [];
-            const annotations = pkData.map((entry, idx) => {
-                const unit = entry.therapeutic_unit || 'mg/L';
-                let yMin = entry.therapeutic_min;
-                let yMax = entry.therapeutic_max;
-                if (unit === 'ng/mL') {
-                    yMin = yMin / 1000;
-                    yMax = yMax / 1000;
-                }
-                return {
-                    type: 'box',
-                    yMin: yMin,
-                    yMax: yMax,
-                    backgroundColor: 'rgba(0, 255, 0, 0.1)',
-                    borderColor: 'rgba(0, 255, 0, 0.5)',
-                    label: { 
-                        content: `Therapeutic Range (${entry.route_name})`, 
-                        enabled: true 
-                    }
-                };
-            });
-
-            const aucValues = [];
+            const annotations = [];
+            const time = concentrationChart.data.labels;
+            let maxConcentration = 0;
 
             pkData.forEach((entry, idx) => {
                 const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
@@ -504,27 +480,45 @@
                 const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
                 const ke = Math.log(2) / halfLife;
                 const tmax = (entry.tmax_min + entry.tmax_max) / 2 || 1;
-                const cmax = (entry.cmax_min + entry.cmax_max) / 2 || ((dose * bio) / vod);
+                let cmax = (entry.cmax_min + entry.cmax_max) / 2 || ((dose * bio) / vod);
                 const unit = entry.therapeutic_unit || 'mg/L';
-                let adjustedCmax = cmax;
-                if (unit === 'ng/mL') {
-                    adjustedCmax = cmax / 1000; // Convert ng/mL to mg/L for chart
-                }
-                const time = concentrationChart.data.labels;
+                let therapeuticMin = entry.therapeutic_min || 0;
+                let therapeuticMax = entry.therapeutic_max || 0;
 
+                // Convert to mg/L for chart
+                if (unit === 'ng/mL') {
+                    cmax = cmax / 1000;
+                    therapeuticMin = therapeuticMin / 1000;
+                    therapeuticMax = therapeuticMax / 1000;
+                }
+
+                // Therapeutic range annotation
+                annotations.push({
+                    type: 'box',
+                    yMin: therapeuticMin,
+                    yMax: therapeuticMax,
+                    backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                    borderColor: 'rgba(0, 255, 0, 0.5)',
+                    label: { 
+                        content: `Therapeutic Range (${entry.route_name})`, 
+                        enabled: true 
+                    }
+                });
+
+                // Parent drug concentrations
                 let parentConcentrations;
+                let optDose, optInterval;
                 if (optimize) {
-                    const { concentrations, dose: optDose, interval } = optimizeDosing(entry);
+                    const { concentrations, dose: optimizedDose, interval } = optimizeDosing(entry);
                     parentConcentrations = concentrations;
+                    optDose = optimizedDose;
+                    optInterval = interval;
                     document.getElementById('dosingRecommendation').innerHTML = 
-                        `Optimal Dosing for ${entry.route_name}: ${optDose} mg every ${interval} hours`;
+                        `Optimal Dosing for ${entry.route_name}: ${optDose} mg every ${optInterval} hours`;
                 } else {
-                    parentConcentrations = time.map(t => (dose * bio) / vod * Math.exp(-ke * t));
+                    parentConcentrations = calculateConcentration(dose, entry, time);
                     document.getElementById('dosingRecommendation').innerHTML = '';
                 }
-
-                const auc = calculateAUC(parentConcentrations, time);
-                aucValues.push(auc);
 
                 datasets.push({
                     label: `${entry.route_name} (Parent)`,
@@ -534,18 +528,20 @@
                     tension: 0.1
                 });
 
+                // Tmax and Cmax annotation
                 annotations.push({
                     type: 'point',
                     xValue: tmax,
-                    yValue: adjustedCmax,
+                    yValue: cmax,
                     backgroundColor: COLORS[idx % COLORS.length].replace('0.6', '1'),
                     radius: 5,
                     label: { 
-                        content: `${entry.route_name}: Tmax=${tmax}h, Cmax=${adjustedCmax.toFixed(2)}mg/L`, 
+                        content: `${entry.route_name}: Tmax=${tmax.toFixed(1)}h, Cmax=${cmax.toFixed(2)} ${unit}`, 
                         enabled: true 
                     }
                 });
 
+                // Metabolite concentrations
                 entry.metabolites.forEach((met, mIdx) => {
                     const metC0 = parentConcentrations[0] * 0.5;
                     const metKe = ke * 0.8;
@@ -560,16 +556,27 @@
                         tension: 0.1
                     });
                 });
+
+                // Update max concentration for y-axis scaling
+                maxConcentration = Math.max(maxConcentration, cmax, therapeuticMax, ...parentConcentrations);
             });
 
+            // Update chart
             concentrationChart.data.datasets = datasets;
             concentrationChart.options.plugins.annotation.annotations = annotations;
+            concentrationChart.options.scales.y.suggestedMax = maxConcentration * 1.2;
             concentrationChart.update();
 
-            aucChart.data.datasets[0].data = aucValues.map(value => value.toFixed(2));
+            // Update AUC chart
+            const aucValues = pkData.map((entry, idx) => {
+                const concentrations = calculateConcentration(dose, entry, time, optimize, optimize ? optimizeDosing(entry).interval : 0);
+                return calculateAUC(concentrations, time).toFixed(2);
+            });
+            aucChart.data.datasets[0].data = aucValues;
             aucChart.update();
         }
 
+        // Event listeners
         const doseInput = document.getElementById('dose');
         const optimizeButton = document.getElementById('optimizeDose');
         const resetButton = document.getElementById('resetDose');

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from flask.cli import FlaskGroup
 from openpyxl import load_workbook
 import bleach
+from bleach.sanitizer import Cleaner
 from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
@@ -223,28 +224,35 @@ class Drug(db.Model):
     clinical_variants = db.relationship('ClinicalVariantDrug', back_populates='drug')
     variant_annotations = db.relationship('VariantAnnotationDrug', back_populates='drug')
 
+class SafetyCategory(db.Model):
+    __tablename__ = 'safety_category'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), nullable=False, unique=True)  # e.g., 'Safe', 'Caution', 'Contraindicated', 'Unknown'
 
+    def __repr__(self):
+        return f'<SafetyCategory {self.name}>'
 
 class DrugDetail(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'drug_detail'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     parent_drug = db.relationship(
         'Drug',
         back_populates='drug_details',
         overlaps="details,drug"
-    ) 
+    )
     routes = db.relationship("DrugRoute", back_populates="drug_detail", cascade="all, delete-orphan")
-    salt_id = db.Column(db.Integer, db.ForeignKey('public.salt.id'), nullable=True)  # Opsiyonel
+    salt_id = db.Column(db.Integer, db.ForeignKey('public.salt.id'), nullable=True)
     molecular_formula = db.Column(db.String(100), nullable=True)
     synthesis = db.Column(db.Text, nullable=True)
-    structure = db.Column(db.String(200), nullable=True)     # manuel yüklenilen
-    #structure_2d = db.Column(db.String(200), nullable=True)  # 2D yapı
-    structure_3d = db.Column(db.String(200), nullable=True)  # 3D yapı
-    mechanism_of_action = db.Column(db.Text, nullable=True)  # Add this line
-    iupac_name = db.Column(db.String(200), nullable=True)
-    smiles = db.Column(db.String(200), nullable=True)
-    inchikey = db.Column(db.String(200), nullable=True)
+    structure = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    structure_3d = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    mechanism_of_action = db.Column(db.Text, nullable=True)
+    iupac_name = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    smiles = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    inchikey = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
     pubchem_cid = db.Column(db.String(50), nullable=True)
     pubchem_sid = db.Column(db.String(50), nullable=True)
     cas_id = db.Column(db.String(50), nullable=True)
@@ -253,29 +261,49 @@ class DrugDetail(db.Model):
     rxcui = db.Column(db.String(50), nullable=True)
     snomed_id = db.Column(db.String(50), nullable=True)
     molecular_weight = db.Column(db.Float, nullable=True)
-    #solubility = db.Column(db.Text, nullable=True)
+    molecular_weight_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     pharmacodynamics = db.Column(db.Text, nullable=True)
     indications = db.Column(db.Text, nullable=True)
     target_molecules = db.Column(db.Text, nullable=True)
     pharmacokinetics = db.Column(db.Text, nullable=True)
-    boiling_point = db.Column(db.String(100), nullable=True)  # Kaynama Noktası
-    melting_point = db.Column(db.String(100), nullable=True)  # Erime Noktası
-    density = db.Column(db.String(100), nullable=True)        # Yoğunluk
-    solubility = db.Column(db.String(200), nullable=True)     # Çözünürlük
-    flash_point = db.Column(db.String(100), nullable=True)    # Alevlenme Noktası
+    boiling_point = db.Column(db.Float, nullable=True)
+    boiling_point_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    melting_point = db.Column(db.Float, nullable=True)
+    melting_point_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    density = db.Column(db.Float, nullable=True)
+    density_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    solubility = db.Column(db.Float, nullable=True)
+    solubility_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    flash_point = db.Column(db.Float, nullable=True)
+    flash_point_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     fda_approved = db.Column(db.Boolean, nullable=False, default=False)
     ema_approved = db.Column(db.Boolean, nullable=False, default=False)
     titck_approved = db.Column(db.Boolean, nullable=False, default=False)
-    black_box_warning = db.Column(db.Boolean, nullable=False, default=False)  # Checkbox for black box warning
-    black_box_details = db.Column(db.Text, nullable=True)  # Text box for details if the warning exists
-    half_life = db.Column(db.Float, nullable=True)  # Hours
-    clearance_rate = db.Column(db.Float, nullable=True)  # mL/min
-    bioavailability = db.Column(db.Float, nullable=True)  # Fraction (0-1)
-    references = db.Column(db.Text, nullable=True)  # New references field
+    black_box_warning = db.Column(db.Boolean, nullable=False, default=False)
+    black_box_details = db.Column(db.Text, nullable=True)
+    half_life = db.Column(db.Float, nullable=True)
+    half_life_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    clearance_rate = db.Column(db.Float, nullable=True)
+    clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    bioavailability = db.Column(db.Float, nullable=True)
+    pregnancy_safety_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_details = db.Column(db.Text, nullable=True)
+    lactation_safety_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    lactation_details = db.Column(db.Text, nullable=True)
+    references = db.Column(db.Text, nullable=True)
 
-    # İlişkiler
     drug = db.relationship('Drug', backref=db.backref('details', lazy=True))
     salt = db.relationship('Salt', backref=db.backref('details', lazy=True))
+    molecular_weight_unit = db.relationship('Unit', foreign_keys=[molecular_weight_unit_id])
+    boiling_point_unit = db.relationship('Unit', foreign_keys=[boiling_point_unit_id])
+    melting_point_unit = db.relationship('Unit', foreign_keys=[melting_point_unit_id])
+    density_unit = db.relationship('Unit', foreign_keys=[density_unit_id])
+    solubility_unit = db.relationship('Unit', foreign_keys=[solubility_unit_id])
+    flash_point_unit = db.relationship('Unit', foreign_keys=[flash_point_unit_id])
+    half_life_unit = db.relationship('Unit', foreign_keys=[half_life_unit_id])
+    clearance_rate_unit = db.relationship('Unit', foreign_keys=[clearance_rate_unit_id])
+    pregnancy_safety = db.relationship('SafetyCategory', foreign_keys=[pregnancy_safety_id])
+    lactation_safety = db.relationship('SafetyCategory', foreign_keys=[lactation_safety_id])
 
 # Database Model for Indications
 class Indication(db.Model):
@@ -415,6 +443,14 @@ class DrugDiseaseInteraction(db.Model):
     indication = db.relationship("Indication", backref="drug_interactions")      
 
 # New Model for Drug-Lab Test Interactions
+
+class Unit(db.Model):
+    __tablename__ = 'unit'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., "g/dL", "mg/L"
+    description = db.Column(db.Text, nullable=True)  # Optional description of the unit
+
 class LabTest(db.Model):
     __tablename__ = 'lab_test'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
@@ -423,7 +459,8 @@ class LabTest(db.Model):
     name_tr = db.Column(db.String(255), nullable=True)
     description = db.Column(db.Text, nullable=True)
     reference_range = db.Column(db.String(100), nullable=True)  # e.g., "3.5-5.0 g/dL"
-    unit = db.Column(db.String(50), nullable=True)  # e.g., "g/dL"
+    unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # Foreign key to Unit
+    unit = db.relationship("Unit", backref="lab_tests")  # Relationship for easy access
 
 class DrugLabTestInteraction(db.Model):
     __tablename__ = 'drug_lab_test_interaction'
@@ -447,39 +484,47 @@ class DrugRoute(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     drug_detail_id = db.Column(db.Integer, db.ForeignKey('public.drug_detail.id', ondelete="CASCADE"), nullable=False)
     route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id', ondelete="CASCADE"), nullable=False)
-    pharmacodynamics = db.Column(db.Text, nullable=True)  # Uygulama yoluna özel farmakodinami Genel bilgi
-    pharmacokinetics = db.Column(db.Text, nullable=True)  # Uygulama yoluna özel farmakokinetik Genel bilgi
+    pharmacodynamics = db.Column(db.Text, nullable=True)
+    pharmacokinetics = db.Column(db.Text, nullable=True)
     absorption_rate_min = db.Column(db.Float, nullable=True)
     absorption_rate_max = db.Column(db.Float, nullable=True)
+    absorption_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., %/h
     vod_rate_min = db.Column(db.Float, nullable=True)
     vod_rate_max = db.Column(db.Float, nullable=True)
-    protein_binding_min = db.Column(db.Float, nullable=True)
+    vod_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., L
+    protein_binding_min = db.Column(db.Float, nullable=True)  # Fraction (0-1), no unit needed
     protein_binding_max = db.Column(db.Float, nullable=True)
     half_life_min = db.Column(db.Float, nullable=True)
     half_life_max = db.Column(db.Float, nullable=True)
+    half_life_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., hours
     clearance_rate_min = db.Column(db.Float, nullable=True)
     clearance_rate_max = db.Column(db.Float, nullable=True)
-    bioavailability_min = db.Column(db.Float, nullable=True)  # Fraction (0-1)
+    clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., mL/min
+    bioavailability_min = db.Column(db.Float, nullable=True)  # Fraction (0-1), no unit needed
     bioavailability_max = db.Column(db.Float, nullable=True)
-    tmax_min = db.Column(db.Float, nullable=True)  # Hours
+    tmax_min = db.Column(db.Float, nullable=True)
     tmax_max = db.Column(db.Float, nullable=True)
-    cmax_min = db.Column(db.Float, nullable=True)  # mg/L
+    tmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., hours
+    cmax_min = db.Column(db.Float, nullable=True)
     cmax_max = db.Column(db.Float, nullable=True)
-    therapeutic_min = db.Column(db.Float, nullable=True)  # mg/L
-    therapeutic_max = db.Column(db.Float, nullable=True)  # mg/L
-    therapeutic_unit = db.Column(db.String(10), nullable=True, default="mg/L")  # e.g., "mg/L" or "ng/mL"
+    cmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., mg/L
+    therapeutic_min = db.Column(db.Float, nullable=True)
+    therapeutic_max = db.Column(db.Float, nullable=True)
+    therapeutic_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # Replaces therapeutic_unit string
 
     route = db.relationship("RouteOfAdministration")
     drug_detail = db.relationship("DrugDetail", back_populates="routes")
-    metabolism_organs = db.relationship('MetabolismOrgan', secondary=drug_route_metabolism_organ, backref='drug_routes')
-    metabolism_enzymes = db.relationship('MetabolismEnzyme', secondary=drug_route_metabolism_enzyme, backref='drug_routes')
-    metabolites = db.relationship('Metabolite', secondary=drug_route_metabolite, backref='routes')    
-
-    route_indications = db.relationship(
-        "RouteIndication",
-        backref="drug_route",
-        cascade="all, delete-orphan"
-    )
+    absorption_rate_unit = db.relationship('Unit', foreign_keys=[absorption_rate_unit_id])
+    vod_rate_unit = db.relationship('Unit', foreign_keys=[vod_rate_unit_id])
+    half_life_unit = db.relationship('Unit', foreign_keys=[half_life_unit_id])
+    clearance_rate_unit = db.relationship('Unit', foreign_keys=[clearance_rate_unit_id])
+    tmax_unit = db.relationship('Unit', foreign_keys=[tmax_unit_id])
+    cmax_unit = db.relationship('Unit', foreign_keys=[cmax_unit_id])
+    therapeutic_unit = db.relationship('Unit', foreign_keys=[therapeutic_unit_id])
+    metabolism_organs = db.relationship('MetabolismOrgan', secondary='public.drug_route_metabolism_organ', backref='drug_routes')
+    metabolism_enzymes = db.relationship('MetabolismEnzyme', secondary='public.drug_route_metabolism_enzyme', backref='drug_routes')
+    metabolites = db.relationship('Metabolite', secondary='public.drug_route_metabolite', backref='routes')
+    route_indications = db.relationship("RouteIndication", backref="drug_route", cascade="all, delete-orphan")
 
 
 class RouteIndication(db.Model):
@@ -1502,7 +1547,48 @@ def generate_3d_structure(smiles, output_filename):
     except Exception as e:
         logger.error(f"Error generating 3D structure: {str(e)}")
         return None, f"Error generating 3D structure: {str(e)}"
-    
+
+
+#Detais_Add Route:
+
+# Define allowed tags, attributes, and styles for sanitization
+ALLOWED_TAGS = ['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a']
+ALLOWED_STYLES = ['color', 'background-color']
+
+# Define allowed attributes with a custom function for 'style'
+def allow_style_attrs(tag, name, value):
+    if name != 'style':
+        return name in ['href'] and tag == 'a'  # Allow 'href' only for 'a' tags
+    # Parse and filter style attribute
+    styles = [style.strip() for style in value.split(';') if style.strip()]
+    filtered_styles = []
+    for style in styles:
+        try:
+            prop, _ = style.split(':', 1)
+            prop = prop.strip().lower()
+            if prop in ALLOWED_STYLES:
+                filtered_styles.append(style)
+        except ValueError:
+            continue
+    return '; '.join(filtered_styles) if filtered_styles else None
+
+# Define allowed attributes per tag
+ALLOWED_ATTRIBUTES = {
+    'a': ['href'],
+    'span': allow_style_attrs
+}
+
+# Create a custom cleaner
+cleaner = Cleaner(
+    tags=ALLOWED_TAGS,
+    attributes=ALLOWED_ATTRIBUTES,
+    strip=True
+)
+
+# Reusable sanitization function
+def sanitize_field(field_value):
+    return cleaner.clean(field_value) if field_value else None
+
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -1514,12 +1600,13 @@ def add_detail():
     metabolites = Metabolite.query.all()
     metabolism_organs = MetabolismOrgan.query.all()
     metabolism_enzymes = MetabolismEnzyme.query.all()
+    units = Unit.query.all()
+    safety_categories = SafetyCategory.query.all()
+    units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
 
     if request.method == 'POST':
         logger.debug("Entering POST block")
         logger.debug(f"Form data: {request.form}")
-        logger.debug(f"Using bleach version: {bleach.__version__}")
-        logger.debug(f"bleach.clean function: {bleach.clean}")
 
         drug_id = request.form.get('drug_id')
         salt_id = request.form.get('salt_id')
@@ -1531,6 +1618,7 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                units=units, units_json=units_json, safety_categories=safety_categories,
                 error_message="Drug ID is required and must be an integer!"
             )
 
@@ -1548,6 +1636,7 @@ def add_detail():
                     'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                     metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                    units=units, units_json=units_json, safety_categories=safety_categories,
                     error_message="Invalid salt_id. Must be an integer or empty."
                 )
 
@@ -1559,34 +1648,33 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                units=units, units_json=units_json, safety_categories=safety_categories,
                 error_message="Bu etken madde ve tuz kombinasyonu için zaten detaylı bilgi mevcut!"
             )
 
         try:
-            # Form data with sanitization for rich text fields
+            # Sanitize rich text fields
             logger.debug(f"Mechanism of Action input: {request.form.get('mechanism_of_action')}")
-            try:
-                mechanism_of_action = bleach.clean(
-                    request.form.get('mechanism_of_action'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']},
-                    styles=['color', 'background-color']
-                ) if request.form.get('mechanism_of_action') else None
-            except TypeError as e:
-                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
-                mechanism_of_action = bleach.clean(
-                    request.form.get('mechanism_of_action'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']}
-                ) if request.form.get('mechanism_of_action') else None
-            
-            # Sanitize references field
-            references = bleach.clean(
-                request.form.get('references'),
-                tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                attributes={'span': ['style'], 'a': ['href']},
-                styles=['color', 'background-color']
-            ) if request.form.get('references') else None
+            mechanism_of_action = sanitize_field(request.form.get('mechanism_of_action'))
+            references = sanitize_field(request.form.get('references'))
+
+            pregnancy_safety_id = request.form.get('pregnancy_safety_id', type=int)
+            pregnancy_details = None
+            if pregnancy_safety_id:
+                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
+                # pregnancy_safety = db.session.get(SafetyCategory, pregnancy_safety_id)
+                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_id)
+                if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
+                    pregnancy_details = sanitize_field(request.form.get('pregnancy_details'))
+
+            lactation_safety_id = request.form.get('lactation_safety_id', type=int)
+            lactation_details = None
+            if lactation_safety_id:
+                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
+                # lactation_safety = db.session.get(SafetyCategory, lactation_safety_id)
+                lactation_safety = SafetyCategory.query.get(lactation_safety_id)
+                if lactation_safety and lactation_safety.name in ['Caution', 'Contraindicated']:
+                    lactation_details = sanitize_field(request.form.get('lactation_details'))
 
             smiles = request.form.get('smiles')
             logger.debug(f"SMILES received: {smiles}")
@@ -1599,44 +1687,30 @@ def add_detail():
             titck_approved = 'titck_approved' in request.form
             molecular_formula = request.form.get('molecular_formula')
             logger.debug(f"Synthesis input: {request.form.get('synthesis')}")
-            try:
-                synthesis = bleach.clean(
-                    request.form.get('synthesis'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']},
-                    styles=['color', 'background-color']
-                ) if request.form.get('synthesis') else None
-            except TypeError as e:
-                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
-                synthesis = bleach.clean(
-                    request.form.get('synthesis'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']}
-                ) if request.form.get('synthesis') else None
+            synthesis = sanitize_field(request.form.get('synthesis'))
 
             # Handle uploaded structure file (priority)
             structure_filename = None
             structure = request.files.get('structure')
             if structure:
                 original_filename = secure_filename(structure.filename)
-                file_ext = os.path.splitext(original_filename)[1] or '.png'  # Default to .png if no extension
+                file_ext = os.path.splitext(original_filename)[1] or '.png'
                 structure_filename = f"structure_{drug_id}_salt_{salt_id or 'none'}{file_ext}"
-                structure_path = os.path.join('static', 'uploads', structure_filename).replace('\\', '/')
+                structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
                 os.makedirs(os.path.dirname(structure_path), exist_ok=True)
                 structure.save(structure_path)
-                structure_filename = os.path.join('uploads', structure_filename).replace('\\', '/')
+                structure_filename = os.path.join('Uploads', structure_filename).replace('\\', '/')
                 logger.info(f"Uploaded structure file saved as {structure_path}")
             elif smiles:
-                # Fallback to SVG generation if no file uploaded
                 svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
-                svg_path = os.path.join('static', 'uploads', svg_filename).replace('\\', '/')
+                svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
                 logger.debug(f"Generating SVG for drug_id={drug_id}, salt_id={salt_id or 'none'}, path={svg_path}")
                 try:
                     mol = Chem.MolFromSmiles(smiles)
                     if mol:
                         os.makedirs(os.path.dirname(svg_path), exist_ok=True)
                         Draw.MolToFile(mol, svg_path, size=(300, 300))
-                        structure_filename = os.path.join('uploads', svg_filename).replace('\\', '/')
+                        structure_filename = os.path.join('Uploads', svg_filename).replace('\\', '/')
                         logger.info(f"Structure file saved as {svg_path}")
                     else:
                         logger.error(f"Invalid SMILES: {smiles}")
@@ -1658,6 +1732,25 @@ def add_detail():
             else:
                 logger.debug("No SMILES provided, skipping 3D structure generation")
 
+            # DrugDetail fields with units
+            molecular_weight = request.form.get('molecular_weight', type=float)
+            molecular_weight_unit_id = request.form.get('molecular_weight_unit_id', type=int)
+            boiling_point = request.form.get('boiling_point', type=float)
+            boiling_point_unit_id = request.form.get('boiling_point_unit_id', type=int)
+            melting_point = request.form.get('melting_point', type=float)
+            melting_point_unit_id = request.form.get('melting_point_unit_id', type=int)
+            density = request.form.get('density', type=float)
+            density_unit_id = request.form.get('density_unit_id', type=int)
+            solubility = request.form.get('solubility', type=float)
+            solubility_unit_id = request.form.get('solubility_unit_id', type=int)
+            flash_point = request.form.get('flash_point', type=float)
+            flash_point_unit_id = request.form.get('flash_point_unit_id', type=int)
+            half_life = request.form.get('half_life', type=float)
+            half_life_unit_id = request.form.get('half_life_unit_id', type=int)
+            clearance_rate = request.form.get('clearance_rate', type=float)
+            clearance_rate_unit_id = request.form.get('clearance_rate_unit_id', type=int)
+            bioavailability = request.form.get('bioavailability', type=float)
+
             # Remaining form fields
             iupac_name = request.form.get('iupac_name')
             inchikey = request.form.get('inchikey')
@@ -1668,60 +1761,66 @@ def add_detail():
             nci_code = request.form.get('nci_code')
             rxcui = request.form.get('rxcui')
             snomed_id = request.form.get('snomed_id')
-            molecular_weight = request.form.get('molecular_weight', type=float)
-            solubility = request.form.get('solubility')
             logger.debug(f"Pharmacodynamics input: {request.form.get('pharmacodynamics')}")
-            try:
-                pharmacodynamics = bleach.clean(
-                    request.form.get('pharmacodynamics'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']},
-                    styles=['color', 'background-color']
-                ) if request.form.get('pharmacodynamics') else None
-            except TypeError as e:
-                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
-                pharmacodynamics = bleach.clean(
-                    request.form.get('pharmacodynamics'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']}
-                ) if request.form.get('pharmacodynamics') else None
+            pharmacodynamics = sanitize_field(request.form.get('pharmacodynamics'))
             black_box_warning = 'black_box_warning' in request.form
-            black_box_details = request.form.get('black_box_details') if black_box_warning else None
+            black_box_details = sanitize_field(request.form.get('black_box_details')) if black_box_warning else None
             indications = ','.join(request.form.getlist('indications[]')) if request.form.getlist('indications[]') else None
             selected_target_molecules = request.form.getlist('target_molecules[]')
             target_molecules = ','.join(selected_target_molecules) if selected_target_molecules else None
             logger.debug(f"Pharmacokinetics input: {request.form.get('pharmacokinetics')}")
-            try:
-                pharmacokinetics = bleach.clean(
-                    request.form.get('pharmacokinetics'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']},
-                    styles=['color', 'background-color']
-                ) if request.form.get('pharmacokinetics') else None
-            except TypeError as e:
-                logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
-                pharmacokinetics = bleach.clean(
-                    request.form.get('pharmacokinetics'),
-                    tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                    attributes={'span': ['style'], 'a': ['href']}
-                ) if request.form.get('pharmacokinetics') else None
-            boiling_point = request.form.get('boiling_point')
-            melting_point = request.form.get('melting_point')
-            density = request.form.get('density')
-            flash_point = request.form.get('flash_point')
+            pharmacokinetics = sanitize_field(request.form.get('pharmacokinetics'))
 
             # Create new DrugDetail
             new_detail = DrugDetail(
-                drug_id=drug_id, salt_id=salt_id, mechanism_of_action=mechanism_of_action,
-                molecular_formula=molecular_formula, synthesis=synthesis, structure=structure_filename,
-                structure_3d=structure_3d_filename, iupac_name=iupac_name, smiles=smiles, inchikey=inchikey,
-                pubchem_cid=pubchem_cid, pubchem_sid=pubchem_sid, cas_id=cas_id, ec_number=ec_number,
-                nci_code=nci_code, rxcui=rxcui, snomed_id=snomed_id, molecular_weight=molecular_weight,
-                solubility=solubility, pharmacodynamics=pharmacodynamics, black_box_warning=black_box_warning,
-                black_box_details=black_box_details, indications=indications, target_molecules=target_molecules,
-                pharmacokinetics=pharmacokinetics, boiling_point=boiling_point, melting_point=melting_point,
-                density=density, flash_point=flash_point, fda_approved=fda_approved,
-                ema_approved=ema_approved, titck_approved=titck_approved, references=references
+                drug_id=drug_id,
+                salt_id=salt_id,
+                mechanism_of_action=mechanism_of_action,
+                molecular_formula=molecular_formula,
+                synthesis=synthesis,
+                structure=structure_filename,
+                structure_3d=structure_3d_filename,
+                iupac_name=iupac_name,
+                smiles=smiles,
+                inchikey=inchikey,
+                pubchem_cid=pubchem_cid,
+                pubchem_sid=pubchem_sid,
+                cas_id=cas_id,
+                ec_number=ec_number,
+                nci_code=nci_code,
+                rxcui=rxcui,
+                snomed_id=snomed_id,
+                molecular_weight=molecular_weight,
+                molecular_weight_unit_id=molecular_weight_unit_id,
+                solubility=solubility,
+                solubility_unit_id=solubility_unit_id,
+                pharmacodynamics=pharmacodynamics,
+                black_box_warning=black_box_warning,
+                black_box_details=black_box_details,
+                indications=indications,
+                target_molecules=target_molecules,
+                pharmacokinetics=pharmacokinetics,
+                boiling_point=boiling_point,
+                boiling_point_unit_id=boiling_point_unit_id,
+                melting_point=melting_point,
+                melting_point_unit_id=melting_point_unit_id,
+                density=density,
+                density_unit_id=density_unit_id,
+                flash_point=flash_point,
+                flash_point_unit_id=flash_point_unit_id,
+                fda_approved=fda_approved,
+                ema_approved=ema_approved,
+                titck_approved=titck_approved,
+                half_life=half_life,
+                half_life_unit_id=half_life_unit_id,
+                clearance_rate=clearance_rate,
+                clearance_rate_unit_id=clearance_rate_unit_id,
+                bioavailability=bioavailability,
+                references=references,
+                pregnancy_safety_id=pregnancy_safety_id,
+                pregnancy_details=pregnancy_details,
+                lactation_safety_id=lactation_safety_id,
+                lactation_details=lactation_details
             )
             db.session.add(new_detail)
             db.session.commit()
@@ -1731,6 +1830,8 @@ def add_detail():
             def parse_range(value):
                 if not value:
                     return None, None
+                # Replace en dash (–) with hyphen (-) for consistent parsing
+                value = value.replace('–', '-')
                 if '-' in value:
                     try:
                         min_val, max_val = map(float, value.split('-'))
@@ -1753,18 +1854,24 @@ def add_detail():
                 pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
                 pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
 
-                # PK parameters
+                # PK parameters with units
                 absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
+                absorption_rate_unit_id = request.form.get(f'absorption_rate_unit_id_{route_id}', type=int)
                 vod_rate = request.form.get(f'vod_rate_{route_id}', '')
+                vod_rate_unit_id = request.form.get(f'vod_rate_unit_id_{route_id}', type=int)
                 protein_binding = request.form.get(f'protein_binding_{route_id}', '')
                 half_life = request.form.get(f'half_life_{route_id}', '')
+                half_life_unit_id = request.form.get(f'half_life_unit_id_{route_id}', type=int)
                 clearance_rate = request.form.get(f'clearance_rate_{route_id}', '')
+                clearance_rate_unit_id = request.form.get(f'clearance_rate_unit_id_{route_id}', type=int)
                 bioavailability = request.form.get(f'bioavailability_{route_id}', '')
                 tmax = request.form.get(f'tmax_{route_id}', '')
+                tmax_unit_id = request.form.get(f'tmax_unit_id_{route_id}', type=int)
                 cmax = request.form.get(f'cmax_{route_id}', '')
-                # New: Therapeutic range
+                cmax_unit_id = request.form.get(f'cmax_unit_id_{route_id}', type=int)
                 therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
-                therapeutic_unit = request.form.get(f'therapeutic_unit_{route_id}', 'mg/L')
+                therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
+
                 # Metabolism parameters
                 metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
                 metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
@@ -1785,27 +1892,26 @@ def add_detail():
                     bio_max /= 100
                 tmax_min, tmax_max = parse_range(tmax)
                 cmax_min, cmax_max = parse_range(cmax)
-                # Parse therapeutic range
                 therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
-                if therapeutic_unit == 'ng/mL' and therapeutic_min is not None and therapeutic_max is not None:
-                    pass
 
                 logger.debug(f"Route ID {route_id} -> "
-                             f"Absorption: {absorption_min}-{absorption_max}, "
-                             f"VoD: {vod_min}-{vod_max}, "
+                             f"Absorption: {absorption_min}-{absorption_max}, Unit ID: {absorption_rate_unit_id}, "
+                             f"VoD: {vod_min}-{vod_max}, Unit ID: {vod_rate_unit_id}, "
                              f"Protein Binding: {protein_min}-{protein_max}, "
-                             f"Half-Life: {half_life_min}-{half_life_max}, "
-                             f"Clearance: {clearance_min}-{clearance_max}, "
+                             f"Half-Life: {half_life_min}-{half_life_max}, Unit ID: {half_life_unit_id}, "
+                             f"Clearance: {clearance_min}-{clearance_max}, Unit ID: {clearance_rate_unit_id}, "
                              f"Bioavailability: {bio_min}-{bio_max}, "
-                             f"Tmax: {tmax_min}-{tmax_max}, "
-                             f"Cmax: {cmax_min}-{cmax_max}, "
-                             f"Therapeutic Range: {therapeutic_min}-{therapeutic_max}, "  # New
+                             f"Tmax: {tmax_min}-{tmax_max}, Unit ID: {tmax_unit_id}, "
+                             f"Cmax: {cmax_min}-{cmax_max}, Unit ID: {cmax_unit_id}, "
+                             f"Therapeutic Range: {therapeutic_min}-{therapeutic_max}, Unit ID: {therapeutic_unit_id}, "
                              f"Organs IDs: {metabolism_organs_ids}, "
                              f"Enzymes IDs: {metabolism_enzymes_ids}, "
                              f"Metabolite IDs: {metabolite_ids}, "
                              f"PD: {pd}, PK: {pk}")
 
                 # Validate route_id
+                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
+                # if not db.session.get(RouteOfAdministration, route_id):
                 if not RouteOfAdministration.query.get(route_id):
                     logger.error(f"Invalid route_id {route_id}")
                     continue
@@ -1818,26 +1924,32 @@ def add_detail():
                     pharmacokinetics=pk,
                     absorption_rate_min=absorption_min,
                     absorption_rate_max=absorption_max,
+                    absorption_rate_unit_id=absorption_rate_unit_id,
                     vod_rate_min=vod_min,
                     vod_rate_max=vod_max,
+                    vod_rate_unit_id=vod_rate_unit_id,
                     protein_binding_min=protein_min,
                     protein_binding_max=protein_max,
                     half_life_min=half_life_min,
                     half_life_max=half_life_max,
+                    half_life_unit_id=half_life_unit_id,
                     clearance_rate_min=clearance_min,
                     clearance_rate_max=clearance_max,
+                    clearance_rate_unit_id=clearance_rate_unit_id,
                     bioavailability_min=bio_min,
                     bioavailability_max=bio_max,
                     tmax_min=tmax_min,
                     tmax_max=tmax_max,
+                    tmax_unit_id=tmax_unit_id,
                     cmax_min=cmax_min,
                     cmax_max=cmax_max,
-                    therapeutic_min=therapeutic_min,  # New
-                    therapeutic_max=therapeutic_max,   # New
-                    therapeutic_unit=therapeutic_unit
+                    cmax_unit_id=cmax_unit_id,
+                    therapeutic_min=therapeutic_min,
+                    therapeutic_max=therapeutic_max,
+                    therapeutic_unit_id=therapeutic_unit_id
                 )
                 db.session.add(new_drug_route)
-                db.session.flush()  # Get ID for relationships
+                db.session.flush()
 
                 # Link metabolism data via relationships
                 if metabolism_organs_ids:
@@ -1862,6 +1974,8 @@ def add_detail():
 
             # Add side effects
             for side_effect_id in selected_side_effects:
+                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
+                # side_effect = db.session.get(SideEffect, side_effect_id)
                 side_effect = SideEffect.query.get(side_effect_id)
                 if side_effect:
                     new_detail.side_effects.append(side_effect)
@@ -1877,13 +1991,15 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                units=units, units_json=units_json, safety_categories=safety_categories,
                 error_message=f"Error saving details: {str(e)}"
             )
 
     return render_template(
         'add_detail.html', drugs=drugs, salts=salts, indications=indications,
         targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
-        metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes
+        metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+        units=units, units_json=units_json, safety_categories=safety_categories
     )
 
 def generate_and_update_structures():
@@ -1947,8 +2063,8 @@ def view_details():
         # Define paths
         svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
         pdb_filename = f'drug_{detail.drug_id}_salt_{detail.salt_id or "none"}_3d.pdb'
-        svg_path = os.path.join('static', 'uploads', svg_filename)
-        pdb_path = os.path.join('static', 'uploads', '3d_structures', pdb_filename)
+        svg_path = os.path.join('static', 'Uploads', svg_filename)
+        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
         db_svg_path = f'uploads/{svg_filename}'
         db_pdb_path = f'uploads/3d_structures/{pdb_filename}'
 
@@ -1974,7 +2090,7 @@ def view_details():
             except Exception as e:
                 print(f"Error generating PDB for drug_id={detail.drug_id}: {e}")
 
-        # Prepare routes and other data (your existing logic)
+        # Prepare routes and other data
         routes_info = []
         for route in detail.routes:
             route_indications = [
@@ -1986,7 +2102,23 @@ def view_details():
                 'name': route.route.name,
                 'pharmacodynamics': route.pharmacodynamics,
                 'pharmacokinetics': route.pharmacokinetics,
-                'indications': route_indications
+                'indications': route_indications,
+                'absorption_rate': f"{route.absorption_rate_min or ''}-{route.absorption_rate_max or ''}" if route.absorption_rate_min or route.absorption_rate_max else 'N/A',
+                'absorption_rate_unit': Unit.query.get(route.absorption_rate_unit_id).name if route.absorption_rate_unit_id else 'N/A',
+                'vod_rate': f"{route.vod_rate_min or ''}-{route.vod_rate_max or ''}" if route.vod_rate_min or route.vod_rate_max else 'N/A',
+                'vod_rate_unit': Unit.query.get(route.vod_rate_unit_id).name if route.vod_rate_unit_id else 'N/A',
+                'protein_binding': f"{(route.protein_binding_min * 100 or '')}-{(route.protein_binding_max * 100 or '')}%" if route.protein_binding_min or route.protein_binding_max else 'N/A',
+                'half_life': f"{route.half_life_min or ''}-{route.half_life_max or ''}" if route.half_life_min or route.half_life_max else 'N/A',
+                'half_life_unit': Unit.query.get(route.half_life_unit_id).name if route.half_life_unit_id else 'N/A',
+                'clearance_rate': f"{route.clearance_rate_min or ''}-{route.clearance_rate_max or ''}" if route.clearance_rate_min or route.clearance_rate_max else 'N/A',
+                'clearance_rate_unit': Unit.query.get(route.clearance_rate_unit_id).name if route.clearance_rate_unit_id else 'N/A',
+                'bioavailability': f"{(route.bioavailability_min * 100 or '')}-{(route.bioavailability_max * 100 or '')}%" if route.bioavailability_min or route.bioavailability_max else 'N/A',
+                'tmax': f"{route.tmax_min or ''}-{route.tmax_max or ''}" if route.tmax_min or route.tmax_max else 'N/A',
+                'tmax_unit': Unit.query.get(route.tmax_unit_id).name if route.tmax_unit_id else 'N/A',
+                'cmax': f"{route.cmax_min or ''}-{route.cmax_max or ''}" if route.cmax_min or route.cmax_max else 'N/A',
+                'cmax_unit': Unit.query.get(route.cmax_unit_id).name if route.cmax_unit_id else 'N/A',
+                'therapeutic_range': f"{route.therapeutic_min or ''}-{route.therapeutic_max or ''}" if route.therapeutic_min or route.therapeutic_max else 'N/A',
+                'therapeutic_unit': Unit.query.get(route.therapeutic_unit_id).name if route.therapeutic_unit_id else 'N/A'
             })
 
         indications_list = []
@@ -2008,6 +2140,10 @@ def view_details():
             {"id": se.id, "name_en": se.name_en, "name_tr": se.name_tr or 'N/A'}
             for se in detail.side_effects
         ]
+
+        # Fetch pregnancy and lactation safety info
+        pregnancy_safety = detail.pregnancy_safety.name if detail.pregnancy_safety else 'N/A'
+        lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
 
         enriched_details.append({
             'id': detail.id,
@@ -2031,21 +2167,32 @@ def view_details():
             'rxcui': detail.rxcui,
             'snomed_id': detail.snomed_id,
             'molecular_weight': detail.molecular_weight,
+            'molecular_weight_unit': Unit.query.get(detail.molecular_weight_unit_id).name if detail.molecular_weight_unit_id else 'N/A',
             'solubility': detail.solubility,
+            'solubility_unit': Unit.query.get(detail.solubility_unit_id).name if detail.solubility_unit_id else 'N/A',
             'side_effects': side_effects_list,
             'pharmacodynamics': detail.pharmacodynamics,
             'indications': indications_list,
             'target_molecules': target_molecules_list,
             'pharmacokinetics': detail.pharmacokinetics,
             'boiling_point': detail.boiling_point,
+            'boiling_point_unit': Unit.query.get(detail.boiling_point_unit_id).name if detail.boiling_point_unit_id else 'N/A',
             'melting_point': detail.melting_point,
+            'melting_point_unit': Unit.query.get(detail.melting_point_unit_id).name if detail.melting_point_unit_id else 'N/A',
             'density': detail.density,
+            'density_unit': Unit.query.get(detail.density_unit_id).name if detail.density_unit_id else 'N/A',
             'flash_point': detail.flash_point,
+            'flash_point_unit': Unit.query.get(detail.flash_point_unit_id).name if detail.flash_point_unit_id else 'N/A',
             'routes': routes_info,
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
             'mechanism_of_action': detail.mechanism_of_action,
-            'references': detail.references  #Last added section
+            'references': detail.references,
+            # New fields for pregnancy and lactation
+            'pregnancy_safety': pregnancy_safety,
+            'pregnancy_details': detail.pregnancy_details,
+            'lactation_safety': lactation_safety,
+            'lactation_details': detail.lactation_details
         })
 
     return render_template('details_list.html', details=enriched_details)
@@ -2970,10 +3117,10 @@ def drug_detail(drug_id):
     enriched_details = []
     
     for detail in details:
-        # Generate 2D SVG if SMILES exists
+        # Define paths
         salt_suffix = f"_salt_{detail.salt_id or 'none'}"
         svg_filename = f'sketcher_{drug_id}{salt_suffix}.svg'
-        svg_path = os.path.join('static', 'uploads', svg_filename).replace('\\', '/')  # Change to 'uploads'
+        svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
         logger.debug(f"Checking SVG for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}, path={svg_path}")
         if detail.smiles:
             if not os.path.exists(svg_path):
@@ -2995,7 +3142,7 @@ def drug_detail(drug_id):
         
         # Generate 3D PDB if SMILES exists
         pdb_filename = f"drug_{drug_id}_salt_{detail.salt_id or 'none'}_3d.pdb"
-        pdb_path = os.path.join('static', 'uploads', '3d_structures', pdb_filename).replace('\\', '/')  # Change to 'uploads'
+        pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename).replace('\\', '/')
         if detail.smiles and not os.path.exists(pdb_path):
             try:
                 logger.info(f"Generating PDB for drug_id={drug_id}, salt_id={detail.salt_id or 'none'}")
@@ -3029,11 +3176,13 @@ def drug_detail(drug_id):
                 'indications': route_indications,
                 'absorption_rate': {
                     'min': route.absorption_rate_min,
-                    'max': route.absorption_rate_max
+                    'max': route.absorption_rate_max,
+                    'unit': Unit.query.get(route.absorption_rate_unit_id).name if route.absorption_rate_unit_id else 'N/A'
                 },
                 'volume_of_distribution': {
                     'min': route.vod_rate_min,
-                    'max': route.vod_rate_max
+                    'max': route.vod_rate_max,
+                    'unit': Unit.query.get(route.vod_rate_unit_id).name if route.vod_rate_unit_id else 'N/A'
                 },
                 'protein_binding': {
                     'min': route.protein_binding_min,
@@ -3041,11 +3190,13 @@ def drug_detail(drug_id):
                 },
                 'half_life': {
                     'min': route.half_life_min,
-                    'max': route.half_life_max
+                    'max': route.half_life_max,
+                    'unit': Unit.query.get(route.half_life_unit_id).name if route.half_life_unit_id else 'N/A'
                 },
                 'clearance_rate': {
                     'min': route.clearance_rate_min,
-                    'max': route.clearance_rate_max
+                    'max': route.clearance_rate_max,
+                    'unit': Unit.query.get(route.clearance_rate_unit_id).name if route.clearance_rate_unit_id else 'N/A'
                 },
                 'bioavailability': {
                     'min': route.bioavailability_min,
@@ -3053,11 +3204,13 @@ def drug_detail(drug_id):
                 },
                 'tmax': {
                     'min': route.tmax_min,
-                    'max': route.tmax_max
+                    'max': route.tmax_max,
+                    'unit': Unit.query.get(route.tmax_unit_id).name if route.tmax_unit_id else 'N/A'
                 },
                 'cmax': {
                     'min': route.cmax_min,
-                    'max': route.cmax_max
+                    'max': route.cmax_max,
+                    'unit': Unit.query.get(route.cmax_unit_id).name if route.cmax_unit_id else 'N/A'
                 },
                 'therapeutic_range': {
                     'min': route.therapeutic_min,
@@ -3094,6 +3247,10 @@ def drug_detail(drug_id):
             for se in detail.side_effects
         ]
 
+        # Fetch pregnancy and lactation safety info
+        pregnancy_safety = detail.pregnancy_safety.name if detail.pregnancy_safety else 'N/A'
+        lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
+
         enriched_details.append({
             'id': detail.id,
             'salt_id': detail.salt_id,
@@ -3105,7 +3262,7 @@ def drug_detail(drug_id):
             'titck_approved': detail.titck_approved,
             'molecular_formula': detail.molecular_formula,
             'synthesis': detail.synthesis,
-            'structure': os.path.join('uploads', svg_filename).replace('\\', '/'),  # Change to 'uploads'
+            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),
             'structure_3d': detail.structure_3d,
             'iupac_name': detail.iupac_name,
             'smiles': detail.smiles,
@@ -3118,20 +3275,31 @@ def drug_detail(drug_id):
             'rxcui': detail.rxcui,
             'snomed_id': detail.snomed_id,
             'molecular_weight': detail.molecular_weight,
+            'molecular_weight_unit': Unit.query.get(detail.molecular_weight_unit_id).name if detail.molecular_weight_unit_id else 'N/A',
             'solubility': detail.solubility,
+            'solubility_unit': Unit.query.get(detail.solubility_unit_id).name if detail.solubility_unit_id else 'N/A',
             'pharmacodynamics': detail.pharmacodynamics,
             'pharmacokinetics': detail.pharmacokinetics,
             'boiling_point': detail.boiling_point,
+            'boiling_point_unit': Unit.query.get(detail.boiling_point_unit_id).name if detail.boiling_point_unit_id else 'N/A',
             'melting_point': detail.melting_point,
+            'melting_point_unit': Unit.query.get(detail.melting_point_unit_id).name if detail.melting_point_unit_id else 'N/A',
             'density': detail.density,
+            'density_unit': Unit.query.get(detail.density_unit_id).name if detail.density_unit_id else 'N/A',
             'flash_point': detail.flash_point,
+            'flash_point_unit': Unit.query.get(detail.flash_point_unit_id).name if detail.flash_point_unit_id else 'N/A',
             'routes': routes_info,
             'indications': indications_list,
             'target_molecules': target_molecules_list,
             'side_effects': side_effects_list,
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
-            'references': detail.references  # Add this line
+            'references': detail.references,
+            # New fields for pregnancy and lactation
+            'pregnancy_safety': pregnancy_safety,
+            'pregnancy_details': detail.pregnancy_details,
+            'lactation_safety': lactation_safety,
+            'lactation_details': detail.lactation_details
         })
 
     return render_template(
@@ -3189,7 +3357,6 @@ def delete_side_effect(side_effect_id):
     db.session.commit()
     return redirect(url_for('manage_side_effects'))
 
-
 @app.route('/details/update/<int:detail_id>', methods=['GET', 'POST'])
 def update_detail(detail_id):
     detail = DrugDetail.query.get_or_404(detail_id)
@@ -3199,19 +3366,129 @@ def update_detail(detail_id):
     targets = Target.query.all()
     routes = RouteOfAdministration.query.all()
     side_effects = SideEffect.query.all()
+    metabolites = Metabolite.query.all()
+    metabolism_organs = MetabolismOrgan.query.all()
+    metabolism_enzymes = MetabolismEnzyme.query.all()
+    units = Unit.query.all()
+    # Serialize units to JSON-compatible format
+    units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
 
     if request.method == 'POST':
-        try:
-            # Debugging: Log incoming form data
-            print(f"DEBUG: Received Form Data -> {request.form}")
+        logger.debug("Entering POST block")
+        logger.debug(f"Form data: {request.form}")
 
-            # Update fields
-            detail.drug_id = request.form.get('drug_id')
-            detail.salt_id = request.form.get('salt_id', None)
+        try:
+            # Validate drug_id
+            drug_id = request.form.get('drug_id')
+            if not drug_id or not drug_id.isdigit():
+                logger.error("Invalid drug_id: must be an integer")
+                return render_template(
+                    'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                    targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                    metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                    units=units, units_json=units_json, error_message="Drug ID is required and must be an integer!"
+                )
+            drug_id = int(drug_id)
+
+            # Validate and convert salt_id
+            salt_id = request.form.get('salt_id')
+            if salt_id == '' or salt_id is None:
+                salt_id = None
+            else:
+                try:
+                    salt_id = int(salt_id)
+                except ValueError:
+                    logger.error(f"Invalid salt_id: {salt_id}")
+                    return render_template(
+                        'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                        targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                        metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                        units=units, units_json=units_json, error_message="Invalid salt_id. Must be an integer or empty."
+                    )
+
+            # Check for existing detail (excluding current detail)
+            existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).filter(DrugDetail.id != detail_id).first()
+            if existing_detail:
+                logger.error(f"DrugDetail already exists for drug_id={drug_id}, salt_id={salt_id}")
+                return render_template(
+                    'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                    targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                    metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                    units=units, units_json=units_json, error_message="This drug and salt combination already exists!"
+                )
+
+            # Sanitize rich text fields
+            def clean_text(field):
+                try:
+                    return bleach.clean(
+                        field,
+                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                        attributes={'span': ['style'], 'a': ['href']},
+                        styles=['color', 'background-color']
+                    ) if field else None
+                except TypeError as e:
+                    logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                    return bleach.clean(
+                        field,
+                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                        attributes={'span': ['style'], 'a': ['href']}
+                    ) if field else None
+
+            mechanism_of_action = clean_text(request.form.get('mechanism_of_action'))
+            synthesis = clean_text(request.form.get('synthesis'))
+            pharmacodynamics = clean_text(request.form.get('pharmacodynamics'))
+            pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
+            references = clean_text(request.form.get('references'))
+
+            # Handle SMILES and structure file
+            smiles = request.form.get('smiles')
+            structure_filename = detail.structure
+            structure = request.files.get('structure')
+            if structure:
+                original_filename = secure_filename(structure.filename)
+                file_ext = os.path.splitext(original_filename)[1] or '.png'
+                structure_filename = f"structure_{drug_id}_salt_{salt_id or 'none'}{file_ext}"
+                structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
+                os.makedirs(os.path.dirname(structure_path), exist_ok=True)
+                structure.save(structure_path)
+                structure_filename = os.path.join('uploads', structure_filename).replace('\\', '/')
+                logger.info(f"Uploaded structure file saved as {structure_path}")
+            elif smiles and not detail.structure:
+                svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
+                svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+                try:
+                    mol = Chem.MolFromSmiles(smiles)
+                    if mol:
+                        os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                        Draw.MolToFile(mol, svg_path, size=(300, 300))
+                        structure_filename = os.path.join('uploads', svg_filename).replace('\\', '/')
+                        logger.info(f"Structure file saved as {svg_path}")
+                    else:
+                        logger.error(f"Invalid SMILES: {smiles}")
+                except Exception as e:
+                    logger.error(f"Error generating SVG: {str(e)}")
+
+            # Generate 3D PDB if SMILES provided
+            structure_3d_filename = detail.structure_3d
+            if smiles:
+                pdb_filename = f"drug_{drug_id}_salt_{salt_id or 'none'}_3d.pdb"
+                structure_3d_path, error = generate_3d_structure(smiles, pdb_filename)
+                if error:
+                    logger.error(f"3D structure generation failed: {error}")
+                else:
+                    structure_3d_filename = structure_3d_path
+                    logger.info(f"3D structure saved as {structure_3d_filename}")
+
+            # Update DrugDetail fields with units
+            detail.drug_id = drug_id
+            detail.salt_id = salt_id
+            detail.mechanism_of_action = mechanism_of_action
             detail.molecular_formula = request.form.get('molecular_formula')
-            detail.synthesis = request.form.get('synthesis')
+            detail.synthesis = synthesis
+            detail.structure = structure_filename
+            detail.structure_3d = structure_3d_filename
             detail.iupac_name = request.form.get('iupac_name')
-            detail.smiles = request.form.get('smiles')
+            detail.smiles = smiles
             detail.inchikey = request.form.get('inchikey')
             detail.pubchem_cid = request.form.get('pubchem_cid')
             detail.pubchem_sid = request.form.get('pubchem_sid')
@@ -3220,17 +3497,31 @@ def update_detail(detail_id):
             detail.nci_code = request.form.get('nci_code')
             detail.rxcui = request.form.get('rxcui')
             detail.snomed_id = request.form.get('snomed_id')
-            detail.molecular_weight = request.form.get('molecular_weight')
-            detail.solubility = request.form.get('solubility')
-            detail.pharmacodynamics = request.form.get('pharmacodynamics')
-            detail.pharmacokinetics = request.form.get('pharmacokinetics')
-            detail.boiling_point = request.form.get('boiling_point')
-            detail.melting_point = request.form.get('melting_point')
-            detail.density = request.form.get('density')
-            detail.flash_point = request.form.get('flash_point')
+            detail.molecular_weight = request.form.get('molecular_weight', type=float)
+            detail.molecular_weight_unit_id = request.form.get('molecular_weight_unit_id', type=int)
+            detail.solubility = request.form.get('solubility', type=float)
+            detail.solubility_unit_id = request.form.get('solubility_unit_id', type=int)
+            detail.pharmacodynamics = pharmacodynamics
+            detail.pharmacokinetics = pharmacokinetics
+            detail.boiling_point = request.form.get('boiling_point', type=float)
+            detail.boiling_point_unit_id = request.form.get('boiling_point_unit_id', type=int)
+            detail.melting_point = request.form.get('melting_point', type=float)
+            detail.melting_point_unit_id = request.form.get('melting_point_unit_id', type=int)
+            detail.density = request.form.get('density', type=float)
+            detail.density_unit_id = request.form.get('density_unit_id', type=int)
+            detail.flash_point = request.form.get('flash_point', type=float)
+            detail.flash_point_unit_id = request.form.get('flash_point_unit_id', type=int)
+            detail.half_life = request.form.get('half_life', type=float)
+            detail.half_life_unit_id = request.form.get('half_life_unit_id', type=int)
+            detail.clearance_rate = request.form.get('clearance_rate', type=float)
+            detail.clearance_rate_unit_id = request.form.get('clearance_rate_unit_id', type=int)
+            detail.bioavailability = request.form.get('bioavailability', type=float)
             detail.fda_approved = 'fda_approved' in request.form
             detail.ema_approved = 'ema_approved' in request.form
             detail.titck_approved = 'titck_approved' in request.form
+            detail.black_box_warning = 'black_box_warning' in request.form
+            detail.black_box_details = request.form.get('black_box_details') if detail.black_box_warning else None
+            detail.references = references
 
             # Update multi-select fields
             detail.indications = ','.join(request.form.getlist('indications[]')) or None
@@ -3238,69 +3529,181 @@ def update_detail(detail_id):
 
             # Update side effects
             selected_side_effects = request.form.getlist('side_effects[]')
-            detail.side_effects = [SideEffect.query.get(se_id) for se_id in selected_side_effects]
+            detail.side_effects = [SideEffect.query.get(se_id) for se_id in selected_side_effects if SideEffect.query.get(se_id)]
 
-            # Update routes and route-specific indications
+            # Parse range helper
+            def parse_range(value):
+                if not value:
+                    return None, None
+                if '-' in value:
+                    try:
+                        min_val, max_val = map(float, value.split('-'))
+                        return min_val, max_val
+                    except ValueError:
+                        logger.error(f"Failed to parse range '{value}'")
+                        return None, None
+                try:
+                    val = float(value)
+                    return val, val
+                except ValueError:
+                    logger.error(f"Failed to parse single value '{value}'")
+                    return None, None
+
+            # Update routes and route-specific data
             selected_routes = request.form.getlist('route_id[]')
             existing_routes = {route.route_id: route for route in detail.routes}
 
-            # Add or update routes
             for route_id in selected_routes:
-                pharmacodynamics = request.form.get(f'route_pharmacodynamics_{route_id}', '')
-                pharmacokinetics = request.form.get(f'route_pharmacokinetics_{route_id}', '')
+                route_id = int(route_id)
+                pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
+                pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
 
-                if int(route_id) in existing_routes:
+                # PK parameters with units
+                absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
+                absorption_rate_unit_id = request.form.get(f'absorption_rate_unit_id_{route_id}', type=int)
+                vod_rate = request.form.get(f'vod_rate_{route_id}', '')
+                vod_rate_unit_id = request.form.get(f'vod_rate_unit_id_{route_id}', type=int)
+                protein_binding = request.form.get(f'protein_binding_{route_id}', '')
+                half_life = request.form.get(f'half_life_{route_id}', '')
+                half_life_unit_id = request.form.get(f'half_life_unit_id_{route_id}', type=int)
+                clearance_rate = request.form.get(f'clearance_rate_{route_id}', '')
+                clearance_rate_unit_id = request.form.get(f'clearance_rate_unit_id_{route_id}', type=int)
+                bioavailability = request.form.get(f'bioavailability_{route_id}', '')
+                tmax = request.form.get(f'tmax_{route_id}', '')
+                tmax_unit_id = request.form.get(f'tmax_unit_id_{route_id}', type=int)
+                cmax = request.form.get(f'cmax_{route_id}', '')
+                cmax_unit_id = request.form.get(f'cmax_unit_id_{route_id}', type=int)
+                therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
+                therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
+
+                # Metabolism parameters
+                metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
+                metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
+                metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')
+
+                # Parse PK ranges
+                absorption_min, absorption_max = parse_range(absorption_rate)
+                vod_min, vod_max = parse_range(vod_rate)
+                protein_min, protein_max = parse_range(protein_binding)
+                if protein_min is not None and protein_max is not None:
+                    protein_min /= 100
+                    protein_max /= 100
+                half_life_min, half_life_max = parse_range(half_life)
+                clearance_min, clearance_max = parse_range(clearance_rate)
+                bio_min, bio_max = parse_range(bioavailability)
+                if bio_min is not None and bio_max is not None:
+                    bio_min /= 100
+                    bio_max /= 100
+                tmax_min, tmax_max = parse_range(tmax)
+                cmax_min, cmax_max = parse_range(cmax)
+                therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
+
+                if route_id in existing_routes:
                     # Update existing route
-                    existing_route = existing_routes[int(route_id)]
-                    existing_route.pharmacodynamics = pharmacodynamics or existing_route.pharmacodynamics
-                    existing_route.pharmacokinetics = pharmacokinetics or existing_route.pharmacokinetics
+                    route = existing_routes[route_id]
+                    route.pharmacodynamics = pd or route.pharmacodynamics
+                    route.pharmacokinetics = pk or route.pharmacokinetics
+                    route.absorption_rate_min = absorption_min
+                    route.absorption_rate_max = absorption_max
+                    route.absorption_rate_unit_id = absorption_rate_unit_id
+                    route.vod_rate_min = vod_min
+                    route.vod_rate_max = vod_max
+                    route.vod_rate_unit_id = vod_rate_unit_id
+                    route.protein_binding_min = protein_min
+                    route.protein_binding_max = protein_max
+                    route.half_life_min = half_life_min
+                    route.half_life_max = half_life_max
+                    route.half_life_unit_id = half_life_unit_id
+                    route.clearance_rate_min = clearance_min
+                    route.clearance_rate_max = clearance_max
+                    route.clearance_rate_unit_id = clearance_rate_unit_id
+                    route.bioavailability_min = bio_min
+                    route.bioavailability_max = bio_max
+                    route.tmax_min = tmax_min
+                    route.tmax_max = tmax_max
+                    route.tmax_unit_id = tmax_unit_id
+                    route.cmax_min = cmax_min
+                    route.cmax_max = cmax_max
+                    route.cmax_unit_id = cmax_unit_id
+                    route.therapeutic_min = therapeutic_min
+                    route.therapeutic_max = therapeutic_max
+                    route.therapeutic_unit_id = therapeutic_unit_id
 
-                    # Update route-specific indications
-                    selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
-                    if selected_route_indications:
-                        existing_route.route_indications = [
-                            RouteIndication(
-                                drug_detail_id=detail.id,
-                                route_id=route_id,
-                                indication_id=int(indication_id)
-                            )
-                            for indication_id in selected_route_indications
-                        ]
+                    # Update metabolism relationships
+                    route.metabolism_organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all()
+                    route.metabolism_enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all()
+                    route.metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all()
                 else:
-                    # Add a new route
+                    # Add new route
                     new_route = DrugRoute(
                         drug_detail_id=detail.id,
                         route_id=route_id,
-                        pharmacodynamics=pharmacodynamics,
-                        pharmacokinetics=pharmacokinetics
+                        pharmacodynamics=pd,
+                        pharmacokinetics=pk,
+                        absorption_rate_min=absorption_min,
+                        absorption_rate_max=absorption_max,
+                        absorption_rate_unit_id=absorption_rate_unit_id,
+                        vod_rate_min=vod_min,
+                        vod_rate_max=vod_max,
+                        vod_rate_unit_id=vod_rate_unit_id,
+                        protein_binding_min=protein_min,
+                        protein_binding_max=protein_max,
+                        half_life_min=half_life_min,
+                        half_life_max=half_life_max,
+                        half_life_unit_id=half_life_unit_id,
+                        clearance_rate_min=clearance_min,
+                        clearance_rate_max=clearance_max,
+                        clearance_rate_unit_id=clearance_rate_unit_id,
+                        bioavailability_min=bio_min,
+                        bioavailability_max=bio_max,
+                        tmax_min=tmax_min,
+                        tmax_max=tmax_max,
+                        tmax_unit_id=tmax_unit_id,
+                        cmax_min=cmax_min,
+                        cmax_max=cmax_max,
+                        cmax_unit_id=cmax_unit_id,
+                        therapeutic_min=therapeutic_min,
+                        therapeutic_max=therapeutic_max,
+                        therapeutic_unit_id=therapeutic_unit_id
                     )
-
-                    # Add route-specific indications
-                    selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
-                    for indication_id in selected_route_indications:
-                        new_route.route_indications.append(
-                            RouteIndication(
-                                drug_detail_id=detail.id,
-                                route_id=route_id,
-                                indication_id=int(indication_id)
-                            )
-                        )
+                    if metabolism_organs_ids:
+                        new_route.metabolism_organs.extend(MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all())
+                    if metabolism_enzymes_ids:
+                        new_route.metabolism_enzymes.extend(MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all())
+                    if metabolite_ids:
+                        new_route.metabolites.extend(Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all())
                     detail.routes.append(new_route)
 
-            # Remove routes that are no longer selected
+                # Update route-specific indications
+                selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
+                RouteIndication.query.filter_by(drug_detail_id=detail.id, route_id=route_id).delete()
+                for indication_id in selected_route_indications:
+                    new_route_indication = RouteIndication(
+                        drug_detail_id=detail.id,
+                        route_id=route_id,
+                        indication_id=int(indication_id)
+                    )
+                    db.session.add(new_route_indication)
+
+            # Remove unselected routes
             for existing_route_id in list(existing_routes.keys()):
                 if str(existing_route_id) not in selected_routes:
                     route_to_remove = existing_routes[existing_route_id]
                     db.session.delete(route_to_remove)
 
-
-
-            db.session.commit()  # Save updates
-            print("DEBUG: Updated details saved successfully")
+            db.session.commit()
+            logger.info(f"DrugDetail updated with ID: {detail.id}")
             return redirect(url_for('view_details'))
 
         except Exception as e:
-            print(f"ERROR: {e}")
+            db.session.rollback()
+            logger.error(f"Exception occurred: {str(e)}")
+            return render_template(
+                'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                units=units, units_json=units_json, error_message=f"Error updating details: {str(e)}"
+            )
 
     return render_template(
         'update_detail.html',
@@ -3311,11 +3714,49 @@ def update_detail(detail_id):
         targets=targets,
         routes=routes,
         side_effects=side_effects,
+        metabolites=metabolites,
+        metabolism_organs=metabolism_organs,
+        metabolism_enzymes=metabolism_enzymes,
+        units=units,
+        units_json=units_json,
         selected_indications=detail.indications.split(',') if detail.indications else [],
         selected_targets=detail.target_molecules.split(',') if detail.target_molecules else [],
         selected_side_effects=[se.id for se in detail.side_effects] if detail.side_effects else [],
         selected_routes=[
-            {'route_id': route.route_id, 'pharmacodynamics': route.pharmacodynamics, 'pharmacokinetics': route.pharmacokinetics, 'indications': [ri.indication_id for ri in route.route_indications]}
+            {
+                'route_id': route.route_id,
+                'pharmacodynamics': route.pharmacodynamics,
+                'pharmacokinetics': route.pharmacokinetics,
+                'indications': [ri.indication_id for ri in route.route_indications],
+                'absorption_rate_min': route.absorption_rate_min,
+                'absorption_rate_max': route.absorption_rate_max,
+                'absorption_rate_unit_id': route.absorption_rate_unit_id,
+                'vod_rate_min': route.vod_rate_min,
+                'vod_rate_max': route.vod_rate_max,
+                'vod_rate_unit_id': route.vod_rate_unit_id,
+                'protein_binding_min': route.protein_binding_min * 100 if route.protein_binding_min else None,
+                'protein_binding_max': route.protein_binding_max * 100 if route.protein_binding_max else None,
+                'half_life_min': route.half_life_min,
+                'half_life_max': route.half_life_max,
+                'half_life_unit_id': route.half_life_unit_id,
+                'clearance_rate_min': route.clearance_rate_min,
+                'clearance_rate_max': route.clearance_rate_max,
+                'clearance_rate_unit_id': route.clearance_rate_unit_id,
+                'bioavailability_min': route.bioavailability_min * 100 if route.bioavailability_min else None,
+                'bioavailability_max': route.bioavailability_max * 100 if route.bioavailability_max else None,
+                'tmax_min': route.tmax_min,
+                'tmax_max': route.tmax_max,
+                'tmax_unit_id': route.tmax_unit_id,
+                'cmax_min': route.cmax_min,
+                'cmax_max': route.cmax_max,
+                'cmax_unit_id': route.cmax_unit_id,
+                'therapeutic_min': route.therapeutic_min,
+                'therapeutic_max': route.therapeutic_max,
+                'therapeutic_unit_id': route.therapeutic_unit_id,
+                'metabolism_organs': [mo.id for mo in route.metabolism_organs],
+                'metabolism_enzymes': [me.id for me in route.metabolism_enzymes],
+                'metabolites': [m.id for m in route.metabolites]
+            }
             for route in detail.routes
         ]
     )
@@ -4353,16 +4794,103 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
 
     return results
 
+
+@app.route('/unit', methods=['GET'])
+@login_required
+def list_units():
+    units = Unit.query.all()
+    return render_template('list_units.html', units=units)
+
+@app.route('/unit/add', methods=['GET', 'POST'])
+@login_required
+def add_unit():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+
+        if not name:
+            flash("Unit name is required!", "error")
+            return redirect(url_for('add_unit'))
+
+        try:
+            unit = Unit(name=name, description=description)
+            db.session.add(unit)
+            db.session.commit()
+            flash("Unit added successfully!", "success")
+            return redirect(url_for('list_units'))
+        except IntegrityError:
+            db.session.rollback()
+            flash("A unit with this name already exists!", "error")
+            return redirect(url_for('add_unit'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding unit: {str(e)}")
+            flash("An error occurred while adding the unit.", "error")
+            return redirect(url_for('add_unit'))
+
+    return render_template('add_unit.html')
+
+@app.route('/unit/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_unit(id):
+    unit = Unit.query.get_or_404(id)
+    if request.method == 'POST':
+        name = request.form.get('name')
+        description = request.form.get('description')
+
+        if not name:
+            flash("Unit name is required!", "error")
+            return redirect(url_for('edit_unit', id=id))
+
+        try:
+            unit.name = name
+            unit.description = description
+            db.session.commit()
+            flash("Unit updated successfully!", "success")
+            return redirect(url_for('list_units'))
+        except IntegrityError:
+            db.session.rollback()
+            flash("A unit with this name already exists!", "error")
+            return redirect(url_for('edit_unit', id=id))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating unit (ID: {id}): {str(e)}")
+            flash("An error occurred while updating the unit.", "error")
+            return redirect(url_for('edit_unit', id=id))
+
+    return render_template('edit_unit.html', unit=unit)
+
+@app.route('/unit/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_unit(id):
+    unit = Unit.query.get_or_404(id)
+    try:
+        # Check if unit is referenced by any lab tests
+        if LabTest.query.filter_by(unit_id=id).count() > 0:
+            flash("Cannot delete unit because it is referenced by lab tests!", "error")
+            return redirect(url_for('list_units'))
+        
+        db.session.delete(unit)
+        db.session.commit()
+        flash("Unit deleted successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting unit (ID: {id}): {str(e)}")
+        flash("An error occurred while deleting the unit.", "error")
+    return redirect(url_for('list_units'))
+
+
 # New Route for Adding Lab Tests
 @app.route('/lab_test/add', methods=['GET', 'POST'])
 @login_required
 def add_lab_test():
+    units = Unit.query.all()
     if request.method == 'POST':
         name_en = request.form.get('name_en')
         name_tr = request.form.get('name_tr')
         description = request.form.get('description')
         reference_range = request.form.get('reference_range')
-        unit = request.form.get('unit')
+        unit_id = request.form.get('unit_id', type=int)
 
         if not name_en:
             flash("English name is required!", "error")
@@ -4374,30 +4902,31 @@ def add_lab_test():
                 name_tr=name_tr,
                 description=description,
                 reference_range=reference_range,
-                unit=unit
+                unit_id=unit_id or None  # Handle empty selection
             )
             db.session.add(lab_test)
             db.session.commit()
             flash("Lab test added successfully!", "success")
-            return redirect(url_for('list_lab_tests'))  # Assumes a list route exists
+            return redirect(url_for('list_lab_tests'))
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error adding lab test: {str(e)}")
             flash("An error occurred while adding the lab test.", "error")
             return redirect(url_for('add_lab_test'))
 
-    return render_template('add_lab_test.html')
+    return render_template('add_lab_test.html', units=units)
 
 @app.route('/lab_test/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_lab_test(id):
     lab_test = LabTest.query.get_or_404(id)
+    units = Unit.query.all()
     if request.method == 'POST':
         lab_test.name_en = request.form.get('name_en')
         lab_test.name_tr = request.form.get('name_tr')
         lab_test.description = request.form.get('description')
         lab_test.reference_range = request.form.get('reference_range')
-        lab_test.unit = request.form.get('unit')
+        lab_test.unit_id = request.form.get('unit_id', type=int) or None
 
         if not lab_test.name_en:
             flash("English name is required!", "error")
@@ -4413,7 +4942,7 @@ def edit_lab_test(id):
             flash("An error occurred while updating the lab test.", "error")
             return redirect(url_for('edit_lab_test', id=id))
 
-    return render_template('edit_lab_test.html', lab_test=lab_test)
+    return render_template('edit_lab_test.html', lab_test=lab_test, units=units)
 
 @app.route('/lab_test/delete/<int:id>', methods=['POST'])
 @login_required
