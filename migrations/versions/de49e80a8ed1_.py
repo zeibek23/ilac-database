@@ -95,7 +95,11 @@ def upgrade():
         batch_op.create_foreign_key(None, 'side_effect', ['side_effect_id'], ['id'], referent_schema='public')
 
     with op.batch_alter_table('drug', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('category_id', sa.Integer(), nullable=True))
+        # Check if category_id column exists before adding
+        if not op.get_bind().execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'drug' AND column_name = 'category_id'"
+        ).fetchone():
+            batch_op.add_column(sa.Column('category_id', sa.Integer(), nullable=True))
         batch_op.create_foreign_key(None, 'drug_category', ['category_id'], ['id'], referent_schema='public')
 
     with op.batch_alter_table('drug_category', schema=None) as batch_op:
