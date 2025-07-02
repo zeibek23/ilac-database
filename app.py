@@ -125,6 +125,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
+
 # Define junction tables globally
 drug_route_metabolism_organ = db.Table(
     'drug_route_metabolism_organ',
@@ -185,6 +186,14 @@ interaction_route = db.Table(
     extend_existing=True
 )
 
+# Junction table for Drug and DrugCategory many-to-many relationship
+drug_category_association = db.Table(
+    'drug_category_association',
+    db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
+    db.Column('category_id', db.Integer, db.ForeignKey('public.drug_category.id'), primary_key=True),
+    schema='public'
+)
+
 # Veritabanı Modeli
 class DrugCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -199,6 +208,7 @@ class Salt(db.Model):
     name_tr = db.Column(db.String(100), nullable=False)
     name_en = db.Column(db.String(100), nullable=False)    
 
+# Updated Drug model
 class Drug(db.Model):
     __tablename__ = 'drug'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
@@ -210,15 +220,18 @@ class Drug(db.Model):
     fda_approved = db.Column(db.Boolean, nullable=False, default=False)
     indications = db.Column(db.Text, nullable=True)
     chembl_id = db.Column(db.String(50), nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)
-    category = db.relationship('DrugCategory', backref='drugs')
+    # Removed category_id and category relationship
+    categories = db.relationship(
+        'DrugCategory',
+        secondary=drug_category_association,
+        backref=db.backref('drugs', lazy='dynamic')
+    )
     drug_details = db.relationship(
         'DrugDetail',
         back_populates='parent_drug',
         cascade="all, delete-orphan"
     )
-    # Added relationships for PharmGKB integration
-    pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True)  # To store PharmGKB chemical IDs (e.g., PA449412)
+    pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True)
     clinical_annotations = db.relationship('ClinicalAnnotationDrug', back_populates='drug')
     drug_labels = db.relationship('DrugLabelDrug', back_populates='drug')
     clinical_variants = db.relationship('ClinicalVariantDrug', back_populates='drug')
@@ -1090,10 +1103,12 @@ def home():
     try:
         announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
         updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
+        drug_updates = News.query.filter(News.category.ilike('Drug Update')).order_by(News.publication_date.desc()).all()
     except Exception as e:
         print(f"Oops, toy box problem: {e}")
         announcements = []
         updates = []
+        drug_updates = []
     user = None
     user_email = None
     if 'user_id' in session:
@@ -1104,6 +1119,7 @@ def home():
         'home.html',
         announcements=announcements,
         updates=updates,
+        drug_updates=drug_updates,
         user_email=user_email,
         user=user
     )
@@ -1588,7 +1604,6 @@ cleaner = Cleaner(
 # Reusable sanitization function
 def sanitize_field(field_value):
     return cleaner.clean(field_value) if field_value else None
-
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -1602,6 +1617,7 @@ def add_detail():
     metabolism_enzymes = MetabolismEnzyme.query.all()
     units = Unit.query.all()
     safety_categories = SafetyCategory.query.all()
+    categories = DrugCategory.query.order_by(DrugCategory.name).all()
     units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
 
     if request.method == 'POST':
@@ -1610,6 +1626,7 @@ def add_detail():
 
         drug_id = request.form.get('drug_id')
         salt_id = request.form.get('salt_id')
+        selected_category_ids = request.form.getlist('category_ids[]')
 
         # Validate drug_id
         if not drug_id or not drug_id.isdigit():
@@ -1618,11 +1635,21 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                units=units, units_json=units_json, safety_categories=safety_categories,
+                units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                 error_message="Drug ID is required and must be an integer!"
             )
 
         drug_id = int(drug_id)
+        drug = Drug.query.get(drug_id)
+        if not drug:
+            logger.error(f"Drug with ID {drug_id} not found")
+            return render_template(
+                'add_detail.html', drugs=drugs, salts=salts, indications=indications,
+                targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                error_message="Drug not found!"
+            )
 
         # Validate and convert salt_id
         if salt_id == '' or salt_id is None:
@@ -1636,9 +1663,23 @@ def add_detail():
                     'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                     metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                    units=units, units_json=units_json, safety_categories=safety_categories,
+                    units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                     error_message="Invalid salt_id. Must be an integer or empty."
                 )
+
+        # Validate category IDs
+        valid_category_ids = []
+        if selected_category_ids:
+            for cat_id in selected_category_ids:
+                try:
+                    cat_id = int(cat_id)
+                    if DrugCategory.query.get(cat_id):
+                        valid_category_ids.append(cat_id)
+                    else:
+                        logger.warning(f"Invalid category ID: {cat_id}")
+                except ValueError:
+                    logger.warning(f"Invalid category ID format: {cat_id}")
+        logger.debug(f"Valid category IDs: {valid_category_ids}")
 
         # Check for existing detail
         existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).first()
@@ -1648,33 +1689,48 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                units=units, units_json=units_json, safety_categories=safety_categories,
+                units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                 error_message="Bu etken madde ve tuz kombinasyonu için zaten detaylı bilgi mevcut!"
             )
 
         try:
             # Sanitize rich text fields
-            logger.debug(f"Mechanism of Action input: {request.form.get('mechanism_of_action')}")
-            mechanism_of_action = sanitize_field(request.form.get('mechanism_of_action'))
-            references = sanitize_field(request.form.get('references'))
+            def clean_text(field):
+                try:
+                    return bleach.clean(
+                        field,
+                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                        attributes={'span': ['style'], 'a': ['href']},
+                        styles=['color', 'background-color']
+                    ) if field else None
+                except TypeError as e:
+                    logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+                    return bleach.clean(
+                        field,
+                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
+                        attributes={'span': ['style'], 'a': ['href']}
+                    ) if field else None
+
+            mechanism_of_action = clean_text(request.form.get('mechanism_of_action'))
+            references = clean_text(request.form.get('references'))
+            synthesis = clean_text(request.form.get('synthesis'))
+            pharmacodynamics = clean_text(request.form.get('pharmacodynamics'))
+            pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
+            black_box_details = clean_text(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
 
             pregnancy_safety_id = request.form.get('pregnancy_safety_id', type=int)
             pregnancy_details = None
             if pregnancy_safety_id:
-                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
-                # pregnancy_safety = db.session.get(SafetyCategory, pregnancy_safety_id)
                 pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
-                    pregnancy_details = sanitize_field(request.form.get('pregnancy_details'))
+                    pregnancy_details = clean_text(request.form.get('pregnancy_details'))
 
             lactation_safety_id = request.form.get('lactation_safety_id', type=int)
             lactation_details = None
             if lactation_safety_id:
-                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
-                # lactation_safety = db.session.get(SafetyCategory, lactation_safety_id)
                 lactation_safety = SafetyCategory.query.get(lactation_safety_id)
                 if lactation_safety and lactation_safety.name in ['Caution', 'Contraindicated']:
-                    lactation_details = sanitize_field(request.form.get('lactation_details'))
+                    lactation_details = clean_text(request.form.get('lactation_details'))
 
             smiles = request.form.get('smiles')
             logger.debug(f"SMILES received: {smiles}")
@@ -1686,8 +1742,6 @@ def add_detail():
             ema_approved = 'ema_approved' in request.form
             titck_approved = 'titck_approved' in request.form
             molecular_formula = request.form.get('molecular_formula')
-            logger.debug(f"Synthesis input: {request.form.get('synthesis')}")
-            synthesis = sanitize_field(request.form.get('synthesis'))
 
             # Handle uploaded structure file (priority)
             structure_filename = None
@@ -1761,15 +1815,10 @@ def add_detail():
             nci_code = request.form.get('nci_code')
             rxcui = request.form.get('rxcui')
             snomed_id = request.form.get('snomed_id')
-            logger.debug(f"Pharmacodynamics input: {request.form.get('pharmacodynamics')}")
-            pharmacodynamics = sanitize_field(request.form.get('pharmacodynamics'))
             black_box_warning = 'black_box_warning' in request.form
-            black_box_details = sanitize_field(request.form.get('black_box_details')) if black_box_warning else None
             indications = ','.join(request.form.getlist('indications[]')) if request.form.getlist('indications[]') else None
             selected_target_molecules = request.form.getlist('target_molecules[]')
             target_molecules = ','.join(selected_target_molecules) if selected_target_molecules else None
-            logger.debug(f"Pharmacokinetics input: {request.form.get('pharmacokinetics')}")
-            pharmacokinetics = sanitize_field(request.form.get('pharmacokinetics'))
 
             # Create new DrugDetail
             new_detail = DrugDetail(
@@ -1823,28 +1872,16 @@ def add_detail():
                 lactation_details=lactation_details
             )
             db.session.add(new_detail)
-            db.session.commit()
-            logger.info(f"DrugDetail added with ID: {new_detail.id}")
+            db.session.flush()  # Ensure new_detail.id is available
 
-            # Parse range helper
-            def parse_range(value):
-                if not value:
-                    return None, None
-                # Replace en dash (–) with hyphen (-) for consistent parsing
-                value = value.replace('–', '-')
-                if '-' in value:
-                    try:
-                        min_val, max_val = map(float, value.split('-'))
-                        return min_val, max_val
-                    except ValueError:
-                        logger.error(f"Failed to parse range '{value}'")
-                        return None, None
-                try:
-                    val = float(value)
-                    return val, val
-                except ValueError:
-                    logger.error(f"Failed to parse single value '{value}'")
-                    return None, None
+            # Update drug categories
+            if valid_category_ids:
+                drug.categories.clear()  # Clear existing categories
+                selected_categories = DrugCategory.query.filter(DrugCategory.id.in_(valid_category_ids)).all()
+                drug.categories.extend(selected_categories)
+                logger.info(f"Updated categories for drug_id={drug_id}: {valid_category_ids}")
+            else:
+                logger.debug(f"No categories selected for drug_id={drug_id}")
 
             # Process DrugRoute entries
             if not selected_routes:
@@ -1872,12 +1909,25 @@ def add_detail():
                 therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
                 therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
 
-                # Metabolism parameters
-                metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
-                metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
-                metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')
-
                 # Parse PK ranges
+                def parse_range(value):
+                    if not value:
+                        return None, None
+                    value = value.replace('–', '-')
+                    if '-' in value:
+                        try:
+                            min_val, max_val = map(float, value.split('-'))
+                            return min_val, max_val
+                        except ValueError:
+                            logger.error(f"Failed to parse range '{value}'")
+                            return None, None
+                    try:
+                        val = float(value)
+                        return val, val
+                    except ValueError:
+                        logger.error(f"Failed to parse single value '{value}'")
+                        return None, None
+
                 absorption_min, absorption_max = parse_range(absorption_rate)
                 vod_min, vod_max = parse_range(vod_rate)
                 protein_min, protein_max = parse_range(protein_binding)
@@ -1909,14 +1959,10 @@ def add_detail():
                              f"Metabolite IDs: {metabolite_ids}, "
                              f"PD: {pd}, PK: {pk}")
 
-                # Validate route_id
-                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
-                # if not db.session.get(RouteOfAdministration, route_id):
                 if not RouteOfAdministration.query.get(route_id):
                     logger.error(f"Invalid route_id {route_id}")
                     continue
 
-                # Create DrugRoute entry with new fields
                 new_drug_route = DrugRoute(
                     drug_detail_id=new_detail.id,
                     route_id=route_id,
@@ -1974,14 +2020,26 @@ def add_detail():
 
             # Add side effects
             for side_effect_id in selected_side_effects:
-                # Use Session.get() to avoid LegacyAPIWarning (uncomment to apply)
-                # side_effect = db.session.get(SideEffect, side_effect_id)
                 side_effect = SideEffect.query.get(side_effect_id)
                 if side_effect:
                     new_detail.side_effects.append(side_effect)
 
             db.session.commit()
             logger.info("All records saved successfully")
+
+            # Create a News entry for the new DrugDetail
+            drug_name = drug.name_en if hasattr(drug, 'name_en') and drug.name_en else f"Drug ID {drug_id}"
+            news = News(
+                category='Drug Update',
+                title=f'New Drug Details Added: {drug_name}',
+                description=f'Detailed information for <a href="/drug/{drug_id}">{drug_name}</a> has been added to Drugly.',
+                publication_date=datetime.utcnow()
+            )
+            db.session.add(news)
+            db.session.commit()
+            logger.info(f"News entry created for drug_id={drug_id}: {drug_name}")
+            flash('Drug details added and announced on the homepage!', 'success')
+
             return redirect(url_for('view_details'))
 
         except Exception as e:
@@ -1991,7 +2049,7 @@ def add_detail():
                 'add_detail.html', drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                units=units, units_json=units_json, safety_categories=safety_categories,
+                units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                 error_message=f"Error saving details: {str(e)}"
             )
 
@@ -1999,7 +2057,7 @@ def add_detail():
         'add_detail.html', drugs=drugs, salts=salts, indications=indications,
         targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
         metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-        units=units, units_json=units_json, safety_categories=safety_categories
+        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories
     )
 
 def generate_and_update_structures():
@@ -3100,12 +3158,29 @@ def drug_detail(drug_id):
     # Fetch salts
     salts = drug.salts.all()
     
+    # Function to get full parent hierarchy
+    def get_parent_hierarchy(category):
+        hierarchy = []
+        current = category
+        while current.parent:
+            hierarchy.append(current.parent.name)
+            current = current.parent
+        return ' > '.join(reversed(hierarchy)) if hierarchy else None
+
+    # Prepare category display with parent hierarchy
+    categories_display = []
+    for category in drug.categories:
+        parent_hierarchy = get_parent_hierarchy(category)
+        display_name = f"{category.name}" + (f" (Parent: {parent_hierarchy})" if parent_hierarchy else "")
+        categories_display.append(display_name)
+    categories_str = ', '.join(categories_display) if categories_display else 'N/A'
+
     # Prepare drug-level information
     drug_info = {
         'id': drug.id,
         'name_en': drug.name_en,
         'name_tr': drug.name_tr,
-        'category': drug.category.name if drug.category else 'N/A',
+        'categories': categories_str,  # Updated to handle multiple categories
         'fda_approved': drug.fda_approved,
         'indications': drug.indications,
         'chembl_id': drug.chembl_id,
@@ -3151,7 +3226,7 @@ def drug_detail(drug_id):
                     logger.error(f"Error generating PDB for drug_id={drug_id}: {error}")
                 else:
                     logger.info(f"Saved PDB to {structure_3d_path}")
-                    detail.structure_3d = structure_3d_path.replace('static/uploads/', 'uploads/')
+                    detail.structure_3d = structure_3d_path.replace('static/uploads/', 'Uploads/')
                     db.session.commit()
             except Exception as e:
                 logger.error(f"Error generating PDB for drug_id={drug_id}: {e}")
@@ -3295,7 +3370,6 @@ def drug_detail(drug_id):
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
             'references': detail.references,
-            # New fields for pregnancy and lactation
             'pregnancy_safety': pregnancy_safety,
             'pregnancy_details': detail.pregnancy_details,
             'lactation_safety': lactation_safety,
@@ -3357,6 +3431,8 @@ def delete_side_effect(side_effect_id):
     db.session.commit()
     return redirect(url_for('manage_side_effects'))
 
+
+#DETAY EDİTLEME, GÜNCELLEME
 @app.route('/details/update/<int:detail_id>', methods=['GET', 'POST'])
 def update_detail(detail_id):
     detail = DrugDetail.query.get_or_404(detail_id)
@@ -3370,15 +3446,28 @@ def update_detail(detail_id):
     metabolism_organs = MetabolismOrgan.query.all()
     metabolism_enzymes = MetabolismEnzyme.query.all()
     units = Unit.query.all()
-    # Serialize units to JSON-compatible format
+    safety_categories = SafetyCategory.query.all()
+    categories = DrugCategory.query.order_by(DrugCategory.name).all()
     units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
+
+    # Fetch drug for the current DrugDetail
+    drug = Drug.query.get(detail.drug_id)
+    if not drug:
+        logger.error(f"Drug with ID {detail.drug_id} not found for DrugDetail ID {detail_id}")
+        return render_template(
+            'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+            targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+            metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+            units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+            error_message="Associated drug not found!"
+        )
 
     if request.method == 'POST':
         logger.debug("Entering POST block")
         logger.debug(f"Form data: {request.form}")
 
         try:
-            # Validate drug_id
+            # Validate and fetch drug_id
             drug_id = request.form.get('drug_id')
             if not drug_id or not drug_id.isdigit():
                 logger.error("Invalid drug_id: must be an integer")
@@ -3386,9 +3475,20 @@ def update_detail(detail_id):
                     'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                     metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                    units=units, units_json=units_json, error_message="Drug ID is required and must be an integer!"
+                    units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                    error_message="Drug ID is required and must be an integer!"
                 )
             drug_id = int(drug_id)
+            drug = Drug.query.get(drug_id)
+            if not drug:
+                logger.error(f"Drug with ID {drug_id} not found")
+                return render_template(
+                    'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                    targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                    metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                    units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                    error_message="Drug not found!"
+                )
 
             # Validate and convert salt_id
             salt_id = request.form.get('salt_id')
@@ -3403,7 +3503,8 @@ def update_detail(detail_id):
                         'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
                         targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                         metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                        units=units, units_json=units_json, error_message="Invalid salt_id. Must be an integer or empty."
+                        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                        error_message="Invalid salt_id. Must be an integer or empty."
                     )
 
             # Check for existing detail (excluding current detail)
@@ -3414,8 +3515,24 @@ def update_detail(detail_id):
                     'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                     metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                    units=units, units_json=units_json, error_message="This drug and salt combination already exists!"
+                    units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                    error_message="This drug and salt combination already exists!"
                 )
+
+            # Validate category IDs
+            selected_category_ids = request.form.getlist('category_ids[]')
+            valid_category_ids = []
+            if selected_category_ids:
+                for cat_id in selected_category_ids:
+                    try:
+                        cat_id = int(cat_id)
+                        if DrugCategory.query.get(cat_id):
+                            valid_category_ids.append(cat_id)
+                        else:
+                            logger.warning(f"Invalid category ID: {cat_id}")
+                    except ValueError:
+                        logger.warning(f"Invalid category ID format: {cat_id}")
+            logger.debug(f"Valid category IDs: {valid_category_ids}")
 
             # Sanitize rich text fields
             def clean_text(field):
@@ -3439,6 +3556,22 @@ def update_detail(detail_id):
             pharmacodynamics = clean_text(request.form.get('pharmacodynamics'))
             pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
             references = clean_text(request.form.get('references'))
+            black_box_details = clean_text(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
+
+            # Handle safety categories
+            pregnancy_safety_id = request.form.get('pregnancy_safety_id', type=int)
+            pregnancy_details = None
+            if pregnancy_safety_id:
+                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_id)
+                if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
+                    pregnancy_details = clean_text(request.form.get('pregnancy_details'))
+
+            lactation_safety_id = request.form.get('lactation_safety_id', type=int)
+            lactation_details = None
+            if lactation_safety_id:
+                lactation_safety = SafetyCategory.query.get(lactation_safety_id)
+                if lactation_safety and lactation_safety.name in ['Caution', 'Contraindicated']:
+                    lactation_details = clean_text(request.form.get('lactation_details'))
 
             # Handle SMILES and structure file
             smiles = request.form.get('smiles')
@@ -3451,7 +3584,7 @@ def update_detail(detail_id):
                 structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
                 os.makedirs(os.path.dirname(structure_path), exist_ok=True)
                 structure.save(structure_path)
-                structure_filename = os.path.join('uploads', structure_filename).replace('\\', '/')
+                structure_filename = os.path.join('Uploads', structure_filename).replace('\\', '/')
                 logger.info(f"Uploaded structure file saved as {structure_path}")
             elif smiles and not detail.structure:
                 svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
@@ -3461,7 +3594,7 @@ def update_detail(detail_id):
                     if mol:
                         os.makedirs(os.path.dirname(svg_path), exist_ok=True)
                         Draw.MolToFile(mol, svg_path, size=(300, 300))
-                        structure_filename = os.path.join('uploads', svg_filename).replace('\\', '/')
+                        structure_filename = os.path.join('Uploads', svg_filename).replace('\\', '/')
                         logger.info(f"Structure file saved as {svg_path}")
                     else:
                         logger.error(f"Invalid SMILES: {smiles}")
@@ -3479,7 +3612,7 @@ def update_detail(detail_id):
                     structure_3d_filename = structure_3d_path
                     logger.info(f"3D structure saved as {structure_3d_filename}")
 
-            # Update DrugDetail fields with units
+            # Update DrugDetail fields
             detail.drug_id = drug_id
             detail.salt_id = salt_id
             detail.mechanism_of_action = mechanism_of_action
@@ -3520,8 +3653,12 @@ def update_detail(detail_id):
             detail.ema_approved = 'ema_approved' in request.form
             detail.titck_approved = 'titck_approved' in request.form
             detail.black_box_warning = 'black_box_warning' in request.form
-            detail.black_box_details = request.form.get('black_box_details') if detail.black_box_warning else None
+            detail.black_box_details = black_box_details
             detail.references = references
+            detail.pregnancy_safety_id = pregnancy_safety_id
+            detail.pregnancy_details = pregnancy_details
+            detail.lactation_safety_id = lactation_safety_id
+            detail.lactation_details = lactation_details
 
             # Update multi-select fields
             detail.indications = ','.join(request.form.getlist('indications[]')) or None
@@ -3531,10 +3668,20 @@ def update_detail(detail_id):
             selected_side_effects = request.form.getlist('side_effects[]')
             detail.side_effects = [SideEffect.query.get(se_id) for se_id in selected_side_effects if SideEffect.query.get(se_id)]
 
+            # Update drug categories
+            if valid_category_ids:
+                drug.categories.clear()
+                selected_categories = DrugCategory.query.filter(DrugCategory.id.in_(valid_category_ids)).all()
+                drug.categories.extend(selected_categories)
+                logger.info(f"Updated categories for drug_id={drug_id}: {valid_category_ids}")
+            else:
+                logger.debug(f"No categories selected for drug_id={drug_id}")
+
             # Parse range helper
             def parse_range(value):
                 if not value:
                     return None, None
+                value = value.replace('–', '-')
                 if '-' in value:
                     try:
                         min_val, max_val = map(float, value.split('-'))
@@ -3693,6 +3840,20 @@ def update_detail(detail_id):
 
             db.session.commit()
             logger.info(f"DrugDetail updated with ID: {detail.id}")
+
+            # Create a News entry for the update
+            drug_name = drug.name_en if hasattr(drug, 'name_en') and drug.name_en else f"Drug ID {drug_id}"
+            news = News(
+                category='Drug Update',
+                title=f'Drug Details Updated: {drug_name}',
+                description=f'Updated details for <a href="/drug/{drug_id}">{drug_name}</a> are now available on Drugly.',
+                publication_date=datetime.utcnow()
+            )
+            db.session.add(news)
+            db.session.commit()
+            logger.info(f"News entry created for drug_id={drug_id}: {drug_name}")
+            flash('Drug details updated and announced on the homepage!', 'success')
+
             return redirect(url_for('view_details'))
 
         except Exception as e:
@@ -3702,7 +3863,8 @@ def update_detail(detail_id):
                 'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-                units=units, units_json=units_json, error_message=f"Error updating details: {str(e)}"
+                units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                error_message=f"Error updating details: {str(e)}"
             )
 
     return render_template(
@@ -3719,9 +3881,12 @@ def update_detail(detail_id):
         metabolism_enzymes=metabolism_enzymes,
         units=units,
         units_json=units_json,
+        safety_categories=safety_categories,
+        categories=categories,
         selected_indications=detail.indications.split(',') if detail.indications else [],
         selected_targets=detail.target_molecules.split(',') if detail.target_molecules else [],
         selected_side_effects=[se.id for se in detail.side_effects] if detail.side_effects else [],
+        selected_categories=[cat.id for cat in drug.categories] if drug and drug.categories else [],
         selected_routes=[
             {
                 'route_id': route.route_id,
@@ -8901,71 +9066,153 @@ def parse_kegg_details(raw_data):
 
 
 #ANNOUNCEMENT SECTION!!!
-def wrap_plain_text(text):
-    """Wrap plain text in <p> tags if it’s not already HTML."""
-    # Check if the text contains HTML tags
-    if text.strip() and not text.startswith('<') and not text.endswith('>'):
-        return f'<p>{text}</p>'
-    return text
+# Sanitize rich text fields for news routes
+def clean_text(field):
+    try:
+        # Wrap plain text in <p> if needed
+        if field.strip() and not field.startswith('<') and not field.endswith('>'):
+            field = f'<p>{field}</p>'
+        return bleach.clean(
+            field,
+            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th'],
+            attributes={
+                'span': ['style'],
+                'a': ['href'],
+                'img': ['src', 'alt'],
+                'font': ['face', 'size']
+            },
+            styles=['color', 'background-color', 'font-family', 'font-size']
+        ) if field else None
+    except TypeError as e:
+        logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+        return bleach.clean(
+            field,
+            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th'],
+            attributes={
+                'span': ['style'],
+                'a': ['href'],
+                'img': ['src', 'alt'],
+                'font': ['face', 'size']
+            }
+        ) if field else None
 
 @app.route('/news/manage', methods=['GET', 'POST'])
 @admin_required
 def manage_news():
+    valid_categories = ['Announcement', 'Update', 'Drug Update']
     if request.method == 'POST':
-        title = request.form['title']
-        raw_description = request.form['description']
-        # Wrap plain text in <p> if needed
-        description = wrap_plain_text(raw_description)
-        # Sanitize HTML
-        allowed_tags = ['p', 'strong', 'em', 'u', 'span', 'a', 'ul', 'ol', 'li']
-        allowed_attributes = {'a': ['href'], 'span': ['style']}
-        description = bleach.clean(description, tags=allowed_tags, attributes=allowed_attributes)
-        category = request.form['category']
-        publication_date = request.form['publication_date']
-        news_item = News(
-            title=title,
-            description=description,
-            category=category,
-            publication_date=datetime.strptime(publication_date, '%Y-%m-%d')
-        )
-        db.session.add(news_item)
-        db.session.commit()
-        flash("News item added successfully.", "success")
-        return redirect(url_for('manage_news'))
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category')
+        publication_date = request.form.get('publication_date')
+
+        # Validate inputs
+        if not title or not title.strip():
+            logger.error("Title is required")
+            flash("Title is required!", "danger")
+            return redirect(url_for('manage_news'))
+        if not description or not description.strip():
+            logger.error("Description is required")
+            flash("Description is required!", "danger")
+            return redirect(url_for('manage_news'))
+        if not category or category not in valid_categories:
+            logger.error(f"Invalid category: {category}")
+            flash(f"Category must be one of: {', '.join(valid_categories)}", "danger")
+            return redirect(url_for('manage_news'))
+        try:
+            publication_date = datetime.strptime(publication_date, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            logger.error(f"Invalid publication date format: {publication_date}")
+            flash("Publication date must be in YYYY-MM-DD format!", "danger")
+            return redirect(url_for('manage_news'))
+
+        try:
+            # Sanitize description
+            description = clean_text(description)
+            news_item = News(
+                title=title,
+                description=description,
+                category=category,
+                publication_date=publication_date
+            )
+            db.session.add(news_item)
+            db.session.commit()
+            logger.info(f"News item added: {title} (Category: {category})")
+            flash("News item added successfully.", "success")
+            return redirect(url_for('manage_news'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding news item: {str(e)}")
+            flash(f"Error adding news item: {str(e)}", "danger")
+            return redirect(url_for('manage_news'))
 
     announcements = News.query.filter_by(category='Announcement').order_by(News.publication_date.desc()).all()
     updates = News.query.filter_by(category='Update').order_by(News.publication_date.desc()).all()
-    return render_template('manage_news.html', announcements=announcements, updates=updates)
+    drug_updates = News.query.filter_by(category='Drug Update').order_by(News.publication_date.desc()).all()
+    return render_template('manage_news.html', announcements=announcements, updates=updates, drug_updates=drug_updates, valid_categories=valid_categories)
 
 @app.route('/news/edit/<int:news_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_news(news_id):
     news_item = News.query.get_or_404(news_id)
+    valid_categories = ['Announcement', 'Update', 'Drug Update']
     if request.method == 'POST':
-        news_item.title = request.form['title']
-        raw_description = request.form['description']
-        # Wrap plain text in <p> if needed
-        description = wrap_plain_text(raw_description)
-        # Sanitize HTML
-        allowed_tags = ['p', 'strong', 'em', 'u', 'span', 'a', 'ul', 'ol', 'li']
-        allowed_attributes = {'a': ['href'], 'span': ['style']}
-        news_item.description = bleach.clean(description, tags=allowed_tags, attributes=allowed_attributes)
-        news_item.category = request.form['category']
-        news_item.publication_date = datetime.strptime(request.form['publication_date'], '%Y-%m-%d')
-        db.session.commit()
-        flash("News item updated successfully.", "success")
-        return redirect(url_for('manage_news'))
+        title = request.form.get('title')
+        description = request.form.get('description')
+        category = request.form.get('category')
+        publication_date = request.form.get('publication_date')
 
-    return render_template('edit_news.html', news_item=news_item)
+        # Validate inputs
+        if not title or not title.strip():
+            logger.error("Title is required")
+            flash("Title is required!", "danger")
+            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+        if not description or not description.strip():
+            logger.error("Description is required")
+            flash("Description is required!", "danger")
+            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+        if not category or category not in valid_categories:
+            logger.error(f"Invalid category: {category}")
+            flash(f"Category must be one of: {', '.join(valid_categories)}", "danger")
+            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+        try:
+            publication_date = datetime.strptime(publication_date, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            logger.error(f"Invalid publication date format: {publication_date}")
+            flash("Publication date must be in YYYY-MM-DD format!", "danger")
+            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
 
-# Route for deleting news
+        try:
+            news_item.title = title
+            news_item.description = clean_text(description)
+            news_item.category = category
+            news_item.publication_date = publication_date
+            db.session.commit()
+            logger.info(f"News item updated: {title} (ID: {news_id}, Category: {category})")
+            flash("News item updated successfully.", "success")
+            return redirect(url_for('manage_news'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating news item: {str(e)}")
+            flash(f"Error updating news item: {str(e)}", "danger")
+            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+
+    return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+
 @app.route('/news/delete/<int:news_id>', methods=['POST'])
 @admin_required
 def delete_news(news_id):
     news_item = News.query.get_or_404(news_id)
-    db.session.delete(news_item)
-    db.session.commit()
-    flash("News item deleted successfully.", "success")
+    try:
+        title = news_item.title
+        db.session.delete(news_item)
+        db.session.commit()
+        logger.info(f"News item deleted: {title} (ID: {news_id})")
+        flash("News item deleted successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting news item: {str(e)}")
+        flash(f"Error deleting news item: {str(e)}", "danger")
     return redirect(url_for('manage_news'))
 
 
@@ -9557,6 +9804,66 @@ def health_check():
 
 
 # İlaç Kategorileri
+# API endpoint for categories (replacing the previous suggestion)
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    query = request.args.get('q', '').strip()
+    limit = int(request.args.get('limit', 10))
+    page = int(request.args.get('page', 1))
+    offset = (page - 1) * limit
+
+    # Fetch all categories
+    categories_query = DrugCategory.query.order_by(DrugCategory.name)
+    if query:
+        categories_query = categories_query.filter(DrugCategory.name.ilike(f'%{query}%'))
+
+    categories = categories_query.all()
+    total = len(categories)
+
+    # Function to get full parent hierarchy
+    def get_parent_hierarchy(category):
+        hierarchy = []
+        current = category
+        while current.parent:
+            hierarchy.append(current.parent.name)
+            current = current.parent
+        return ' > '.join(reversed(hierarchy)) if hierarchy else None
+
+    # Reuse get_category_name for indented display
+    def get_category_name(category, depth=0):
+        prefix = "  " * depth
+        return f"{prefix}{category.name}"
+
+    def build_flat_list(cats, depth=0):
+        result = []
+        for cat in cats:
+            if not cat.parent_id or depth == 0:
+                parent_hierarchy = get_parent_hierarchy(cat)
+                display_name = f"{get_category_name(cat, depth)}" + (f" (Parent: {parent_hierarchy})" if parent_hierarchy else "")
+                result.append((cat.id, display_name))
+                result.extend(build_flat_list(cat.children, depth + 1))
+        return result
+
+    # Build flattened list with hierarchy
+    flat_categories = build_flat_list(categories)
+
+    # Apply pagination
+    paginated_categories = flat_categories[offset:offset + limit]
+
+    # Map to Select2 format
+    results = [
+        {
+            'id': cat_id,
+            'text': cat_name
+        }
+        for cat_id, cat_name in paginated_categories
+    ]
+
+    return jsonify({
+        'results': results,
+        'pagination': {'more': offset + limit < total}
+    })
+
 @app.route('/categories', methods=['GET', 'POST'])
 def manage_categories():
     if request.method == 'POST':
@@ -9604,7 +9911,7 @@ def manage_categories():
         {
             'id': cat.id,
             'name': cat.name,
-            'drug_count': db.session.query(Drug).filter_by(category_id=cat.id).count(),  # Added comma here
+            'drug_count': cat.drugs.count(),  # Use the 'drugs' relationship to count associated drugs
             'children': cat.children
         }
         for cat in categories if not cat.parent_id
@@ -9644,7 +9951,7 @@ def edit_category(cat_id):
 @app.route('/categories/delete/<int:cat_id>', methods=['POST'])
 def delete_category(cat_id):
     category = DrugCategory.query.get_or_404(cat_id)
-    drug_count = db.session.query(Drug).filter_by(category_id=cat_id).count()
+    drug_count = category.drugs.count()  # Use the 'drugs' relationship instead of querying Drug directly
     
     if drug_count > 0:
         flash(f'Cannot delete "{category.name}" - it’s used by {drug_count} drugs!', 'error')

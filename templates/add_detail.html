@@ -53,7 +53,12 @@
                     {% endfor %}
                 </select>
             </div>
-
+            <!-- Category Selection -->
+            <div class="mb-3">
+                <label for="categories" class="form-label">Drug Categories</label>
+                <select class="form-select" id="categories" name="category_ids[]" multiple aria-label="Drug Categories"></select>
+                <div id="selected-categories" class="list-group mt-2"></div>
+            </div>
             <!-- Molecular Formula -->
             <div class="mb-3">
                 <label for="molecular_formula" class="form-label">Molecular Formula</label>
@@ -688,6 +693,51 @@
             currentDrugId = $(this).val();
             console.log("Drug ID changed to:", currentDrugId);
             document.getElementById('routes').dispatchEvent(new Event('change'));
+        });
+        
+        // Category Search
+        $('#categories').select2({
+            placeholder: "Search for categories...",
+            ajax: {
+                url: "/api/categories",
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term,
+                        limit: 10,
+                        page: params.page || 1
+                    };
+                },
+                processResults: function (data) {
+                    console.log("Categories API Response:", data);
+                    if (data.error || !data.results || !Array.isArray(data.results)) {
+                        console.error("Invalid categories API response:", data);
+                        return { results: [] };
+                    }
+                    return {
+                        results: data.results,
+                        pagination: { more: data.pagination?.more || false }
+                    };
+                },
+                error: function (xhr, status, error) {
+                    console.error("Categories AJAX Error:", status, error, xhr.responseText);
+                    return { results: [] };
+                }
+            },
+            minimumInputLength: 1,
+            allowClear: true,
+            width: '100%'
+        }).on('change', function () {
+            const selectedCategories = $(this).select2('data');
+            const selectedCategoriesList = document.getElementById('selected-categories');
+            selectedCategoriesList.innerHTML = '';
+            selectedCategories.forEach(category => {
+                const listItem = document.createElement('div');
+                listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+                listItem.textContent = category.text;
+                selectedCategoriesList.appendChild(listItem);
+            });
         });
 
         // Initialize side_effects Select2

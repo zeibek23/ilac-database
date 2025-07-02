@@ -278,6 +278,18 @@
                 </select>
             </div>
 
+            <!-- Drug Categories -->
+            <div class="mb-3">
+                <label for="category_ids" class="form-label">Drug Categories</label>
+                <select id="category_ids" name="category_ids[]" class="form-control select2" multiple>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if category.id in selected_categories %}selected{% endif %}>
+                        {{ category.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <!-- Routes of Administration -->
             <div class="mb-3">
                 <label for="routes" class="form-label">Routes of Administration</label>
@@ -440,6 +452,37 @@
                 </div>
             </div>
 
+            <!-- Pregnancy Safety -->
+            <div class="mb-3">
+                <label for="pregnancy_safety_id" class="form-label">Pregnancy Safety Category</label>
+                <select class="form-control" id="pregnancy_safety_id" name="pregnancy_safety_id">
+                    <option value="">Select Pregnancy Safety</option>
+                    {% for sc in safety_categories %}
+                    <option value="{{ sc.id }}" {% if sc.id == detail.pregnancy_safety_id %}selected{% endif %}>{{ sc.name }}</option>
+                    {% endfor %}
+                </select>
+                <div id="pregnancy_details_group" class="mt-2" {% if detail.pregnancy_safety_id and detail.pregnancy_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
+                    <label for="pregnancy_details" class="form-label">Pregnancy Safety Details</label>
+                    <textarea class="form-control summernote" id="pregnancy_details" name="pregnancy_details">{{ detail.pregnancy_details or '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- Lactation Safety -->
+            <div class="mb-3">
+                <label for="lactation_safety_id" class="form-label">Lactation Safety Category</label>
+                <select class="form-control" id="lactation_safety_id" name="lactation_safety_id">
+                    <option value="">Select Lactation Safety</option>
+                    {% for sc in safety_categories %}
+                    <option value="{{ sc.id }}" {% if sc.id == detail.lactation_safety_id %}selected{% endif %}>{{ sc.name }}</option>
+                    {% endfor %}
+                </select>
+                <div id="lactation_details_group" class="mt-2" {% if detail.lactation_safety_id and detail.lactation_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
+                    <label for="lactation_details" class="form-label">Lactation Safety Details</label>
+                    <textarea class="form-control summernote" id="lactation_details" name="lactation_details">{{ detail.lactation_details or '' }}</textarea>
+                </div>
+            </div>
+
+
             <!-- References -->
             <div class="mb-3">
                 <label for="references" class="form-label">References</label>
@@ -483,9 +526,32 @@
                 allowClear: true,
                 width: '100%'
             });
-
+            $('#category_ids').select2({
+                placeholder: "Select or search categories...",
+                allowClear: true,
+                width: '100%'
+            });
+            // Validate drug_id on form submission
+                $('form').on('submit', function (e) {
+                    const drugId = $('#drug_id').val();
+                    if (!drugId || isNaN(drugId) || drugId === '') {
+                        e.preventDefault();
+                        alert('Please select a valid drug.');
+                        return false;
+                    }
+                });            
             // Initialize Summernote
             $('.summernote').summernote({
+                height: 200,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'italic', 'underline']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['color', ['color']],
+                    ['insert', ['link']]
+                ]
+            });
+            $('#pregnancy_details, #lactation_details').summernote({
                 height: 200,
                 toolbar: [
                     ['style', ['style']],
@@ -500,6 +566,19 @@
             $('#black_box_warning').on('change', function () {
                 $('#black_box_details_group').toggle(this.checked);
             });
+
+            // Toggle Pregnancy Details
+            $('#pregnancy_safety_id').on('change', function () {
+                const selected = $(this).find('option:selected').text();
+                $('#pregnancy_details_group').toggle(selected === 'Caution' || selected === 'Contraindicated');
+            });
+
+            // Toggle Lactation Details
+            $('#lactation_safety_id').on('change', function () {
+                const selected = $(this).find('option:selected').text();
+                $('#lactation_details_group').toggle(selected === 'Caution' || selected === 'Contraindicated');
+            });
+
 
             // Route Selection Handling
             $('#routes').on('change', function () {
