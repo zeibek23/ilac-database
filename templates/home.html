@@ -42,7 +42,7 @@
             max-width: 300px;
             margin-left: auto;
             margin-right: 20px;
-            position: relative; /* For positioning the dropdown */
+            position: relative;
         }
         .search-form .form-control {
             border-radius: 25px 0 0 25px;
@@ -60,7 +60,6 @@
         .search-form .btn:hover {
             background: #0096b2;
         }
-        /* Autocomplete Dropdown */
         .autocomplete-dropdown {
             position: absolute;
             top: 100%;
@@ -218,6 +217,10 @@
         .news-card .news-type-badge.update {
             background: #ffc107;
             color: #212529;
+        }
+        .news-card .news-type-badge.drug-update {
+            background: #007bff;
+            color: #fff;
         }
         .news-card h5 {
             font-size: 1.5rem;
@@ -428,27 +431,27 @@
         </div>
     </div>
 
-<!-- News Section -->
-<div class="news-section container" id="news">
-    <h2>Latest News & Updates</h2>
-    <div class="row mt-4">
-        {% for news in announcements + updates %}
-        <div class="col-md-6">
-            <div class="card news-card p-3">
-                <span class="news-type-badge {{ 'news' if news in announcements else 'update' }}">
-                    {{ 'News' if news in announcements else 'Update' }}
-                </span>
-                <h5>{{ news.title }}</h5>
-                <p>{{ news.description | safe }}</p> <!-- Add | safe to render HTML -->
-                <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
+    <!-- News Section -->
+    <div class="news-section container" id="news">
+        <h2>Latest News & Updates</h2>
+        <div class="row mt-4">
+            {% for news in announcements + updates + drug_updates %}
+            <div class="col-md-6">
+                <div class="card news-card p-3">
+                    <span class="news-type-badge {{ 'news' if news in announcements else 'update' if news in updates else 'drug-update' }}">
+                        {{ 'News' if news in announcements else 'Update' if news in updates else 'Drug Update' }}
+                    </span>
+                    <h5>{{ news.title }}</h5>
+                    <p>{{ news.description | safe }}</p>
+                    <small class="text-muted">Published on {{ news.publication_date.strftime('%Y-%m-%d') }}</small>
+                </div>
             </div>
+            {% endfor %}
+            {% if not (announcements or updates or drug_updates) %}
+            <p class="text-center">No news available at the moment. Stay tuned!</p>
+            {% endif %}
         </div>
-        {% endfor %}
-        {% if not (announcements or updates) %}
-        <p class="text-center">No news available at the moment. Stay tuned!</p>
-        {% endif %}
     </div>
-</div>
 
     <!-- Footer -->
     <footer>
@@ -498,7 +501,6 @@
                                 return;
                             }
 
-                            // Helper function to create category section
                             const createCategory = (title, items, iconClass, type) => {
                                 if (items.length) {
                                     const categoryDiv = document.createElement('div');
@@ -533,17 +535,15 @@
                             console.error('Error fetching suggestions:', error);
                             autocompleteDropdown.classList.remove('show');
                         });
-                    }, 300); // Debounce delay
+                    }, 300);
                 });
 
-                // Hide dropdown when clicking outside
                 document.addEventListener('click', (e) => {
                     if (!searchForm.contains(e.target)) {
                         autocompleteDropdown.classList.remove('show');
                     }
                 });
 
-                // Hide dropdown on form submit
                 searchForm.addEventListener('submit', () => {
                     autocompleteDropdown.classList.remove('show');
                 });

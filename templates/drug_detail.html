@@ -273,7 +273,7 @@
                         <div>
                             <p class="mb-3"><span class="font-medium text-gray-800">Drug Name:</span> {{ drug.name_en }}</p>
                             <p class="mb-3"><span class="font-medium text-gray-800">Salt:</span> N/A (Drug Only)</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Category:</span> {{ drug.category or "N/A" }}</p>
+                            <p class="mb-3"><span class="font-medium text-gray-800">Categories:</span> {{ drug.categories or "N/A" }}</p>
                             <p class="mb-3">
                                 <span class="font-medium text-gray-800">Black Box Warning:</span>
                                 {% if detail.black_box_warning %}
