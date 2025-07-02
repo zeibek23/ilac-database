@@ -7,6 +7,7 @@ Create Date: 2025-06-27 22:26:10.656723
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.sql import text
 
 
 # revision identifiers, used by Alembic.
@@ -97,7 +98,7 @@ def upgrade():
     with op.batch_alter_table('drug', schema=None) as batch_op:
         # Check if category_id column exists before adding
         if not op.get_bind().execute(
-            "SELECT column_name FROM information_schema.columns WHERE table_name = 'drug' AND column_name = 'category_id'"
+            text("SELECT column_name FROM information_schema.columns WHERE table_name = 'drug' AND column_name = 'category_id'")
         ).fetchone():
             batch_op.add_column(sa.Column('category_id', sa.Integer(), nullable=True))
         batch_op.create_foreign_key(None, 'drug_category', ['category_id'], ['id'], referent_schema='public')
@@ -438,8 +439,8 @@ def downgrade():
         batch_op.create_foreign_key('drug_label_gene_pharmgkb_id_fkey', 'drug_label', ['pharmgkb_id'], ['pharmgkb_id'])
 
     with op.batch_alter_table('drug_label_drug', schema=None) as batch_op:
-        batch_op.drop_constraint(None, type_='foreignkey')
-        batch_op.drop_constraint(None, type_='foreignkey')
+        batch_op.drop_constraint(None, 'foreignkey')
+        batch_op.drop_constraint(None, 'foreignkey')
         batch_op.create_foreign_key('drug_label_drug_pharmgkb_id_fkey', 'drug_label', ['pharmgkb_id'], ['pharmgkb_id'])
         batch_op.create_foreign_key('drug_label_drug_drug_id_fkey', 'drug', ['drug_id'], ['id'])
 
