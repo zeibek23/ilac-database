@@ -22,9 +22,13 @@ RUN wget https://sourceforge.net/projects/fpocket/files/fpocket2.tar.gz/download
     cd .. && \
     rm -rf fpocket2 fpocket2.tar.gz
 
-# Verify installations
+# Verify installations during build
 RUN which fpocket && fpocket -h && \
     which obabel && obabel -V || { echo "ERROR: fpocket or obabel not found"; exit 1; }
+
+# Ensure obabel is in PATH and executable
+RUN ln -sf /usr/bin/obabel /usr/local/bin/obabel && \
+    chmod +x /usr/bin/obabel
 
 # Install Python dependencies
 COPY requirements.txt .
@@ -58,4 +62,4 @@ RUN chmod -R u+rw /app
 EXPOSE 8000
 
 # Debug PATH and binaries at runtime
-CMD ["/bin/bash", "-c", "echo 'Runtime PATH: $PATH' && which fpocket && which obabel && exec gunicorn -b 0.0.0.0:$PORT --timeout 1200 --workers 4 --threads 4 app:app"]
+CMD ["/bin/bash", "-c", "echo 'Runtime PATH: $PATH' && which obabel && obabel -V && which fpocket && exec gunicorn -b 0.0.0.0:$PORT --timeout 1200 --workers 4 --threads 4 app:app"]
