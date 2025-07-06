@@ -9529,7 +9529,6 @@ def serve_form():
 
 
 # Reseptör - Ligand Etkileşim Kodları...
-
 # Helper function to get executable with correct extension
 def get_executable(name):
     if platform.system() == "Windows":
@@ -9632,54 +9631,40 @@ def convert_ligand():
         return jsonify({"error": f"No SMILES string available for drug_id={drug_id} (drug_name={drug.name_en if drug else 'Unknown'}). Please update the DrugDetail record."}), 404
 
     try:
-        # Log PATH and obabel location
-        app.logger.info(f"PATH: {os.environ.get('PATH')}")
-        obabel_path = get_executable("obabel")
-        app.logger.info(f"obabel binary: {obabel_path}")
-        if not obabel_path:
-            raise FileNotFoundError("Open Babel (obabel) not found in PATH")
-
-        smiles_file = os.path.abspath(f"static/smiles_{uuid.uuid4().hex}.smi")
-        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
-
-        with open(smiles_file, "w") as file:
-            file.write(drug_detail.smiles)
-
         # Validate SMILES
         if not drug_detail.smiles.strip() or len(drug_detail.smiles) > 1000:
             raise ValueError(f"Invalid or too complex SMILES string for drug_id={drug_id}")
 
-        app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d --addh")
-        result = subprocess.run(
-            [obabel_path, smiles_file, '-O', pdb_file, '--gen3d', '--addh'],
-            capture_output=True, text=True, check=True, timeout=30
-        )
-        app.logger.info(f"Open Babel output: {result.stdout}")
+        # Convert SMILES to 3D PDB using RDKit
+        mol = Chem.MolFromSmiles(drug_detail.smiles)
+        if mol is None:
+            raise ValueError(f"Invalid SMILES string for drug_id={drug_id}")
+
+        # Add hydrogens
+        mol = Chem.AddHs(mol)
+
+        # Generate 3D coordinates
+        AllChem.EmbedMolecule(mol, randomSeed=42)  # Consistent results with fixed seed
+        AllChem.MMFFOptimizeMolecule(mol)  # Optimize geometry
+
+        # Save to PDB file
+        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
+        Chem.MolToPDBFile(mol, pdb_file)
 
         if not os.path.exists(pdb_file):
-            return jsonify({"error": "Failed to generate 3D PDB file."}), 500
+            raise RuntimeError("Failed to generate 3D PDB file.")
 
         with open(pdb_file, 'r') as pdb:
             pdb_content = pdb.read()
 
         return jsonify({"pdb": pdb_content}), 200
-    except subprocess.CalledProcessError as e:
-        app.logger.error(f"Open Babel failed for drug_id={drug_id}: {e.stderr}")
-        return jsonify({"error": "Open Babel conversion failed.", "details": e.stderr}), 500
-    except FileNotFoundError as e:
-        app.logger.error(f"Open Babel not found: {str(e)}")
-        return jsonify({"error": "Open Babel not installed or not found.", "details": str(e)}), 500
     except ValueError as e:
-        app.logger.error(f"SMILES validation failed for drug_id={drug_id}: {str(e)}")
+        app.logger.error(f"SMILES processing failed for drug_id={drug_id}: {str(e)}")
         return jsonify({"error": "Invalid SMILES string.", "details": str(e)}), 400
-    except subprocess.TimeoutExpired:
-        app.logger.error(f"Open Babel timed out for drug_id={drug_id}")
-        return jsonify({"error": "Open Babel conversion timed out."}), 500
     except Exception as e:
         app.logger.error(f"Unexpected error in convert_ligand for drug_id={drug_id}: {str(e)}")
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
     finally:
-        safe_remove(smiles_file)
         safe_remove(pdb_file)
 
 @app.route('/api/get_receptor_structure', methods=['GET'])
@@ -9822,20 +9807,16 @@ def get_interaction_data():
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
-        obabel_path = get_executable("obabel")
         # Check ProDy
         import prody
         prody_version = prody.__version__
-        if not obabel_path:
-            return jsonify({
-                "status": "unhealthy",
-                "obabel": obabel_path,
-                "prody": "Not installed"
-            }), 500
+        # Check RDKit
+        from rdkit import Chem
+        rdkit_version = Chem.rdkitVersion
         return jsonify({
             "status": "healthy",
-            "obabel": obabel_path,
-            "prody": f"Version {prody_version}"
+            "prody": f"Version {prody_version}",
+            "rdkit": f"Version {rdkit_version}"
         }), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
