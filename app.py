@@ -92,6 +92,9 @@ import sqlalchemy
 from sqlalchemy import and_, or_, nullslast, extract, inspect
 from rdkit import Chem
 from rdkit.Chem import AllChem, Draw
+from prody import parsePDB, calcCenter
+import platform
+from pathlib import Path
 
 
 load_dotenv()
@@ -9526,6 +9529,28 @@ def serve_form():
 
 
 # Reseptör - Ligand Etkileşim Kodları...
+
+# Helper function to get executable with correct extension
+def get_executable(name):
+    if platform.system() == "Windows":
+        return shutil.which(f"{name}.exe") or shutil.which(name)
+    return shutil.which(name)
+
+# Helper function to safely remove files/directories with retries
+def safe_remove(path, retries=3, delay=0.5):
+    path = Path(path)
+    for _ in range(retries):
+        try:
+            if path.exists():
+                if path.is_dir():
+                    shutil.rmtree(path, ignore_errors=True)
+                else:
+                    path.unlink()
+            return
+        except (OSError, PermissionError):
+            time.sleep(delay)
+    app.logger.warning(f"Failed to remove {path} after {retries} attempts")
+
 @app.route('/api/receptors', methods=['GET'])
 def get_receptors():
     search = request.args.get('search', '').strip()
@@ -9593,14 +9618,23 @@ def convert_ligand():
     except ValueError:
         return jsonify({"error": "Invalid Drug ID format."}), 400
 
+    drug = db.session.get(Drug, drug_id)
+    if not drug:
+        app.logger.error(f"No Drug found for drug_id={drug_id}")
+        return jsonify({"error": f"No Drug found for drug_id={drug_id}. Please use a valid drug_id."}), 404
+
     drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
-    if not drug_detail or not drug_detail.smiles:
-        return jsonify({"error": "SMILES not available for this DrugDetail."}), 404
+    if not drug_detail:
+        app.logger.error(f"No DrugDetail found for drug_id={drug_id}, drug_name={drug.name_en if drug else 'Unknown'}")
+        return jsonify({"error": f"No DrugDetail found for drug_id={drug_id} (drug_name={drug.name_en if drug else 'Unknown'}). Please ensure DrugDetail exists or use a different drug_id."}), 404
+    if not drug_detail.smiles:
+        app.logger.error(f"No SMILES string for drug_id={drug_id}, drug_name={drug.name_en if drug else 'Unknown'}")
+        return jsonify({"error": f"No SMILES string available for drug_id={drug_id} (drug_name={drug.name_en if drug else 'Unknown'}). Please update the DrugDetail record."}), 404
 
     try:
         # Log PATH and obabel location
         app.logger.info(f"PATH: {os.environ.get('PATH')}")
-        obabel_path = shutil.which("obabel")
+        obabel_path = get_executable("obabel")
         app.logger.info(f"obabel binary: {obabel_path}")
         if not obabel_path:
             raise FileNotFoundError("Open Babel (obabel) not found in PATH")
@@ -9611,10 +9645,14 @@ def convert_ligand():
         with open(smiles_file, "w") as file:
             file.write(drug_detail.smiles)
 
-        app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d")
+        # Validate SMILES
+        if not drug_detail.smiles.strip() or len(drug_detail.smiles) > 1000:
+            raise ValueError(f"Invalid or too complex SMILES string for drug_id={drug_id}")
+
+        app.logger.info(f"Running Open Babel: {obabel_path} {smiles_file} -O {pdb_file} --gen3d --addh")
         result = subprocess.run(
-            [obabel_path, smiles_file, '-O', pdb_file, '--gen3d'],
-            capture_output=True, text=True, check=True
+            [obabel_path, smiles_file, '-O', pdb_file, '--gen3d', '--addh'],
+            capture_output=True, text=True, check=True, timeout=30
         )
         app.logger.info(f"Open Babel output: {result.stdout}")
 
@@ -9626,23 +9664,31 @@ def convert_ligand():
 
         return jsonify({"pdb": pdb_content}), 200
     except subprocess.CalledProcessError as e:
-        app.logger.error(f"Open Babel failed: {e.stderr}")
+        app.logger.error(f"Open Babel failed for drug_id={drug_id}: {e.stderr}")
         return jsonify({"error": "Open Babel conversion failed.", "details": e.stderr}), 500
     except FileNotFoundError as e:
         app.logger.error(f"Open Babel not found: {str(e)}")
         return jsonify({"error": "Open Babel not installed or not found.", "details": str(e)}), 500
+    except ValueError as e:
+        app.logger.error(f"SMILES validation failed for drug_id={drug_id}: {str(e)}")
+        return jsonify({"error": "Invalid SMILES string.", "details": str(e)}), 400
+    except subprocess.TimeoutExpired:
+        app.logger.error(f"Open Babel timed out for drug_id={drug_id}")
+        return jsonify({"error": "Open Babel conversion timed out."}), 500
     except Exception as e:
-        app.logger.error(f"Unexpected error in convert_ligand: {str(e)}")
+        app.logger.error(f"Unexpected error in convert_ligand for drug_id={drug_id}: {str(e)}")
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+    finally:
+        safe_remove(smiles_file)
+        safe_remove(pdb_file)
 
-# Updated endpoint with fpocket for binding site prediction
 @app.route('/api/get_receptor_structure', methods=['GET'])
 def get_receptor_structure():
     receptor_id = request.args.get('receptor_id')
     if not receptor_id:
         return jsonify({"error": "Receptor ID is required."}), 400
 
-    receptor = Receptor.query.get(receptor_id)
+    receptor = db.session.get(Receptor, receptor_id)
     if not receptor or not receptor.pdb_ids:
         return jsonify({"error": "Receptor not found or no PDB IDs available."}), 404
 
@@ -9655,9 +9701,9 @@ def get_receptor_structure():
 
     pdb_content = response.text
 
-    # Predict binding site with fpocket
+    # Predict binding site with ProDy
     binding_site_coords = get_pocket_coords(pdb_content, pdb_id)
-    print(f"Binding site for {pdb_id}: {binding_site_coords}")
+    app.logger.info(f"Binding site for {pdb_id}: {binding_site_coords}")
 
     # Update receptor with binding site coords (optional, for persistence)
     receptor.binding_site_x = binding_site_coords["x"]
@@ -9669,67 +9715,59 @@ def get_receptor_structure():
         "pdb": pdb_content,
         "binding_site": binding_site_coords
     }), 200
-    
-def get_pocket_coords(pdb_content, pdb_id):
-    try:
-        # Log PATH and fpocket location
-        app.logger.info(f"PATH: {os.environ.get('PATH')}")
-        fpocket_path = shutil.which("fpocket")
-        app.logger.info(f"fpocket binary: {fpocket_path}")
-        if not fpocket_path:
-            raise FileNotFoundError("fpocket not found in PATH")
 
+def get_pocket_coords(pdb_content, pdb_id):
+    temp_pdb_path = None
+    try:
         # Write PDB content to temporary file
-        temp_pdb = f"temp_{pdb_id}.pdb"
-        temp_pdb_path = os.path.abspath(temp_pdb)
-        with open(temp_pdb_path, "w") as f:
+        temp_pdb = Path(f"temp_{pdb_id}.pdb")
+        temp_pdb_path = temp_pdb.absolute()
+        with temp_pdb_path.open("w") as f:
             f.write(pdb_content)
-        if not os.path.exists(temp_pdb_path):
+        if not temp_pdb_path.exists():
             raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
 
-        # Run fpocket
-        output_dir = f"fpocket_{pdb_id}_out"
-        output_dir_path = os.path.abspath(output_dir)
-        fpocket_cmd = [fpocket_path, "-f", temp_pdb_path]
-        app.logger.info(f"Running fpocket: {' '.join(fpocket_cmd)}")
-        result = subprocess.run(fpocket_cmd, capture_output=True, text=True, check=True)
-        app.logger.info(f"fpocket output: {result.stdout}")
+        # Load PDB with ProDy
+        structure = parsePDB(str(temp_pdb_path))
 
-        # Check for output
-        pocket_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_pockets.pdb")
-        info_file = os.path.join(output_dir_path, f"{pdb_id}_out", f"{pdb_id}_info.txt")
-        if not os.path.exists(pocket_file) or not os.path.exists(info_file):
-            raise FileNotFoundError(f"fpocket output not found: {pocket_file} or {info_file}")
+        # Select protein atoms (exclude water, ligands, etc.)
+        protein = structure.select('protein')
 
-        # Parse top pocket centroid from info.txt
-        with open(info_file, "r") as f:
-            lines = f.readlines()
-            for line in lines:
-                if "Pocket 1" in line:
-                    match = re.search(r"Center of mass: X=([\d.-]+) Y=([\d.-]+) Z=([\d.-]+)", line)
-                    if match:
-                        x = float(match.group(1))
-                        y = float(match.group(2))
-                        z = float(match.group(3))
-                        app.logger.info(f"fpocket binding site for {pdb_id}: {{'x': {x}, 'y': {y}, 'z': {z}}}")
-                        return {"x": x, "y": y, "z": z}
+        if not protein:
+            raise ValueError(f"No protein atoms found in {pdb_id}")
 
-        app.logger.error(f"No centroid found in {info_file}")
-        return {"x": 0, "y": 0, "z": 0}
-    except subprocess.CalledProcessError as e:
-        app.logger.error(f"fpocket failed for {pdb_id}: {e.stderr}")
-        return {"x": 0, "y": 0, "z": 0}
+        # Select residues likely in binding sites (hydrophobic or polar)
+        exposed_residues = protein.select('resname PHE TYR TRP HIS ASP GLU LYS ARG and within 8 of all')
+
+        if not exposed_residues:
+            # Fallback: Broader selection of standard amino acids
+            exposed_residues = protein.select('resname ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR')
+            app.logger.warning(f"No binding site residues found for {pdb_id}, using all amino acids fallback")
+
+        if not exposed_residues:
+            app.logger.warning(f"No pocket residues identified for {pdb_id}")
+            return {"x": 0, "y": 0, "z": 0}
+
+        # Get coordinates of selected residues
+        coords = exposed_residues.getCoords()
+        if len(coords) < 3:
+            app.logger.warning(f"Insufficient pocket residues for {pdb_id}")
+            return {"x": 0, "y": 0, "z": 0}
+
+        # Compute centroid of the pocket
+        centroid = calcCenter(coords)
+        app.logger.info(f"ProDy binding site for {pdb_id}: {{'x': {centroid[0]}, 'y': {centroid[1]}, 'z': {centroid[2]}}}")
+
+        return {
+            "x": float(centroid[0]),
+            "y": float(centroid[1]),
+            "z": float(centroid[2])
+        }
     except Exception as e:
-        app.logger.error(f"fpocket failed for {pdb_id}: {str(e)}")
+        app.logger.error(f"ProDy failed for {pdb_id}: {str(e)}")
         return {"x": 0, "y": 0, "z": 0}
     finally:
-        for path in [temp_pdb_path, output_dir_path]:
-            if os.path.exists(path):
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    os.remove(path)
-
+        safe_remove(temp_pdb_path)
 
 @app.route('/api/get_interaction_data', methods=['GET'])
 def get_interaction_data():
@@ -9748,11 +9786,11 @@ def get_interaction_data():
         if not interaction:
             return jsonify({"error": "No interaction data found for the given drug and receptor."}), 404
 
-        receptor = Receptor.query.get(receptor_id)
+        receptor = db.session.get(Receptor, receptor_id)
         if not receptor:
             return jsonify({"error": "Receptor not found."}), 404
 
-        drug = Drug.query.get(drug_id)
+        drug = db.session.get(Drug, drug_id)
         if not drug:
             return jsonify({"error": "Drug not found."}), 404
 
@@ -9784,22 +9822,24 @@ def get_interaction_data():
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
-        fpocket_path = shutil.which("fpocket")
-        obabel_path = shutil.which("obabel")
-        if not fpocket_path or not obabel_path:
+        obabel_path = get_executable("obabel")
+        # Check ProDy
+        import prody
+        prody_version = prody.__version__
+        if not obabel_path:
             return jsonify({
                 "status": "unhealthy",
-                "fpocket": fpocket_path,
-                "obabel": obabel_path
+                "obabel": obabel_path,
+                "prody": "Not installed"
             }), 500
         return jsonify({
             "status": "healthy",
-            "fpocket": fpocket_path,
-            "obabel": obabel_path
+            "obabel": obabel_path,
+            "prody": f"Version {prody_version}"
         }), 200
     except Exception as e:
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
-#Code for drug - disease interactions:
+#Reseptör - Ligand Finitooo
 
 
 

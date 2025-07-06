@@ -220,6 +220,14 @@
         .safety-caution { color: #f59e0b; font-weight: bold; }
         .safety-contraindicated { color: #ef4444; font-weight: bold; }
         .safety-unknown { color: #6b7280; font-weight: bold; }
+        /* New Section Title Styling */
+        .section-title {
+            font-weight: 700; /* Bold */
+            color: #1f2937; /* Dark gray for contrast */
+            font-size: 1.1rem; /* Slightly larger */
+            display: inline-block; /* Ensure proper spacing */
+            margin-right: 0.5rem; /* Space between title and content */
+        }
         @media (max-width: 1024px) {
             .sidebar {
                 position: static;
@@ -271,48 +279,48 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Drug Name:</span> {{ drug.name_en }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Salt:</span> N/A (Drug Only)</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Categories:</span> {{ drug.categories or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Drug Name:</strong> {{ drug.name_en }}</p>
+                            <p class="mb-3"><strong class="section-title">Salt:</strong> N/A (Drug Only)</p>
+                            <p class="mb-3"><strong class="section-title">Categories:</strong> {{ drug.categories or "N/A" }}</p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Black Box Warning:</span>
+                                <strong class="section-title">Black Box Warning:</strong>
                                 {% if detail.black_box_warning %}
                                 <span class="text-red-500 font-bold">Yes</span>
-                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details|safe or "No details available" }}
+                                <br><strong class="section-title">Details:</strong> {{ detail.black_box_details|safe or "No details available" }}
                                 {% else %}
                                 <span class="text-green-500">No</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Pregnancy Safety:</span>
+                                <strong class="section-title">Pregnancy Safety:</strong>
                                 <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
                                 {% if detail.pregnancy_details %}
-                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
+                                <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Lactation Safety:</span>
+                                <strong class="section-title">Lactation Safety:</strong>
                                 <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
                                 {% if detail.lactation_details %}
-                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
+                                <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">FDA Approved:</span>
+                                <strong class="section-title">FDA Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.fda_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.fda_approved else "No" }}</span>
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">EMA Approved:</span>
+                                <strong class="section-title">EMA Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.ema_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.ema_approved else "No" }}</span>
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">TITCK Approved:</span>
+                                <strong class="section-title">TITCK Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.titck_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.titck_approved else "No" }}</span>
                             </p>
                         </div>
                         <div>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Structure:</span>
+                                <strong class="section-title">Structure:</strong>
                                 {% if detail.structure %}
                                 <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[150px] rounded-lg mt-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <span class="structure-error hidden">2D structure unavailable</span>
@@ -321,7 +329,7 @@
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">3D Structure:</span>
+                                <strong class="section-title">3D Structure:</strong>
                                 {% if detail.structure_3d %}
                                 <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }}">
                                     <i class="fas fa-cube mr-1"></i>View 3D
@@ -337,20 +345,20 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Formula:</span> {{ detail.molecular_formula or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">IUPAC Name:</span> {{ detail.iupac_name or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">SMILES:</span> {{ detail.smiles or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Molecular Formula:</strong> {{ detail.molecular_formula or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Molecular Weight:</strong> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">IUPAC Name:</strong> {{ detail.iupac_name or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Boiling Point:</strong> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Melting Point:</strong> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Density:</strong> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Solubility:</strong> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Flash Point:</strong> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Synthesis:</span> {{ detail.synthesis | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Synthesis:</strong> {{ detail.synthesis | safe or "N/A" }}</p>
                         </div>
                     </div>
 
@@ -358,16 +366,16 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">CAS ID:</span> {{ detail.cas_id or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">RXCUI:</span> {{ detail.rxcui or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem CID:</span> {{ detail.pubchem_cid or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem SID:</span> {{ detail.pubchem_sid or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">InChIKey:</span> {{ detail.inchikey or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">EC Number:</span> {{ detail.ec_number or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">NCI Code:</span> {{ detail.nci_code or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">SNOMED ID:</span> {{ detail.snomed_id or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}</p>
                         </div>
                     </div>
 
@@ -375,11 +383,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacodynamics:</span> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Mechanism of Action:</span> {{ detail.mechanism_of_action | safe or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacokinetics:</span> {{ detail.pharmacokinetics | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Pharmacodynamics:</strong> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Mechanism of Action:</strong> {{ detail.mechanism_of_action | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Pharmacokinetics:</strong> {{ detail.pharmacokinetics | safe or "N/A" }}</p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Indications:</span>
+                                <strong class="section-title">Indications:</strong>
                                 {% if detail.indications %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for indication in detail.indications %}
@@ -398,7 +406,7 @@
                         </div>
                         <div>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Side Effects:</span>
+                                <strong class="section-title">Side Effects:</strong>
                                 {% if detail.side_effects %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for se in detail.side_effects %}
@@ -410,7 +418,7 @@
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Target Molecules:</span>
+                                <strong class="section-title">Target Molecules:</strong>
                                 {% if detail.target_molecules %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for target in detail.target_molecules %}
@@ -434,10 +442,10 @@
                                 <i class="fas fa-route section-icon"></i>{{ route.name }}
                             </div>
                             <div class="collapsible-content">
-                                <p class="mb-2"><span class="font-medium">Pharmacodynamics:</span> {{ route.pharmacodynamics or "N/A" }}</p>
-                                <p class="mb-2"><span class="font-medium">Pharmacokinetics:</span> {{ route.pharmacokinetics or "N/A" }}</p>
+                                <p class="mb-2"><strong class="section-title">Pharmacodynamics:</strong> {{ route.pharmacodynamics or "N/A" }}</p>
+                                <p class="mb-2"><strong class="section-title">Pharmacokinetics:</strong> {{ route.pharmacokinetics or "N/A" }}</p>
                                 <p class="mb-2">
-                                    <span class="font-medium">Indications:</span>
+                                    <strong class="section-title">Indications:</strong>
                                     {% if route.indications %}
                                     <ul class="list-disc pl-5 space-y-1">
                                         {% for indication in route.indications %}
@@ -453,19 +461,19 @@
                                     <span class="text-gray-500">No indications listed for this route.</span>
                                     {% endif %}
                                 </p>
-                                <p class="mb-2"><span class="font-medium">Pharmacokinetic Parameters:</span></p>
+                                <p class="mb-2"><strong class="section-title">Pharmacokinetic Parameters:</strong></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
-                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
-                                    <li><span class="font-medium">Protein Binding:</span> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
-                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
-                                    <li><span class="font-medium">Bioavailability:</span> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
-                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
-                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
+                                    <li><strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
+                                    <li><strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
+                                    <li><strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
+                                    <li><strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
+                                    <li><strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
+                                    <li><strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
+                                    <li><strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
                                     <li>
-                                        <span class="font-medium">Metabolism Organs:</span>
+                                        <strong class="section-title">Metabolism Organs:</strong>
                                         {% if route.metabolism_organs %}
                                         {{ route.metabolism_organs | join(', ') }}
                                         {% else %}
@@ -473,7 +481,7 @@
                                         {% endif %}
                                     </li>
                                     <li>
-                                        <span class="font-medium">Metabolism Enzymes:</span>
+                                        <strong class="section-title">Metabolism Enzymes:</strong>
                                         {% if route.metabolism_enzymes %}
                                         {{ route.metabolism_enzymes | join(', ') }}
                                         {% else %}
@@ -481,7 +489,7 @@
                                         {% endif %}
                                     </li>
                                     <li>
-                                        <span class="font-medium">Metabolites:</span>
+                                        <strong class="section-title">Metabolites:</strong>
                                         {% if route.metabolites %}
                                         <div class="metabolite-tree">
                                             <ul>
@@ -561,47 +569,47 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Drug Name:</span> {{ drug.name_en }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Salt:</span> {{ detail.salt_name }}</p>
+                            <p class="mb-3"><strong class="section-title">Drug Name:</strong> {{ drug.name_en }}</p>
+                            <p class="mb-3"><strong class="section-title">Salt:</strong> {{ detail.salt_name }}</p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Black Box Warning:</span>
+                                <strong class="section-title">Black Box Warning:</strong>
                                 {% if detail.black_box_warning %}
                                 <span class="text-red-500 font-bold">Yes</span>
-                                <br><span class="font-medium">Details:</span> {{ detail.black_box_details|safe or "No details available" }}
+                                <br><strong class="section-title">Details:</strong> {{ detail.black_box_details|safe or "No details available" }}
                                 {% else %}
                                 <span class="text-green-500">No</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Pregnancy Safety:</span>
+                                <strong class="section-title">Pregnancy Safety:</strong>
                                 <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
                                 {% if detail.pregnancy_details %}
-                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
+                                <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Lactation Safety:</span>
+                                <strong class="section-title">Lactation Safety:</strong>
                                 <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
                                 {% if detail.lactation_details %}
-                                <br><span class="font-medium">Details:</span> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
+                                <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.lactation_details|safe }}</span>
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">FDA Approved:</span>
+                                <strong class="section-title">FDA Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.fda_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.fda_approved else "No" }}</span>
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">EMA Approved:</span>
+                                <strong class="section-title">EMA Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.ema_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.ema_approved else "No" }}</span>
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">TITCK Approved:</span>
+                                <strong class="section-title">TITCK Approved:</strong>
                                 <span class="inline-block bg-{{ 'green' if detail.titck_approved else 'red' }}-500 text-white px-2 py-1 rounded-full text-xs">{{ "Yes" if detail.titck_approved else "No" }}</span>
                             </p>
                         </div>
                         <div>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Structure:</span>
+                                <strong class="section-title">Structure:</strong>
                                 {% if detail.structure %}
                                 <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[150px] rounded-lg mt-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <span class="structure-error hidden">2D structure unavailable</span>
@@ -610,7 +618,7 @@
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">3D Structure:</span>
+                                <strong class="section-title">3D Structure:</strong>
                                 {% if detail.structure_3d %}
                                 <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }} with {{ detail.salt_name }}">
                                     <i class="fas fa-cube mr-1"></i>View 3D
@@ -626,20 +634,20 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Formula:</span> {{ detail.molecular_formula or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Molecular Weight:</span> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">IUPAC Name:</span> {{ detail.iupac_name or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">SMILES:</span> {{ detail.smiles or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Molecular Formula:</strong> {{ detail.molecular_formula or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Molecular Weight:</strong> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">IUPAC Name:</strong> {{ detail.iupac_name or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Boiling Point:</span> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Melting Point:</span> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Density:</span> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Solubility:</span> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Flash Point:</span> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Boiling Point:</strong> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Melting Point:</strong> {{ detail.melting_point or "N/A" }} {{ detail.melting_point_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Density:</strong> {{ detail.density or "N/A" }} {{ detail.density_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Solubility:</strong> {{ detail.solubility or "N/A" }} {{ detail.solubility_unit }}</p>
+                            <p class="mb-3"><strong class="section-title">Flash Point:</strong> {{ detail.flash_point or "N/A" }} {{ detail.flash_point_unit }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Synthesis:</span> {{ detail.synthesis | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Synthesis:</strong> {{ detail.synthesis | safe or "N/A" }}</p>
                         </div>
                     </div>
 
@@ -647,16 +655,16 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">CAS ID:</span> {{ detail.cas_id or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">RXCUI:</span> {{ detail.rxcui or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem CID:</span> {{ detail.pubchem_cid or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">PubChem SID:</span> {{ detail.pubchem_sid or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}</p>
                         </div>
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">InChIKey:</span> {{ detail.inchikey or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">EC Number:</span> {{ detail.ec_number or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">NCI Code:</span> {{ detail.nci_code or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">SNOMED ID:</span> {{ detail.snomed_id or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}</p>
                         </div>
                     </div>
 
@@ -664,11 +672,11 @@
                     <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacodynamics:</span> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Mechanism of Action:</span> {{ detail.mechanism_of_action | safe or "N/A" }}</p>
-                            <p class="mb-3"><span class="font-medium text-gray-800">Pharmacokinetics:</span> {{ detail.pharmacokinetics | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Pharmacodynamics:</strong> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Mechanism of Action:</strong> {{ detail.mechanism_of_action | safe or "N/A" }}</p>
+                            <p class="mb-3"><strong class="section-title">Pharmacokinetics:</strong> {{ detail.pharmacokinetics | safe or "N/A" }}</p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Indications:</span>
+                                <strong class="section-title">Indications:</strong>
                                 {% if detail.indications %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for indication in detail.indications %}
@@ -687,7 +695,7 @@
                         </div>
                         <div>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Side Effects:</span>
+                                <strong class="section-title">Side Effects:</strong>
                                 {% if detail.side_effects %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for se in detail.side_effects %}
@@ -699,7 +707,7 @@
                                 {% endif %}
                             </p>
                             <p class="mb-3">
-                                <span class="font-medium text-gray-800">Target Molecules:</span>
+                                <strong class="section-title">Target Molecules:</strong>
                                 {% if detail.target_molecules %}
                                 <ul class="list-disc pl-5 space-y-1">
                                     {% for target in detail.target_molecules %}
@@ -723,10 +731,10 @@
                                 <i class="fas fa-route section-icon"></i>{{ route.name }}
                             </div>
                             <div class="collapsible-content">
-                                <p class="mb-2"><span class="font-medium">Pharmacodynamics:</span> {{ route.pharmacodynamics or "N/A" }}</p>
-                                <p class="mb-2"><span class="font-medium">Pharmacokinetics:</span> {{ route.pharmacokinetics or "N/A" }}</p>
+                                <p class="mb-2"><strong class="section-title">Pharmacodynamics:</strong> {{ route.pharmacodynamics or "N/A" }}</p>
+                                <p class="mb-2"><strong class="section-title">Pharmacokinetics:</strong> {{ route.pharmacokinetics or "N/A" }}</p>
                                 <p class="mb-2">
-                                    <span class="font-medium">Indications:</span>
+                                    <strong class="section-title">Indications:</strong>
                                     {% if route.indications %}
                                     <ul class="list-disc pl-5 space-y-1">
                                         {% for indication in route.indications %}
@@ -742,19 +750,19 @@
                                     <span class="text-gray-500">No indications listed for this route.</span>
                                     {% endif %}
                                 </p>
-                                <p class="mb-2"><span class="font-medium">Pharmacokinetic Parameters:</span></p>
+                                <p class="mb-2"><strong class="section-title">Pharmacokinetic Parameters:</strong></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><span class="font-medium">Absorption Rate:</span> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
-                                    <li><span class="font-medium">Volume of Distribution:</span> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
-                                    <li><span class="font-medium">Protein Binding:</span> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><span class="font-medium">Half-Life:</span> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
-                                    <li><span class="font-medium">Clearance Rate:</span> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
-                                    <li><span class="font-medium">Bioavailability:</span> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><span class="font-medium">Tmax:</span> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
-                                    <li><span class="font-medium">Cmax:</span> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
-                                    <li><span class="font-medium">Therapeutic Range:</span> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
+                                    <li><strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
+                                    <li><strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
+                                    <li><strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
+                                    <li><strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
+                                    <li><strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
+                                    <li><strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
+                                    <li><strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
+                                    <li><strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
                                     <li>
-                                        <span class="font-medium">Metabolism Organs:</span>
+                                        <strong class="section-title">Metabolism Organs:</strong>
                                         {% if route.metabolism_organs %}
                                         {{ route.metabolism_organs | join(', ') }}
                                         {% else %}
@@ -762,7 +770,7 @@
                                         {% endif %}
                                     </li>
                                     <li>
-                                        <span class="font-medium">Metabolism Enzymes:</span>
+                                        <strong class="section-title">Metabolism Enzymes:</strong>
                                         {% if route.metabolism_enzymes %}
                                         {{ route.metabolism_enzymes | join(', ') }}
                                         {% else %}
@@ -770,7 +778,7 @@
                                         {% endif %}
                                     </li>
                                     <li>
-                                        <span class="font-medium">Metabolites:</span>
+                                        <strong class="section-title">Metabolites:</strong>
                                         {% if route.metabolites %}
                                         <div class="metabolite-tree">
                                             <ul>
