@@ -4,12 +4,13 @@ services:
     env: docker
     plan: pro
     dockerfilePath: ./Dockerfile
-    buildCommand: ""
     envVars:
       - key: DATABASE_URI
         value: postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
       - key: PYTHONUNBUFFERED
         value: 1
+      - key: CACHE_BUST
+        value: "20250706"  # Update for each redeploy
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
