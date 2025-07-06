@@ -10,7 +10,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: 1
       - key: CACHE_BUST
-        value: "20250706_4"  # New cache bust
+        value: "20250707_2"  # Updated to force rebuild
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
