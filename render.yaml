@@ -10,7 +10,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: 1
       - key: CACHE_BUST
-        value: "20250706"  # Update for each redeploy
+        value: "20250706_3"  # Updated to bust cache
     disk:
       name: uploads
       mountPath: /opt/render/project/src/static/uploads
