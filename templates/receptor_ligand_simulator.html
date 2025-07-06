@@ -9,14 +9,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
     <style>
-        /* [Your existing styles unchanged] */
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f9f9f9;
-            color: #333;
+            font-family: 'Arial', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
             margin: 0;
-            padding: 20px;
+            padding: 1.5rem;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -25,125 +25,153 @@
 
         .container {
             width: 100%;
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 2rem;
             background: white;
-            border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
 
         h1 {
-            font-size: 2rem;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 10px;
+            font-size: 2.25rem;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 0.5rem;
         }
 
         p {
-            font-size: 1rem;
-            color: #7f8c8d;
-            text-align: center;
-            margin-bottom: 20px;
+            font-size: 1.125rem;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
         }
 
         .form-section {
-            margin-bottom: 20px;
+            margin-bottom: 2rem;
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 1.25rem;
         }
 
         .form-group label {
-            font-weight: bold;
+            font-weight: 600;
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 0.5rem;
+            color: #1f2937;
         }
 
         .form-control {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
             font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
         .form-text {
             font-size: 0.875rem;
-            color: #7f8c8d;
+            color: #6b7280;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 0.75rem 1.5rem;
             border: none;
-            border-radius: 5px;
+            border-radius: 0.375rem;
             font-size: 1rem;
             cursor: pointer;
-            display: inline-block;
-            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background-color 0.2s;
         }
 
         .btn-primary {
-            background-color: #3498db;
+            background-color: #3b82f6;
             color: white;
         }
 
-        .btn-primary:hover {
-            background-color: #2980b9;
+        .btn-primary:hover:not(:disabled) {
+            background-color: #2563eb;
+        }
+
+        .btn-primary:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
         }
 
         .btn-secondary {
-            background-color: #95a5a6;
+            background-color: #6b7280;
             color: white;
         }
 
-        .btn-secondary:hover {
-            background-color: #7f8c8d;
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #4b5563;
         }
 
         .visualization-section {
-            margin-bottom: 20px;
+            margin-bottom: 2rem;
+        }
+
+        .visualization-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1rem;
         }
 
         #viewer {
             width: 100%;
-            height: 400px;
-            margin: 20px auto;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            height: 500px;
+            margin: 1.5rem auto;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
 
         .results-section {
-            margin-bottom: 20px;
+            margin-bottom: 2rem;
         }
 
         .results-section h3 {
-            font-size: 1.5rem;
-            color: #2c3e50;
-            margin-bottom: 10px;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 1rem;
         }
 
         #results p {
             font-size: 1rem;
-            color: #333;
+            color: #1f2937;
+        }
+
+        .error-message {
+            display: none;
+            background-color: #fee2e2;
+            color: #b91c1c;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1.5rem;
         }
 
         .footer {
             text-align: center;
             font-size: 0.875rem;
-            color: #7f8c8d;
-            margin-top: 20px;
+            color: #6b7280;
+            margin-top: 2rem;
         }
 
         .footer a {
-            color: #3498db;
+            color: #3b82f6;
             text-decoration: none;
         }
 
@@ -154,16 +182,19 @@
         #loading {
             display: none;
             text-align: center;
-            margin: 20px 0;
+            margin: 1.5rem 0;
         }
 
         #loading p {
             font-size: 1rem;
-            color: #3498db;
+            color: #3b82f6;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .data-table-section {
-            margin-bottom: 20px;
+            margin-bottom: 2rem;
         }
 
         table#interaction-table {
@@ -174,17 +205,31 @@
 
         table#interaction-table th,
         table#interaction-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #d1d5db;
+            padding: 0.75rem;
+            text-align: left;
         }
 
         table#interaction-table th {
-            background-color: #f2f2f2;
-            color: #333;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        table#interaction-table tbody tr {
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        table#interaction-table tbody tr:hover {
+            background-color: #eff6ff;
         }
 
         #toggle-surface-container {
-            margin-bottom: 10px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -193,8 +238,11 @@
         <!-- Header Section -->
         <div class="header">
             <h1>Receptor-Ligand Interaction Simulator</h1>
-            <p>Visualize and simulate the interaction between receptors and ligands. Select a ligand and receptor to get started.</p>
+            <p>Explore and visualize receptor-ligand interactions with enhanced 3D controls.</p>
         </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="error-message"></div>
 
         <!-- Form Section -->
         <div class="form-section">
@@ -204,9 +252,8 @@
                 </label>
                 <select id="ligand" class="form-control">
                     <option value="">Select a ligand...</option>
-                    <!-- Options populated dynamically -->
                 </select>
-                <small class="form-text text-muted">Example: Amlodipine, Metformin, etc.</small>
+                <small class="form-text">Example: Amlodipine, Benidipine, etc.</small>
             </div>
 
             <div class="form-group">
@@ -215,9 +262,8 @@
                 </label>
                 <select id="receptor" class="form-control">
                     <option value="">Select a receptor...</option>
-                    <!-- Options populated dynamically -->
                 </select>
-                <small class="form-text text-muted">Example: Voltage-dependent L-type calcium channel subunit alpha-1C</small>
+                <small class="form-text">Example: Voltage-dependent L-type calcium channel subunit alpha-1C</small>
             </div>
 
             <button id="simulate-btn" class="btn btn-primary">
@@ -234,10 +280,18 @@
         <div class="visualization-section">
             <h3>3D Visualization</h3>
 
-            <!-- Toggle Surface Checkbox -->
-            <div class="form-group" id="toggle-surface-container">
-                <input type="checkbox" id="toggle-surface" checked />
-                <label for="toggle-surface">Show Receptor Surface</label>
+            <!-- Visualization Controls -->
+            <div class="visualization-controls">
+                <div id="toggle-surface-container">
+                    <input type="checkbox" id="toggle-surface" checked />
+                    <label for="toggle-surface">Show Receptor Surface</label>
+                </div>
+                <button id="zoom-in-btn" class="btn btn-secondary">
+                    <i class="fas fa-search-plus"></i> Zoom In
+                </button>
+                <button id="zoom-out-btn" class="btn btn-secondary">
+                    <i class="fas fa-search-minus"></i> Zoom Out
+                </button>
             </div>
 
             <div id="viewer"></div>
@@ -277,6 +331,7 @@
         let viewer;
         let receptorModel;
         let ligandModel;
+        let bindingSiteSphere;
 
         // Helper function to compute the geometric center of a GLModel
         function computeModelCenter(glModel) {
@@ -304,7 +359,12 @@
                 atom.y += dy;
                 atom.z += dz;
             });
-            // No setPositions needed; changes are reflected when viewer renders
+        }
+
+        // Helper function to display error messages
+        function showError(message) {
+            $('#error-message').text(message).show();
+            setTimeout(() => $('#error-message').fadeOut(), 5000);
         }
 
         $(document).ready(function () {
@@ -350,6 +410,7 @@
             // Handle simulation
             $('#simulate-btn').on('click', async (e) => {
                 e.preventDefault();
+                $('#error-message').hide();
                 $('#loading').show();
                 $('#simulate-btn').html('<i class="fas fa-spinner fa-spin"></i> Simulating...').prop('disabled', true);
 
@@ -358,7 +419,7 @@
                     const receptorId = $('#receptor').val();
 
                     if (!drugId || !receptorId) {
-                        alert("Please select both a ligand and a receptor.");
+                        showError("Please select both a ligand and a receptor.");
                         return;
                     }
 
@@ -367,13 +428,22 @@
                     const ligandResponse = await fetch(`/api/convert_ligand?drug_id=${drugId}`);
                     const interactionResponse = await fetch(`/api/get_interaction_data?drug_id=${drugId}&receptor_id=${receptorId}`);
 
-                    if (!receptorResponse.ok || !ligandResponse.ok || !interactionResponse.ok) {
-                        alert("Error fetching data. Please try again.");
+                    const receptorResult = await receptorResponse.json();
+                    let ligandResult = null;
+                    if (ligandResponse.ok) {
+                        ligandResult = await ligandResponse.json();
+                    } else {
+                        const errorData = await ligandResponse.json();
+                        showError(errorData.error || "Failed to fetch ligand data. Try another ligand (e.g., Amlodipine, drug_id=370).");
                         return;
                     }
 
-                    const receptorResult = await receptorResponse.json();
-                    const ligandResult = await ligandResponse.json();
+                    if (!interactionResponse.ok) {
+                        const errorData = await interactionResponse.json();
+                        showError(errorData.error || "Failed to fetch interaction data.");
+                        return;
+                    }
+
                     const interactionData = await interactionResponse.json();
 
                     // Create (or re-create) the 3Dmol viewer
@@ -381,6 +451,7 @@
                         viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
                     }
                     viewer.removeAllModels();
+                    viewer.removeAllShapes();
                     viewer.clear();
 
                     // Render RECEPTOR
@@ -396,6 +467,17 @@
                         } else {
                             viewer.setStyle({ model: receptorModelIndex }, {
                                 cartoon: { color: "blue" }
+                            });
+                        }
+
+                        // Add binding site sphere if coordinates are valid
+                        if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
+                            const site = receptorResult.binding_site;
+                            bindingSiteSphere = viewer.addSphere({
+                                center: { x: site.x, y: site.y, z: site.z },
+                                radius: 3.0,
+                                color: 'yellow',
+                                opacity: 0.5
                             });
                         }
                     }
@@ -415,14 +497,16 @@
 
                             const center = computeModelCenter(ligandModel);
                             viewer.addLabel("Docked Ligand", {
-                                position: center,
-                                fontSize: 14,
+                                position: { x: center.x + 2, y: center.y + 2, z: center.z + 2 },
+                                fontSize: 12,
                                 fontColor: "red",
-                                backgroundColor: "white"
+                                backgroundColor: "rgba(255, 255, 255, 0.8)",
+                                borderColor: "black",
+                                borderThickness: 0.5
                             });
                         }
                     } else if (ligandResult.pdb) {
-                        // No docked PDB; position ligand at fpocket binding site
+                        // No docked PDB; position ligand at binding site
                         let ligandModelIndex = viewer.addModel(ligandResult.pdb, "pdb");
                         ligandModel = viewer.getModel(ligandModelIndex);
 
@@ -430,26 +514,24 @@
                             stick: { colorscheme: "greenCarbon", radius: 0.3 }
                         });
 
-                        // Use fpocket binding site if available, else fallback
-                        let labelText = "Binding Site"; // Shortened label
+                        let labelText = "Binding Site";
                         let position;
                         if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
                             const site = receptorResult.binding_site;
                             translateModel(ligandModel, site.x, site.y, site.z);
-                            // Offset label slightly to avoid overlap
-                            position = { x: site.x + 5, y: site.y + 5, z: site.z + 5 };
+                            position = { x: site.x + 2, y: site.y + 2, z: site.z + 2 };
                         } else {
                             const receptorCenter = computeModelCenter(receptorModel);
                             translateModel(ligandModel, receptorCenter.x + 10, receptorCenter.y + 10, receptorCenter.z + 10);
                             position = computeModelCenter(ligandModel);
-                            labelText = "Approx. Position"; // Shortened fallback label
+                            labelText = "Approx. Position";
                         }
 
                         viewer.addLabel(labelText, {
                             position: position,
-                            fontSize: 10, // Smaller font size
+                            fontSize: 12,
                             fontColor: "red",
-                            backgroundColor: "rgba(255, 255, 255, 0.7)", // Semi-transparent background
+                            backgroundColor: "rgba(255, 255, 255, 0.8)",
                             borderColor: "black",
                             borderThickness: 0.5
                         });
@@ -461,10 +543,10 @@
 
                     // Populate the table with interaction data
                     const tableBody = $('#interaction-table tbody');
-                    tableBody.empty(); // Clear previous data
+                    tableBody.empty();
 
                     const row = `
-                        <tr>
+                        <tr data-drug-id="${drugId}" data-receptor-id="${receptorId}">
                             <td>${interactionData.ligand}</td>
                             <td>${interactionData.receptor}</td>
                             <td>${interactionData.affinity || "N/A"}</td>
@@ -477,7 +559,7 @@
 
                 } catch (error) {
                     console.error("ERROR:", error);
-                    alert("An unexpected error occurred. Please try again.");
+                    showError("An unexpected error occurred. Please try a different ligand or receptor.");
                 } finally {
                     $('#loading').hide();
                     $('#simulate-btn').html('<i class="fas fa-play"></i> Simulate Interaction').prop('disabled', false);
@@ -486,9 +568,9 @@
 
             // Toggle surface on/off
             $('#toggle-surface').on('change', function() {
-                if (!receptorModel) return; // If no receptor loaded, do nothing
+                if (!receptorModel) return;
 
-                const receptorModelIndex = receptorModel.id; // numeric index or "1"
+                const receptorModelIndex = receptorModel.id;
                 if ($(this).is(':checked')) {
                     viewer.setStyle({ model: receptorModelIndex }, {
                         cartoon: { color: "blue" },
@@ -502,10 +584,39 @@
                 viewer.render();
             });
 
+            // Zoom controls
+            $('#zoom-in-btn').on('click', function() {
+                if (viewer) {
+                    viewer.zoom(1.2);
+                    viewer.render();
+                }
+            });
+
+            $('#zoom-out-btn').on('click', function() {
+                if (viewer) {
+                    viewer.zoom(0.8);
+                    viewer.render();
+                }
+            });
+
+            // Table row click to re-center view
+            $('#interaction-table tbody').on('click', 'tr', function() {
+                if (!viewer || !ligandModel) return;
+
+                const center = computeModelCenter(ligandModel);
+                viewer.setView({
+                    x: center.x,
+                    y: center.y,
+                    z: center.z,
+                    zoom: viewer.getView().zoom
+                });
+                viewer.render();
+            });
+
             // Export visualization as PNG
             $('#export-btn').on('click', function() {
                 if (!viewer) {
-                    alert("No visualization to export yet!");
+                    showError("No visualization to export yet!");
                     return;
                 }
                 viewer.render();
