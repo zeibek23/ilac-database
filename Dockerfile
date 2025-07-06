@@ -28,9 +28,11 @@ RUN which fpocket && fpocket -h && \
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir gunicorn==22.0.0
+RUN rm -rf /tmp/pip*  # Clear stale pip artifacts
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir numpy==1.23.5  # Pre-install numpy
+RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
+RUN pip install --no-cache-dir gunicorn==22.0.0
 
 # Pre-download NLTK data
 RUN python -c 'import nltk; nltk.download("brown"); nltk.download("punkt")'
