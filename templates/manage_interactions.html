@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Etkileşim Yönetimi</title>
+    <title>Interaction Management</title>
     <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
     <!-- Bootstrap CSS -->
@@ -10,56 +10,59 @@
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        h1, h2 { font-family: 'Arial', sans-serif; }
-        .card { border-radius: 10px; }
-        .table-hover tbody tr:hover { background-color: #f1f1f1; }
-        .form-control, .form-select { border-radius: 5px; }
-        .severity-Hafif { background-color: #d4edda; }
-        .severity-Orta { background-color: #fff3cd; }
-        .severity-Şiddetli { background-color: #f8d7da; }
-        .severity-Kritik { background-color: #d9534f; color: white; }
+        body { background-color: #f8f9fa; font-family: 'Arial', sans-serif; }
+        h1, h2 { color: #007bff; }
+        .card { border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+        .table-hover tbody tr:hover { background-color: #e9ecef; }
+        .form-control, .form-select { border-radius: 5px; border: 1px solid #ced4da; }
+        .severity-Mild { background-color: #d4edda; color: #155724; padding: 5px; border-radius: 4px; }
+        .severity-Moderate { background-color: #fff3cd; color: #856404; padding: 5px; border-radius: 4px; }
+        .severity-Severe { background-color: #f8d7da; color: #721c24; padding: 5px; border-radius: 4px; }
+        .severity-Critical { background-color: #f5c6cb; color: #721c24; padding: 5px; border-radius: 4px; font-weight: bold; }
+        .btn-primary { background-color: #007bff; border-color: #007bff; }
+        .btn-primary:hover { background-color: #0056b3; border-color: #004085; }
+        .alert { margin-top: 10px; }
     </style>
 </head>
 <body>
 <div class="container my-5">
-    <h1 class="text-center text-primary mb-4">Etkileşim Yönetimi</h1>
-    <div class="card shadow-sm mb-5">
+    <h1 class="text-center mb-4">Interaction Management</h1>
+    <div class="card mb-5">
         <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Yeni Etkileşim Ekle</h4>
+            <h4 class="mb-0">Add New Interaction</h4>
         </div>
         <div class="card-body">
-            <form method="post">
+            <form method="post" id="addInteractionForm">
                 <div class="mb-3">
-                    <label for="drug1_id" class="form-label">İlaç 1</label>
+                    <label for="drug1_id" class="form-label">Drug 1</label>
                     <select id="drug1_id" name="drug1_id" class="form-select" required></select>
                 </div>
                 <div class="mb-3">
-                    <label for="drug2_id" class="form-label">İlaç 2</label>
+                    <label for="drug2_id" class="form-label">Drug 2</label>
                     <select id="drug2_id" name="drug2_id" class="form-select" required></select>
                 </div>
                 <div class="mb-3">
-                    <label for="route_ids" class="form-label">Uygulama Yolları</label>
+                    <label for="route_ids" class="form-label">Routes of Administration</label>
                     <select class="form-select select2" id="route_ids" name="route_ids" multiple>
-                        <option value="">Genel (Tüm Uygulama Yolları)</option>
+                        <option value="">General (All Routes)</option>
                         {% for route in routes %}
                             <option value="{{ route.id }}">{{ route.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label for="interaction_type" class="form-label">Etkileşim Türü</label>
+                    <label for="interaction_type" class="form-label">Interaction Type</label>
                     <select class="form-select" id="interaction_type" name="interaction_type" required>
-                        <option value="Farmakodinamik">Farmakodinamik</option>
-                        <option value="Farmakokinetik">Farmakokinetik</option>
+                        <option value="Pharmacodynamic">Pharmacodynamic</option>
+                        <option value="Pharmacokinetic">Pharmacokinetic</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label for="interaction_description" class="form-label">Etkileşim Açıklaması</label>
+                    <label for="interaction_description" class="form-label">Interaction Description</label>
                     <textarea class="form-control" id="interaction_description" name="interaction_description" rows="3" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="severity_id" class="form-label">Etkileşimin Şiddeti</label>
+                    <label for="severity_id" class="form-label">Interaction Severity</label>
                     <select name="severity_id" id="severity_id" class="form-select" required>
                         <option value="">Şiddet Seçin</option>
                         {% for severity in severities %}
@@ -68,46 +71,47 @@
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label for="mechanism" class="form-label">Etkileşim Mekanizması</label>
-                    <textarea class="form-control" id="mechanism" name="mechanism" rows="2" placeholder="Etkileşimin mekanizmasını açıklayın" required></textarea>
+                    <label for="mechanism" class="form-label">Interaction Mechanism</label>
+                    <textarea class="form-control" id="mechanism" name="mechanism" rows="2" placeholder="Describe the interaction mechanism" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="monitoring" class="form-label">Takip/İzleme Önerileri</label>
-                    <textarea class="form-control" id="monitoring" name="monitoring" rows="2" placeholder="İzleme veya takip önerilerini girin" required></textarea>
+                    <label for="monitoring" class="form-label">Monitoring Recommendations</label>
+                    <textarea class="form-control" id="monitoring" name="monitoring" rows="2" placeholder="Enter monitoring or follow-up suggestions" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label for="alternatives" class="form-label">Alternatifler</label>
+                    <label for="alternatives" class="form-label">Alternatives</label>
                     <select id="alternatives" name="alternatives" class="form-select select2" multiple="multiple"></select>
                 </div>
                 <div class="mb-3">
-                    <label for="reference" class="form-label">Referans</label>
-                    <textarea class="form-control" id="reference" name="reference" rows="2" placeholder="Kaynağı girin (örn. makale, kitap, web sitesi)" required></textarea>
+                    <label for="reference" class="form-label">Reference</label>
+                    <textarea class="form-control" id="reference" name="reference" rows="2" placeholder="Enter the source (e.g., article, book, website)" required></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary w-100" id="submitBtn">Etkileşim Ekle</button>
+                <button type="submit" class="btn btn-primary w-100" id="submitBtn">Add Interaction</button>
             </form>
+            <div id="formAlert" class="alert alert-danger d-none mt-3"></div>
         </div>
     </div>
-    <h2 class="text-center text-secondary mb-4">Mevcut Etkileşimler</h2>
+    <h2 class="text-center text-secondary mb-4">Existing Interactions</h2>
     <div class="mb-3 d-flex justify-content-between">
-        <input type="text" id="searchInput" class="form-control w-50" placeholder="Etkileşimlerde ara..." />
-        <button id="deleteAllBtn" class="btn btn-danger">Tüm Etkileşimleri Sil</button>
+        <input type="text" id="searchInput" class="form-control w-50" placeholder="Search interactions..." />
+        <button id="deleteAllBtn" class="btn btn-danger">Delete All Interactions</button>
     </div>
-    <table id="interactionsTable" class="table table-bordered">
-        <thead>
+    <table id="interactionsTable" class="table table-bordered table-hover">
+        <thead class="table-dark">
         <tr>
             <th>ID</th>
-            <th>İlaç 1</th>
-            <th>İlaç 2</th>
-            <th>Uygulama Yolları</th>
-            <th>Etkileşim Türü</th>
-            <th>Etkileşim Açıklaması</th>
-            <th>Şiddet</th>
-            <th>AI Tarafından Öngörülen Şiddet</th>
-            <th>Mekanizma</th>
-            <th>Takip</th>
-            <th>Alternatifler</th>
-            <th>Referans</th>
-            <th>Aksiyonlar</th>
+            <th>Drug 1</th>
+            <th>Drug 2</th>
+            <th>Routes</th>
+            <th>Interaction Type</th>
+            <th>Interaction Description</th>
+            <th>Severity</th>
+            <th>AI Predicted Severity</th>
+            <th>Mechanism</th>
+            <th>Monitoring</th>
+            <th>Alternatives</th>
+            <th>Reference</th>
+            <th>Actions</th>
         </tr>
         </thead>
         <tbody>
@@ -124,7 +128,7 @@
 $(document).ready(function () {
     // Initialize Select2 for drug1_id
     $('#drug1_id').select2({
-        placeholder: 'İlaç 1 seçin',
+        placeholder: 'Select Drug 1',
         allowClear: true,
         ajax: {
             url: '/api/active_ingredients',
@@ -146,13 +150,12 @@ $(document).ready(function () {
             },
             cache: true
         },
-        minimumInputLength: 1,
-        language: 'tr'
+        minimumInputLength: 1
     });
 
     // Initialize Select2 for drug2_id
     $('#drug2_id').select2({
-        placeholder: 'İlaç 2 seçin',
+        placeholder: 'Select Drug 2',
         allowClear: true,
         ajax: {
             url: '/api/active_ingredients',
@@ -174,13 +177,12 @@ $(document).ready(function () {
             },
             cache: true
         },
-        minimumInputLength: 1,
-        language: 'tr'
+        minimumInputLength: 1
     });
 
     // Initialize Select2 for alternatives (multi-select)
     $('#alternatives').select2({
-        placeholder: 'Alternatif ilaçları seçin',
+        placeholder: 'Select alternative drugs',
         allowClear: true,
         multiple: true,
         ajax: {
@@ -203,13 +205,12 @@ $(document).ready(function () {
             },
             cache: true
         },
-        minimumInputLength: 1,
-        language: 'tr'
+        minimumInputLength: 1
     });
 
     // Initialize Select2 for route_ids (multi-select)
     $('#route_ids').select2({
-        placeholder: 'Uygulama yollarını seçin',
+        placeholder: 'Select routes of administration',
         allowClear: true,
         multiple: true
     });
@@ -233,14 +234,15 @@ $(document).ready(function () {
                 data: "severity",
                 render: function (data, type, row) {
                     let className = '';
-                    switch (data) {
-                        case 'Hafif': className = 'severity-Hafif'; break;
-                        case 'Orta': className = 'severity-Orta'; break;
-                        case 'Şiddetli': className = 'severity-Şiddetli'; break;
-                        case 'Kritik': className = 'severity-Kritik'; break;
+                    let displayText = data.replace('Hafif', 'Mild').replace('Orta', 'Moderate').replace('Şiddetli', 'Severe').replace('Hayati Risk İçeren', 'Critical');
+                    switch (displayText) {
+                        case 'Mild': className = 'severity-Mild'; break;
+                        case 'Moderate': className = 'severity-Moderate'; break;
+                        case 'Severe': className = 'severity-Severe'; break;
+                        case 'Critical': className = 'severity-Critical'; break;
                         default: className = '';
                     }
-                    return `<span class="${className}">${data}</span>`;
+                    return `<span class="${className}">${displayText}</span>`;
                 }
             },
             { data: "predicted_severity" },
@@ -249,10 +251,7 @@ $(document).ready(function () {
             { data: "alternatives" },
             { data: "reference" },
             { data: "actions", orderable: false, searchable: false }
-        ],
-        language: {
-            url: "https://cdn.datatables.net/plug-ins/1.13.4/i18n/Turkish.json"
-        }
+        ]
     });
 
     // Search input for DataTable
@@ -260,42 +259,65 @@ $(document).ready(function () {
         table.search(this.value).draw();
     });
 
-    // Form submission handling with loading spinner
-    $('form').on('submit', function (e) {
+    // Form submission handling with loading spinner and basic validation
+    $('#addInteractionForm').on('submit', function (e) {
         e.preventDefault();
+        const form = $(this);
+        const alertDiv = $('#formAlert');
+        alertDiv.addClass('d-none').removeClass('alert-success alert-danger');
+
+        // Basic client-side validation
+        let isValid = true;
+        form.find('[required]').each(function () {
+            if (!$(this).val()) {
+                isValid = false;
+                $(this).addClass('is-invalid');
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        if (!isValid) {
+            alertDiv.text('Please fill out all required fields.').removeClass('d-none').addClass('alert-danger');
+            return;
+        }
+
         var $btn = $('#submitBtn');
-        $btn.prop('disabled', true).text('Kaydediliyor...');
+        $btn.prop('disabled', true).text('Adding...');
         $btn.prepend('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>');
 
         $.ajax({
             url: '/interactions/manage',
             type: 'POST',
-            data: $(this).serialize(),
+            data: form.serialize(),
             success: function () {
-                $btn.prop('disabled', false).text('Etkileşim Ekle');
+                $btn.prop('disabled', false).text('Add Interaction');
                 $btn.find('.spinner-border').remove();
-                window.location.href = '/interactions/manage';
+                alertDiv.text('Interaction added successfully!').removeClass('d-none').addClass('alert-success');
+                table.ajax.reload(); // Refresh the table without full page reload
+                form.trigger('reset'); // Reset form
+                $('.select2').val(null).trigger('change'); // Reset Select2 fields
             },
             error: function (xhr) {
-                $btn.prop('disabled', false).text('Etkileşim Ekle');
+                $btn.prop('disabled', false).text('Add Interaction');
                 $btn.find('.spinner-border').remove();
-                alert('Etkileşim eklenirken bir hata oluştu: ' + xhr.responseText);
+                alertDiv.text('An error occurred while adding the interaction: ' + (xhr.responseText || 'Unknown error')).removeClass('d-none').addClass('alert-danger');
             }
         });
     });
 
     // Delete All Interactions button handler
     $('#deleteAllBtn').on('click', function () {
-        if (confirm('Tüm etkileşimleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+        if (confirm('Are you sure you want to delete all interactions? This action cannot be undone.')) {
             $.ajax({
                 url: '/interactions/delete_all',
                 type: 'POST',
                 success: function () {
                     table.ajax.reload(); // Refresh the DataTable
-                    alert('Tüm etkileşimler başarıyla silindi.');
+                    alert('All interactions deleted successfully.');
                 },
                 error: function (xhr) {
-                    alert('Etkileşimler silinirken bir hata oluştu: ' + xhr.responseText);
+                    alert('An error occurred while deleting interactions: ' + (xhr.responseText || 'Unknown error'));
                 }
             });
         }

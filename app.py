@@ -17,7 +17,7 @@ import pandas as pd
 import seaborn as sns
 import psutil
 import requests
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import smtplib
 from email.mime.text import MIMEText
 import shutil
@@ -72,7 +72,7 @@ from textblob import TextBlob
 from dash import Dash, dcc, html, Input, Output
 from sqlalchemy.sql import text, func
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Date, ForeignKey, or_, nullslast, outerjoin, func, and_, select
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, joinedload, aliased
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import JSON, DateTime
 from io import BytesIO
@@ -112,7 +112,6 @@ print("DATABASE_URI:", app.config['SQLALCHEMY_DATABASE_URI'])
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
-
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -1448,6 +1447,101 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for('home'))
 
+#CLEARING THE WHOLEDATABASE:
+@app.route('/clear_database', methods=['GET', 'POST'])
+def clear_database():
+    # Session-based login kontrolü
+    if 'user_id' not in session:
+        flash('Bu sayfaya erişmek için giriş yapmalısınız.', 'danger')
+        return redirect(url_for('login'))
+
+    # Admin kontrolü
+    user = db.session.get(User, session['user_id'])
+    if not user or not user.is_admin:
+        flash('Bu işlem için yetkiniz yok.', 'danger')
+        return redirect(url_for('home'))
+
+    if request.method == 'POST':
+        try:
+            # Önce bağımlı tabloları sil (foreign key bağımlılıkları dikkate alınarak)
+            db.session.execute(drug_route_metabolism_organ.delete())
+            db.session.execute(drug_route_metabolism_enzyme.delete())
+            db.session.execute(drug_route_metabolite.delete())
+            db.session.execute(drug_salt.delete())
+            db.session.execute(detail_side_effect.delete())
+            db.session.execute(pathway_drug.delete())
+            db.session.execute(interaction_route.delete())
+            db.session.execute(drug_category_association.delete())
+            db.session.execute(ClinicalAnnotationDrug.__table__.delete())
+            db.session.execute(ClinicalAnnotationGene.__table__.delete())
+            db.session.execute(ClinicalAnnotationPhenotype.__table__.delete())
+            db.session.execute(ClinicalAnnotationVariant.__table__.delete())
+            db.session.execute(ClinicalAnnEvidencePublication.__table__.delete())
+            db.session.execute(VariantAnnotationDrug.__table__.delete())
+            db.session.execute(VariantAnnotationGene.__table__.delete())
+            db.session.execute(VariantAnnotationVariant.__table__.delete())
+            db.session.execute(DrugLabelDrug.__table__.delete())
+            db.session.execute(DrugLabelGene.__table__.delete())
+            db.session.execute(DrugLabelVariant.__table__.delete())
+            db.session.execute(ClinicalVariantDrug.__table__.delete())
+            db.session.execute(ClinicalVariantPhenotype.__table__.delete())
+            db.session.execute(ClinicalVariantVariant.__table__.delete())
+
+            # Bağımlı ana tablolar
+            db.session.execute(RouteIndication.__table__.delete())
+            db.session.execute(DrugRoute.__table__.delete())
+            db.session.execute(DrugLabTestInteraction.__table__.delete())
+            db.session.execute(DrugDiseaseInteraction.__table__.delete())
+            db.session.execute(DrugReceptorInteraction.__table__.delete())
+            db.session.execute(DrugDetail.__table__.delete())
+            db.session.execute(DrugInteraction.__table__.delete())
+            db.session.execute(Metabolite.__table__.delete())  # Drug'dan önce silindi
+            db.session.execute(Drug.__table__.delete())
+            db.session.execute(DrugCategory.__table__.delete())
+            db.session.execute(Salt.__table__.delete())
+            db.session.execute(SafetyCategory.__table__.delete())
+            db.session.execute(Indication.__table__.delete())
+            db.session.execute(Target.__table__.delete())
+            db.session.execute(Severity.__table__.delete())
+            db.session.execute(RouteOfAdministration.__table__.delete())
+            db.session.execute(Receptor.__table__.delete())
+            db.session.execute(LabTest.__table__.delete())
+            db.session.execute(Unit.__table__.delete())
+            db.session.execute(MetabolismOrgan.__table__.delete())
+            db.session.execute(MetabolismEnzyme.__table__.delete())
+            db.session.execute(Gene.__table__.delete())
+            db.session.execute(Phenotype.__table__.delete())
+            db.session.execute(Variant.__table__.delete())
+            db.session.execute(Publication.__table__.delete())
+            db.session.execute(ClinicalAnnotation.__table__.delete())
+            db.session.execute(ClinicalAnnAllele.__table__.delete())
+            db.session.execute(ClinicalAnnHistory.__table__.delete())
+            db.session.execute(ClinicalAnnEvidence.__table__.delete())
+            db.session.execute(VariantAnnotation.__table__.delete())
+            db.session.execute(StudyParameters.__table__.delete())
+            db.session.execute(VariantFAAnn.__table__.delete())
+            db.session.execute(VariantDrugAnn.__table__.delete())
+            db.session.execute(VariantPhenoAnn.__table__.delete())
+            db.session.execute(Relationship.__table__.delete())
+            db.session.execute(DrugLabel.__table__.delete())
+            db.session.execute(ClinicalVariant.__table__.delete())
+            db.session.execute(AutomatedAnnotation.__table__.delete())
+            db.session.execute(News.__table__.delete())
+            db.session.execute(User.__table__.delete())
+            db.session.execute(Occupation.__table__.delete())
+            db.session.execute(DoseResponseSimulation.__table__.delete())
+
+            db.session.commit()
+            flash('Veritabanı başarıyla temizlendi.', 'success')
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            flash(f'Veritabanı temizlenirken hata oluştu: {str(e)}', 'error')
+            logging.error(f"Database clear error: {str(e)}")
+        return redirect(url_for('clear_database'))
+
+    return render_template('clear_database.html')
+#THE END OF CLEARING THE WHOLEDATABASE
+
 
 #ICD -11 tree view
 @app.route('/icd11')
@@ -1607,6 +1701,7 @@ cleaner = Cleaner(
 # Reusable sanitization function
 def sanitize_field(field_value):
     return cleaner.clean(field_value) if field_value else None
+
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -1745,6 +1840,44 @@ def add_detail():
             ema_approved = 'ema_approved' in request.form
             titck_approved = 'titck_approved' in request.form
             molecular_formula = request.form.get('molecular_formula')
+
+            # Retrieve metabolism-related IDs from form
+            metabolism_organs_ids = request.form.getlist('metabolism_organs[]')
+            metabolism_enzymes_ids = request.form.getlist('metabolism_enzymes[]')
+            metabolite_ids = request.form.getlist('metabolites[]')
+
+            # Validate metabolism-related IDs
+            valid_metabolism_organs_ids = []
+            valid_metabolism_enzymes_ids = []
+            valid_metabolite_ids = []
+            
+            for organ_id in metabolism_organs_ids:
+                try:
+                    organ_id = int(organ_id)
+                    if MetabolismOrgan.query.get(organ_id):
+                        valid_metabolism_organs_ids.append(organ_id)
+                except ValueError:
+                    logger.warning(f"Invalid metabolism organ ID: {organ_id}")
+
+            for enzyme_id in metabolism_enzymes_ids:
+                try:
+                    enzyme_id = int(enzyme_id)
+                    if MetabolismEnzyme.query.get(enzyme_id):
+                        valid_metabolism_enzymes_ids.append(enzyme_id)
+                except ValueError:
+                    logger.warning(f"Invalid metabolism enzyme ID: {enzyme_id}")
+
+            for metabolite_id in metabolite_ids:
+                try:
+                    metabolite_id = int(metabolite_id)
+                    if Metabolite.query.get(metabolite_id):
+                        valid_metabolite_ids.append(metabolite_id)
+                except ValueError:
+                    logger.warning(f"Invalid metabolite ID: {metabolite_id}")
+
+            logger.debug(f"Valid metabolism organs IDs: {valid_metabolism_organs_ids}")
+            logger.debug(f"Valid metabolism enzymes IDs: {valid_metabolism_enzymes_ids}")
+            logger.debug(f"Valid metabolite IDs: {valid_metabolite_ids}")
 
             # Handle uploaded structure file (priority)
             structure_filename = None
@@ -1957,9 +2090,9 @@ def add_detail():
                              f"Tmax: {tmax_min}-{tmax_max}, Unit ID: {tmax_unit_id}, "
                              f"Cmax: {cmax_min}-{cmax_max}, Unit ID: {cmax_unit_id}, "
                              f"Therapeutic Range: {therapeutic_min}-{therapeutic_max}, Unit ID: {therapeutic_unit_id}, "
-                             f"Organs IDs: {metabolism_organs_ids}, "
-                             f"Enzymes IDs: {metabolism_enzymes_ids}, "
-                             f"Metabolite IDs: {metabolite_ids}, "
+                             f"Organs IDs: {valid_metabolism_organs_ids}, "
+                             f"Enzymes IDs: {valid_metabolism_enzymes_ids}, "
+                             f"Metabolite IDs: {valid_metabolite_ids}, "
                              f"PD: {pd}, PK: {pk}")
 
                 if not RouteOfAdministration.query.get(route_id):
@@ -2001,14 +2134,14 @@ def add_detail():
                 db.session.flush()
 
                 # Link metabolism data via relationships
-                if metabolism_organs_ids:
-                    organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all()
+                if valid_metabolism_organs_ids:
+                    organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in valid_metabolism_organs_ids])).all()
                     new_drug_route.metabolism_organs.extend(organs)
-                if metabolism_enzymes_ids:
-                    enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all()
+                if valid_metabolism_enzymes_ids:
+                    enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in valid_metabolism_enzymes_ids])).all()
                     new_drug_route.metabolism_enzymes.extend(enzymes)
-                if metabolite_ids:
-                    metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all()
+                if valid_metabolite_ids:
+                    metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in valid_metabolite_ids])).all()
                     new_drug_route.metabolites.extend(metabolites)
 
                 # Route-specific indications
@@ -2113,7 +2246,6 @@ def generate_and_update_structures():
 
 if __name__ == '__main__':
     generate_and_update_structures()
-
 @app.route('/details', methods=['GET'])
 @login_required
 def view_details():
@@ -2202,6 +2334,12 @@ def view_details():
             for se in detail.side_effects
         ]
 
+        # Fetch categories
+        categories_list = [
+            {"id": cat.id, "name": cat.name}
+            for cat in detail.drug.categories
+        ]
+
         # Fetch pregnancy and lactation safety info
         pregnancy_safety = detail.pregnancy_safety.name if detail.pregnancy_safety else 'N/A'
         lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
@@ -2253,7 +2391,8 @@ def view_details():
             'pregnancy_safety': pregnancy_safety,
             'pregnancy_details': detail.pregnancy_details,
             'lactation_safety': lactation_safety,
-            'lactation_details': detail.lactation_details
+            'lactation_details': detail.lactation_details,  # Fixed typo from lactation_detail to lactation_details
+            'categories': categories_list
         })
 
     return render_template('details_list.html', details=enriched_details)
@@ -3154,6 +3293,7 @@ def delete_drug(drug_id):
  #   else:
  #       for route in drug_routes:
  #           print(f"DrugRoute ID: {route.id}, DrugDetail ID: {route.drug_detail_id}, Route ID: {route.route_id}")
+ 
 @app.route('/drug/<int:drug_id>')
 def drug_detail(drug_id):
     drug = Drug.query.get_or_404(drug_id)
@@ -3183,7 +3323,7 @@ def drug_detail(drug_id):
         'id': drug.id,
         'name_en': drug.name_en,
         'name_tr': drug.name_tr,
-        'categories': categories_str,  # Updated to handle multiple categories
+        'categories': categories_str,
         'fda_approved': drug.fda_approved,
         'indications': drug.indications,
         'chembl_id': drug.chembl_id,
@@ -3210,6 +3350,8 @@ def drug_detail(drug_id):
                     else:
                         os.makedirs(os.path.dirname(svg_path), exist_ok=True)
                         Draw.MolToFile(mol, svg_path, size=(300, 300))
+                        detail.structure = os.path.join('Uploads', svg_filename).replace('\\', '/')
+                        db.session.commit()
                         logger.info(f"Saved SVG to {svg_path}")
                 except Exception as e:
                     logger.error(f"Error generating SVG for drug_id={drug_id}: {str(e)}")
@@ -3228,9 +3370,9 @@ def drug_detail(drug_id):
                 if error:
                     logger.error(f"Error generating PDB for drug_id={drug_id}: {error}")
                 else:
-                    logger.info(f"Saved PDB to {structure_3d_path}")
-                    detail.structure_3d = structure_3d_path.replace('static/uploads/', 'Uploads/')
+                    detail.structure_3d = structure_3d_path.replace('static/', '')
                     db.session.commit()
+                    logger.info(f"Saved PDB to {structure_3d_path}")
             except Exception as e:
                 logger.error(f"Error generating PDB for drug_id={drug_id}: {e}")
         
@@ -3247,6 +3389,27 @@ def drug_detail(drug_id):
                     route_id=route.route_id
                 ).all()
             ]
+            # Fetch metabolism data with validation
+            metabolism_organs = [organ.name for organ in route.metabolism_organs] if route.metabolism_organs else []
+            metabolism_enzymes = [enzyme.name for enzyme in route.metabolism_enzymes] if route.metabolism_enzymes else []
+            metabolites = [
+                {'id': met.id, 'name': met.name, 'parent_id': met.parent_id} for met in route.metabolites
+            ] if route.metabolites else []
+            
+            # Debug logging for metabolism data
+            if not metabolism_organs:
+                logger.warning(f"No metabolism organs for drug_id={drug_id}, drug_detail_id={detail.id}, route_id={route.route_id}")
+                organ_ids = [organ.id for organ in route.metabolism_organs]
+                logger.debug(f"Metabolism organ IDs: {organ_ids}")
+            if not metabolism_enzymes:
+                logger.warning(f"No metabolism enzymes for drug_id={drug_id}, drug_detail_id={detail.id}, route_id={route.route_id}")
+                enzyme_ids = [enzyme.id for enzyme in route.metabolism_enzymes]
+                logger.debug(f"Metabolism enzyme IDs: {enzyme_ids}")
+            if not metabolites:
+                logger.warning(f"No metabolites for drug_id={drug_id}, drug_detail_id={detail.id}, route_id={route.route_id}")
+                metabolite_ids = [met.id for met in route.metabolites]
+                logger.debug(f"Metabolite IDs: {metabolite_ids}")
+            
             routes_info.append({
                 'name': route.route.name,
                 'pharmacodynamics': route.pharmacodynamics,
@@ -3264,7 +3427,8 @@ def drug_detail(drug_id):
                 },
                 'protein_binding': {
                     'min': route.protein_binding_min,
-                    'max': route.protein_binding_max
+                    'max': route.protein_binding_max,
+                    'unit': '%'
                 },
                 'half_life': {
                     'min': route.half_life_min,
@@ -3278,7 +3442,8 @@ def drug_detail(drug_id):
                 },
                 'bioavailability': {
                     'min': route.bioavailability_min,
-                    'max': route.bioavailability_max
+                    'max': route.bioavailability_max,
+                    'unit': '%'
                 },
                 'tmax': {
                     'min': route.tmax_min,
@@ -3293,13 +3458,11 @@ def drug_detail(drug_id):
                 'therapeutic_range': {
                     'min': route.therapeutic_min,
                     'max': route.therapeutic_max,
-                    'unit': route.therapeutic_unit or 'mg/L'
+                    'unit': Unit.query.get(route.therapeutic_unit_id).name if route.therapeutic_unit_id else 'N/A'
                 },
-                'metabolism_organs': [organ.name for organ in route.metabolism_organs] if route.metabolism_organs else [],
-                'metabolism_enzymes': [enzyme.name for enzyme in route.metabolism_enzymes] if route.metabolism_enzymes else [],
-                'metabolites': [
-                    {'id': met.id, 'name': met.name, 'parent_id': met.parent_id} for met in route.metabolites
-                ] if route.metabolites else []
+                'metabolism_organs': metabolism_organs,
+                'metabolism_enzymes': metabolism_enzymes,
+                'metabolites': metabolites
             })
 
         indications_list = []
@@ -3340,7 +3503,7 @@ def drug_detail(drug_id):
             'titck_approved': detail.titck_approved,
             'molecular_formula': detail.molecular_formula,
             'synthesis': detail.synthesis,
-            'structure': os.path.join('Uploads', svg_filename).replace('\\', '/'),
+            'structure': detail.structure or os.path.join('Uploads', svg_filename).replace('\\', '/'),
             'structure_3d': detail.structure_3d,
             'iupac_name': detail.iupac_name,
             'smiles': detail.smiles,
@@ -3434,14 +3597,53 @@ def delete_side_effect(side_effect_id):
     db.session.commit()
     return redirect(url_for('manage_side_effects'))
 
+#EDITING THE DETAILS
 
-#DETAY EDİTLEME, GÜNCELLEME
+# Define allowed tags, attributes, and styles for sanitization
+ALLOWED_TAGS = ['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a']
+ALLOWED_STYLES = ['color', 'background-color']
+
+def allow_style_attrs(tag, name, value):
+    if name != 'style':
+        return name in ['href'] and tag == 'a'
+    styles = [style.strip() for style in value.split(';') if style.strip()]
+    filtered_styles = [style for style in styles if style.split(':', 1)[0].strip().lower() in ALLOWED_STYLES]
+    return '; '.join(filtered_styles) if filtered_styles else None
+
+ALLOWED_ATTRIBUTES = {
+    'a': ['href'],
+    'span': allow_style_attrs
+}
+
+cleaner = Cleaner(tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES, strip=True)
+
+def sanitize_field(field_value):
+    return cleaner.clean(field_value) if field_value else None
+
 @app.route('/details/update/<int:detail_id>', methods=['GET', 'POST'])
+@login_required
 def update_detail(detail_id):
-    detail = DrugDetail.query.get_or_404(detail_id)
+    # Eagerly load DrugDetail with related data
+    detail = (
+        DrugDetail.query
+        .options(
+            joinedload(DrugDetail.routes)
+            .joinedload(DrugRoute.route_indications)
+            .joinedload(RouteIndication.indication),
+            joinedload(DrugDetail.routes)
+            .joinedload(DrugRoute.metabolism_organs),
+            joinedload(DrugDetail.routes)
+            .joinedload(DrugRoute.metabolism_enzymes),
+            joinedload(DrugDetail.routes)
+            .joinedload(DrugRoute.metabolites),
+            joinedload(DrugDetail.side_effects),
+            joinedload(DrugDetail.drug).joinedload(Drug.categories)
+        )
+        .get_or_404(detail_id)
+    )
+    # Fetch related data
     drugs = Drug.query.all()
     salts = Salt.query.all()
-    indications = Indication.query.all()
     targets = Target.query.all()
     routes = RouteOfAdministration.query.all()
     side_effects = SideEffect.query.all()
@@ -3452,9 +3654,9 @@ def update_detail(detail_id):
     safety_categories = SafetyCategory.query.all()
     categories = DrugCategory.query.order_by(DrugCategory.name).all()
     units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
-
-    # Fetch drug for the current DrugDetail
-    drug = Drug.query.get(detail.drug_id)
+    # Load all indications to allow full selection in the update form
+    indications = Indication.query.all()
+    drug = detail.drug
     if not drug:
         logger.error(f"Drug with ID {detail.drug_id} not found for DrugDetail ID {detail_id}")
         return render_template(
@@ -3464,13 +3666,10 @@ def update_detail(detail_id):
             units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
             error_message="Associated drug not found!"
         )
-
     if request.method == 'POST':
         logger.debug("Entering POST block")
         logger.debug(f"Form data: {request.form}")
-
         try:
-            # Validate and fetch drug_id
             drug_id = request.form.get('drug_id')
             if not drug_id or not drug_id.isdigit():
                 logger.error("Invalid drug_id: must be an integer")
@@ -3492,14 +3691,21 @@ def update_detail(detail_id):
                     units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                     error_message="Drug not found!"
                 )
-
-            # Validate and convert salt_id
             salt_id = request.form.get('salt_id')
             if salt_id == '' or salt_id is None:
                 salt_id = None
             else:
                 try:
                     salt_id = int(salt_id)
+                    if salt_id and not Salt.query.get(salt_id):
+                        logger.error(f"Salt with ID {salt_id} not found")
+                        return render_template(
+                            'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                            targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                            metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                            units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                            error_message="Invalid salt ID."
+                        )
                 except ValueError:
                     logger.error(f"Invalid salt_id: {salt_id}")
                     return render_template(
@@ -3509,8 +3715,6 @@ def update_detail(detail_id):
                         units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                         error_message="Invalid salt_id. Must be an integer or empty."
                     )
-
-            # Check for existing detail (excluding current detail)
             existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).filter(DrugDetail.id != detail_id).first()
             if existing_detail:
                 logger.error(f"DrugDetail already exists for drug_id={drug_id}, salt_id={salt_id}")
@@ -3521,64 +3725,29 @@ def update_detail(detail_id):
                     units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                     error_message="This drug and salt combination already exists!"
                 )
-
-            # Validate category IDs
             selected_category_ids = request.form.getlist('category_ids[]')
-            valid_category_ids = []
-            if selected_category_ids:
-                for cat_id in selected_category_ids:
-                    try:
-                        cat_id = int(cat_id)
-                        if DrugCategory.query.get(cat_id):
-                            valid_category_ids.append(cat_id)
-                        else:
-                            logger.warning(f"Invalid category ID: {cat_id}")
-                    except ValueError:
-                        logger.warning(f"Invalid category ID format: {cat_id}")
-            logger.debug(f"Valid category IDs: {valid_category_ids}")
-
-            # Sanitize rich text fields
-            def clean_text(field):
-                try:
-                    return bleach.clean(
-                        field,
-                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                        attributes={'span': ['style'], 'a': ['href']},
-                        styles=['color', 'background-color']
-                    ) if field else None
-                except TypeError as e:
-                    logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
-                    return bleach.clean(
-                        field,
-                        tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
-                        attributes={'span': ['style'], 'a': ['href']}
-                    ) if field else None
-
-            mechanism_of_action = clean_text(request.form.get('mechanism_of_action'))
-            synthesis = clean_text(request.form.get('synthesis'))
-            pharmacodynamics = clean_text(request.form.get('pharmacodynamics'))
-            pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
-            references = clean_text(request.form.get('references'))
-            black_box_details = clean_text(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
-
-            # Handle safety categories
+            valid_category_ids = [int(cat_id) for cat_id in selected_category_ids if DrugCategory.query.get(int(cat_id))]
+            mechanism_of_action = sanitize_field(request.form.get('mechanism_of_action'))
+            synthesis = sanitize_field(request.form.get('synthesis'))
+            pharmacodynamics = sanitize_field(request.form.get('pharmacodynamics'))
+            pharmacokinetics = sanitize_field(request.form.get('pharmacokinetics'))
+            references = sanitize_field(request.form.get('references'))
+            black_box_details = sanitize_field(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
             pregnancy_safety_id = request.form.get('pregnancy_safety_id', type=int)
             pregnancy_details = None
             if pregnancy_safety_id:
                 pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
-                    pregnancy_details = clean_text(request.form.get('pregnancy_details'))
-
+                    pregnancy_details = sanitize_field(request.form.get('pregnancy_details'))
             lactation_safety_id = request.form.get('lactation_safety_id', type=int)
             lactation_details = None
             if lactation_safety_id:
                 lactation_safety = SafetyCategory.query.get(lactation_safety_id)
                 if lactation_safety and lactation_safety.name in ['Caution', 'Contraindicated']:
-                    lactation_details = clean_text(request.form.get('lactation_details'))
-
-            # Handle SMILES and structure file
+                    lactation_details = sanitize_field(request.form.get('lactation_details'))
             smiles = request.form.get('smiles')
             structure_filename = detail.structure
+            old_structure_path = os.path.join('static', detail.structure) if detail.structure else None
             structure = request.files.get('structure')
             if structure:
                 original_filename = secure_filename(structure.filename)
@@ -3586,36 +3755,90 @@ def update_detail(detail_id):
                 structure_filename = f"structure_{drug_id}_salt_{salt_id or 'none'}{file_ext}"
                 structure_path = os.path.join('static', 'Uploads', structure_filename).replace('\\', '/')
                 os.makedirs(os.path.dirname(structure_path), exist_ok=True)
+                if old_structure_path and os.path.exists(old_structure_path):
+                    try:
+                        os.remove(old_structure_path)
+                        logger.info(f"Deleted old structure file: {old_structure_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete old structure file {old_structure_path}: {str(e)}")
                 structure.save(structure_path)
                 structure_filename = os.path.join('Uploads', structure_filename).replace('\\', '/')
                 logger.info(f"Uploaded structure file saved as {structure_path}")
-            elif smiles and not detail.structure:
-                svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
-                svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
+            elif smiles and (not detail.structure or not os.path.exists(os.path.join('static', detail.structure))):
                 try:
                     mol = Chem.MolFromSmiles(smiles)
                     if mol:
+                        svg_filename = f"sketcher_{drug_id}_salt_{salt_id or 'none'}.svg"
+                        svg_path = os.path.join('static', 'Uploads', svg_filename).replace('\\', '/')
                         os.makedirs(os.path.dirname(svg_path), exist_ok=True)
+                        if old_structure_path and os.path.exists(old_structure_path):
+                            try:
+                                os.remove(old_structure_path)
+                                logger.info(f"Deleted old structure file: {old_structure_path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to delete old structure file {old_structure_path}: {str(e)}")
                         Draw.MolToFile(mol, svg_path, size=(300, 300))
                         structure_filename = os.path.join('Uploads', svg_filename).replace('\\', '/')
                         logger.info(f"Structure file saved as {svg_path}")
                     else:
                         logger.error(f"Invalid SMILES: {smiles}")
+                        return render_template(
+                            'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                            targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                            metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                            units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                            error_message="Invalid SMILES string provided."
+                        )
                 except Exception as e:
                     logger.error(f"Error generating SVG: {str(e)}")
-
-            # Generate 3D PDB if SMILES provided
+                    return render_template(
+                        'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                        targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                        metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                        error_message=f"Error generating structure from SMILES: {str(e)}"
+                    )
             structure_3d_filename = detail.structure_3d
+            old_structure_3d_path = os.path.join('static', detail.structure_3d) if detail.structure_3d else None
             if smiles:
-                pdb_filename = f"drug_{drug_id}_salt_{salt_id or 'none'}_3d.pdb"
-                structure_3d_path, error = generate_3d_structure(smiles, pdb_filename)
-                if error:
-                    logger.error(f"3D structure generation failed: {error}")
-                else:
-                    structure_3d_filename = structure_3d_path
-                    logger.info(f"3D structure saved as {structure_3d_filename}")
-
-            # Update DrugDetail fields
+                try:
+                    mol = Chem.MolFromSmiles(smiles)
+                    if not mol:
+                        logger.error(f"Invalid SMILES for 3D structure: {smiles}")
+                        return render_template(
+                            'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                            targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                            metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                            units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                            error_message="Invalid SMILES string for 3D structure generation."
+                        )
+                    pdb_filename = f"drug_{drug_id}_salt_{salt_id or 'none'}_3d.pdb"
+                    structure_3d_path, error = generate_3d_structure(smiles, pdb_filename)
+                    if error:
+                        logger.error(f"3D structure generation failed: {error}")
+                    else:
+                        if old_structure_3d_path and os.path.exists(old_structure_3d_path):
+                            try:
+                                os.remove(old_structure_3d_path)
+                                logger.info(f"Deleted old 3D structure file: {old_structure_3d_path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to delete old 3D structure file {old_structure_3d_path}: {str(e)}")
+                        structure_3d_filename = structure_3d_path
+                        logger.info(f"3D structure saved as {structure_3d_filename}")
+                except Exception as e:
+                    logger.error(f"Error generating 3D structure: {str(e)}")
+                    return render_template(
+                        'update_detail.html', detail=detail, drugs=drugs, salts=salts, indications=indications,
+                        targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
+                        metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
+                        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                        error_message=f"Error generating 3D structure: {str(e)}"
+                    )
+            changed_fields = []
+            if detail.drug_id != drug_id:
+                changed_fields.append(f"drug_id: {detail.drug_id} -> {drug_id}")
+            if detail.salt_id != salt_id:
+                changed_fields.append(f"salt_id: {detail.salt_id} -> {salt_id}")
             detail.drug_id = drug_id
             detail.salt_id = salt_id
             detail.mechanism_of_action = mechanism_of_action
@@ -3662,25 +3885,20 @@ def update_detail(detail_id):
             detail.pregnancy_details = pregnancy_details
             detail.lactation_safety_id = lactation_safety_id
             detail.lactation_details = lactation_details
-
-            # Update multi-select fields
             detail.indications = ','.join(request.form.getlist('indications[]')) or None
             detail.target_molecules = ','.join(request.form.getlist('target_molecules[]')) or None
-
-            # Update side effects
             selected_side_effects = request.form.getlist('side_effects[]')
-            detail.side_effects = [SideEffect.query.get(se_id) for se_id in selected_side_effects if SideEffect.query.get(se_id)]
-
-            # Update drug categories
+            valid_side_effects = [SideEffect.query.get(se_id) for se_id in selected_side_effects if SideEffect.query.get(se_id)]
+            detail.side_effects = valid_side_effects
+            changed_fields.append(f"side_effects: updated to {len(valid_side_effects)} items")
             if valid_category_ids:
                 drug.categories.clear()
                 selected_categories = DrugCategory.query.filter(DrugCategory.id.in_(valid_category_ids)).all()
                 drug.categories.extend(selected_categories)
+                changed_fields.append(f"categories: updated to {valid_category_ids}")
                 logger.info(f"Updated categories for drug_id={drug_id}: {valid_category_ids}")
             else:
                 logger.debug(f"No categories selected for drug_id={drug_id}")
-
-            # Parse range helper
             def parse_range(value):
                 if not value:
                     return None, None
@@ -3690,161 +3908,175 @@ def update_detail(detail_id):
                         min_val, max_val = map(float, value.split('-'))
                         return min_val, max_val
                     except ValueError:
-                        logger.error(f"Failed to parse range '{value}'")
+                        logger.warning(f"Failed to parse range '{value}'")
                         return None, None
                 try:
                     val = float(value)
                     return val, val
                 except ValueError:
-                    logger.error(f"Failed to parse single value '{value}'")
+                    logger.warning(f"Failed to parse single value '{value}'")
                     return None, None
-
-            # Update routes and route-specific data
             selected_routes = request.form.getlist('route_id[]')
             existing_routes = {route.route_id: route for route in detail.routes}
-
+            removed_routes = []
             for route_id in selected_routes:
-                route_id = int(route_id)
-                pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
-                pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
-
-                # PK parameters with units
-                absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
-                absorption_rate_unit_id = request.form.get(f'absorption_rate_unit_id_{route_id}', type=int)
-                vod_rate = request.form.get(f'vod_rate_{route_id}', '')
-                vod_rate_unit_id = request.form.get(f'vod_rate_unit_id_{route_id}', type=int)
-                protein_binding = request.form.get(f'protein_binding_{route_id}', '')
-                half_life = request.form.get(f'half_life_{route_id}', '')
-                half_life_unit_id = request.form.get(f'half_life_unit_id_{route_id}', type=int)
-                clearance_rate = request.form.get(f'clearance_rate_{route_id}', '')
-                clearance_rate_unit_id = request.form.get(f'clearance_rate_unit_id_{route_id}', type=int)
-                bioavailability = request.form.get(f'bioavailability_{route_id}', '')
-                tmax = request.form.get(f'tmax_{route_id}', '')
-                tmax_unit_id = request.form.get(f'tmax_unit_id_{route_id}', type=int)
-                cmax = request.form.get(f'cmax_{route_id}', '')
-                cmax_unit_id = request.form.get(f'cmax_unit_id_{route_id}', type=int)
-                therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
-                therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
-
-                # Metabolism parameters
-                metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
-                metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
-                metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')
-
-                # Parse PK ranges
-                absorption_min, absorption_max = parse_range(absorption_rate)
-                vod_min, vod_max = parse_range(vod_rate)
-                protein_min, protein_max = parse_range(protein_binding)
-                if protein_min is not None and protein_max is not None:
-                    protein_min /= 100
-                    protein_max /= 100
-                half_life_min, half_life_max = parse_range(half_life)
-                clearance_min, clearance_max = parse_range(clearance_rate)
-                bio_min, bio_max = parse_range(bioavailability)
-                if bio_min is not None and bio_max is not None:
-                    bio_min /= 100
-                    bio_max /= 100
-                tmax_min, tmax_max = parse_range(tmax)
-                cmax_min, cmax_max = parse_range(cmax)
-                therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
-
-                if route_id in existing_routes:
-                    # Update existing route
-                    route = existing_routes[route_id]
-                    route.pharmacodynamics = pd or route.pharmacodynamics
-                    route.pharmacokinetics = pk or route.pharmacokinetics
-                    route.absorption_rate_min = absorption_min
-                    route.absorption_rate_max = absorption_max
-                    route.absorption_rate_unit_id = absorption_rate_unit_id
-                    route.vod_rate_min = vod_min
-                    route.vod_rate_max = vod_max
-                    route.vod_rate_unit_id = vod_rate_unit_id
-                    route.protein_binding_min = protein_min
-                    route.protein_binding_max = protein_max
-                    route.half_life_min = half_life_min
-                    route.half_life_max = half_life_max
-                    route.half_life_unit_id = half_life_unit_id
-                    route.clearance_rate_min = clearance_min
-                    route.clearance_rate_max = clearance_max
-                    route.clearance_rate_unit_id = clearance_rate_unit_id
-                    route.bioavailability_min = bio_min
-                    route.bioavailability_max = bio_max
-                    route.tmax_min = tmax_min
-                    route.tmax_max = tmax_max
-                    route.tmax_unit_id = tmax_unit_id
-                    route.cmax_min = cmax_min
-                    route.cmax_max = cmax_max
-                    route.cmax_unit_id = cmax_unit_id
-                    route.therapeutic_min = therapeutic_min
-                    route.therapeutic_max = therapeutic_max
-                    route.therapeutic_unit_id = therapeutic_unit_id
-
-                    # Update metabolism relationships
-                    route.metabolism_organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all()
-                    route.metabolism_enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all()
-                    route.metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all()
-                else:
-                    # Add new route
-                    new_route = DrugRoute(
-                        drug_detail_id=detail.id,
-                        route_id=route_id,
-                        pharmacodynamics=pd,
-                        pharmacokinetics=pk,
-                        absorption_rate_min=absorption_min,
-                        absorption_rate_max=absorption_max,
-                        absorption_rate_unit_id=absorption_rate_unit_id,
-                        vod_rate_min=vod_min,
-                        vod_rate_max=vod_max,
-                        vod_rate_unit_id=vod_rate_unit_id,
-                        protein_binding_min=protein_min,
-                        protein_binding_max=protein_max,
-                        half_life_min=half_life_min,
-                        half_life_max=half_life_max,
-                        half_life_unit_id=half_life_unit_id,
-                        clearance_rate_min=clearance_min,
-                        clearance_rate_max=clearance_max,
-                        clearance_rate_unit_id=clearance_rate_unit_id,
-                        bioavailability_min=bio_min,
-                        bioavailability_max=bio_max,
-                        tmax_min=tmax_min,
-                        tmax_max=tmax_max,
-                        tmax_unit_id=tmax_unit_id,
-                        cmax_min=cmax_min,
-                        cmax_max=cmax_max,
-                        cmax_unit_id=cmax_unit_id,
-                        therapeutic_min=therapeutic_min,
-                        therapeutic_max=therapeutic_max,
-                        therapeutic_unit_id=therapeutic_unit_id
-                    )
-                    if metabolism_organs_ids:
-                        new_route.metabolism_organs.extend(MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in metabolism_organs_ids])).all())
-                    if metabolism_enzymes_ids:
-                        new_route.metabolism_enzymes.extend(MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in metabolism_enzymes_ids])).all())
-                    if metabolite_ids:
-                        new_route.metabolites.extend(Metabolite.query.filter(Metabolite.id.in_([int(id) for id in metabolite_ids])).all())
-                    detail.routes.append(new_route)
-
-                # Update route-specific indications
-                selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
-                RouteIndication.query.filter_by(drug_detail_id=detail.id, route_id=route_id).delete()
-                for indication_id in selected_route_indications:
-                    new_route_indication = RouteIndication(
-                        drug_detail_id=detail.id,
-                        route_id=route_id,
-                        indication_id=int(indication_id)
-                    )
-                    db.session.add(new_route_indication)
-
-            # Remove unselected routes
+                try:
+                    route_id = int(route_id)
+                    if not RouteOfAdministration.query.get(route_id):
+                        logger.error(f"Invalid route_id: {route_id}")
+                        continue
+                    pd = sanitize_field(request.form.get(f'route_pharmacodynamics_{route_id}', ''))
+                    pk = sanitize_field(request.form.get(f'route_pharmacokinetics_{route_id}', ''))
+                    absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
+                    absorption_rate_unit_id = request.form.get(f'absorption_rate_unit_id_{route_id}', type=int)
+                    vod_rate = request.form.get(f'vod_rate_{route_id}', '')
+                    vod_rate_unit_id = request.form.get(f'vod_rate_unit_id_{route_id}', type=int)
+                    protein_binding = request.form.get(f'protein_binding_{route_id}', '')
+                    half_life = request.form.get(f'half_life_{route_id}', '')
+                    half_life_unit_id = request.form.get(f'half_life_unit_id_{route_id}', type=int)
+                    clearance_rate = request.form.get(f'clearance_rate_{route_id}', '')
+                    clearance_rate_unit_id = request.form.get(f'clearance_rate_unit_id_{route_id}', type=int)
+                    bioavailability = request.form.get(f'bioavailability_{route_id}', '')
+                    tmax = request.form.get(f'tmax_{route_id}', '')
+                    tmax_unit_id = request.form.get(f'tmax_unit_id_{route_id}', type=int)
+                    cmax = request.form.get(f'cmax_{route_id}', '')
+                    cmax_unit_id = request.form.get(f'cmax_unit_id_{route_id}', type=int)
+                    therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
+                    therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
+                    absorption_min, absorption_max = parse_range(absorption_rate)
+                    vod_min, vod_max = parse_range(vod_rate)
+                    protein_min, protein_max = parse_range(protein_binding)
+                    if protein_min is not None and protein_max is not None:
+                        protein_min /= 100
+                        protein_max /= 100
+                    half_life_min, half_life_max = parse_range(half_life)
+                    clearance_min, clearance_max = parse_range(clearance_rate)
+                    bio_min, bio_max = parse_range(bioavailability)
+                    if bio_min is not None and bio_max is not None:
+                        bio_min /= 100
+                        bio_max /= 100
+                    tmax_min, tmax_max = parse_range(tmax)
+                    cmax_min, cmax_max = parse_range(cmax)
+                    therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
+                    metabolism_organs_ids = request.form.getlist(f'metabolism_organs_{route_id}[]')
+                    metabolism_enzymes_ids = request.form.getlist(f'metabolism_enzymes_{route_id}[]')
+                    metabolite_ids = request.form.getlist(f'metabolites_{route_id}[]')
+                    valid_metabolism_organs_ids = [int(organ_id) for organ_id in metabolism_organs_ids if MetabolismOrgan.query.get(int(organ_id))]
+                    valid_metabolism_enzymes_ids = [int(enzyme_id) for enzyme_id in metabolism_enzymes_ids if MetabolismEnzyme.query.get(int(enzyme_id))]
+                    valid_metabolite_ids = [int(metabolite_id) for metabolite_id in metabolite_ids if Metabolite.query.get(int(metabolite_id))]
+                    logger.debug(f"Route ID {route_id} -> "
+                                 f"Absorption: {absorption_min}-{absorption_max}, Unit ID: {absorption_rate_unit_id}, "
+                                 f"VoD: {vod_min}-{vod_max}, Unit ID: {vod_rate_unit_id}, "
+                                 f"Protein Binding: {protein_min}-{protein_max}, "
+                                 f"Half-Life: {half_life_min}-{half_life_max}, Unit ID: {half_life_unit_id}, "
+                                 f"Clearance: {clearance_min}-{clearance_max}, Unit ID: {clearance_rate_unit_id}, "
+                                 f"Bioavailability: {bio_min}-{bio_max}, "
+                                 f"Tmax: {tmax_min}-{tmax_max}, Unit ID: {tmax_unit_id}, "
+                                 f"Cmax: {cmax_min}-{cmax_max}, Unit ID: {cmax_unit_id}, "
+                                 f"Therapeutic Range: {therapeutic_min}-{therapeutic_max}, Unit ID: {therapeutic_unit_id}, "
+                                 f"Organs IDs: {valid_metabolism_organs_ids}, "
+                                 f"Enzymes IDs: {valid_metabolism_enzymes_ids}, "
+                                 f"Metabolite IDs: {valid_metabolite_ids}, "
+                                 f"PD: {pd}, PK: {pk}")
+                    if route_id in existing_routes:
+                        route = existing_routes[route_id]
+                        route.pharmacodynamics = pd or route.pharmacodynamics
+                        route.pharmacokinetics = pk or route.pharmacokinetics
+                        route.absorption_rate_min = absorption_min
+                        route.absorption_rate_max = absorption_max
+                        route.absorption_rate_unit_id = absorption_rate_unit_id
+                        route.vod_rate_min = vod_min
+                        route.vod_rate_max = vod_max
+                        route.vod_rate_unit_id = vod_rate_unit_id
+                        route.protein_binding_min = protein_min
+                        route.protein_binding_max = protein_max
+                        route.half_life_min = half_life_min
+                        route.half_life_max = half_life_max
+                        route.half_life_unit_id = half_life_unit_id
+                        route.clearance_rate_min = clearance_min
+                        route.clearance_rate_max = clearance_max
+                        route.clearance_rate_unit_id = clearance_rate_unit_id
+                        route.bioavailability_min = bio_min
+                        route.bioavailability_max = bio_max
+                        route.tmax_min = tmax_min
+                        route.tmax_max = tmax_max
+                        route.tmax_unit_id = tmax_unit_id
+                        route.cmax_min = cmax_min
+                        route.cmax_max = cmax_max
+                        route.cmax_unit_id = cmax_unit_id
+                        route.therapeutic_min = therapeutic_min
+                        route.therapeutic_max = therapeutic_max
+                        route.therapeutic_unit_id = therapeutic_unit_id
+                        changed_fields.append(f"Updated route_id={route_id}")
+                        route.metabolism_organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_(valid_metabolism_organs_ids)).all()
+                        route.metabolism_enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_(valid_metabolism_enzymes_ids)).all()
+                        route.metabolites = Metabolite.query.filter(Metabolite.id.in_(valid_metabolite_ids)).all()
+                    else:
+                        new_route = DrugRoute(
+                            drug_detail_id=detail.id,
+                            route_id=route_id,
+                            pharmacodynamics=pd,
+                            pharmacokinetics=pk,
+                            absorption_rate_min=absorption_min,
+                            absorption_rate_max=absorption_max,
+                            absorption_rate_unit_id=absorption_rate_unit_id,
+                            vod_rate_min=vod_min,
+                            vod_rate_max=vod_max,
+                            vod_rate_unit_id=vod_rate_unit_id,
+                            protein_binding_min=protein_min,
+                            protein_binding_max=protein_max,
+                            half_life_min=half_life_min,
+                            half_life_max=half_life_max,
+                            half_life_unit_id=half_life_unit_id,
+                            clearance_rate_min=clearance_min,
+                            clearance_rate_max=clearance_max,
+                            clearance_rate_unit_id=clearance_rate_unit_id,
+                            bioavailability_min=bio_min,
+                            bioavailability_max=bio_max,
+                            tmax_min=tmax_min,
+                            tmax_max=tmax_max,
+                            tmax_unit_id=tmax_unit_id,
+                            cmax_min=cmax_min,
+                            cmax_max=cmax_max,
+                            cmax_unit_id=cmax_unit_id,
+                            therapeutic_min=therapeutic_min,
+                            therapeutic_max=therapeutic_max,
+                            therapeutic_unit_id=therapeutic_unit_id
+                        )
+                        db.session.add(new_route)
+                        new_route.metabolism_organs.extend(MetabolismOrgan.query.filter(MetabolismOrgan.id.in_(valid_metabolism_organs_ids)).all())
+                        new_route.metabolism_enzymes.extend(MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_(valid_metabolism_enzymes_ids)).all())
+                        new_route.metabolites.extend(Metabolite.query.filter(Metabolite.id.in_(valid_metabolite_ids)).all())
+                        changed_fields.append(f"Added new route_id={route_id}")
+                    RouteIndication.query.filter_by(drug_detail_id=detail.id, route_id=route_id).delete()
+                    selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
+                    for indication_id in selected_route_indications:
+                        try:
+                            indication_id = int(indication_id)
+                            if Indication.query.get(indication_id):
+                                new_route_indication = RouteIndication(
+                                    drug_detail_id=detail.id,
+                                    route_id=route_id,
+                                    indication_id=indication_id
+                                )
+                                db.session.add(new_route_indication)
+                        except ValueError:
+                            logger.warning(f"Invalid indication ID format for route_id={route_id}: {indication_id}")
+                except ValueError:
+                    logger.error(f"Invalid route_id format: {route_id}")
+                    continue
             for existing_route_id in list(existing_routes.keys()):
                 if str(existing_route_id) not in selected_routes:
                     route_to_remove = existing_routes[existing_route_id]
                     db.session.delete(route_to_remove)
-
+                    removed_routes.append(existing_route_id)
+                    logger.warning(f"Removed route_id={existing_route_id} for drug_detail_id={detail.id}")
+            if changed_fields or removed_routes:
+                logger.info(f"Changes for DrugDetail ID {detail.id}: {', '.join(changed_fields)}")
+                if removed_routes:
+                    logger.info(f"Removed routes: {removed_routes}")
             db.session.commit()
             logger.info(f"DrugDetail updated with ID: {detail.id}")
-
-            # Create a News entry for the update
             drug_name = drug.name_en if hasattr(drug, 'name_en') and drug.name_en else f"Drug ID {drug_id}"
             news = News(
                 category='Drug Update',
@@ -3856,9 +4088,7 @@ def update_detail(detail_id):
             db.session.commit()
             logger.info(f"News entry created for drug_id={drug_id}: {drug_name}")
             flash('Drug details updated and announced on the homepage!', 'success')
-
             return redirect(url_for('view_details'))
-
         except Exception as e:
             db.session.rollback()
             logger.error(f"Exception occurred: {str(e)}")
@@ -3869,7 +4099,49 @@ def update_detail(detail_id):
                 units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
                 error_message=f"Error updating details: {str(e)}"
             )
-
+    logger.debug(f"Preparing data for GET request, detail_id={detail_id}")
+    selected_indications = detail.indications.split(',') if detail.indications else []
+    selected_targets = detail.target_molecules.split(',') if detail.target_molecules else []
+    selected_side_effects = [se.id for se in detail.side_effects] if detail.side_effects else []
+    selected_categories = [cat.id for cat in drug.categories] if drug and drug.categories else []
+    selected_routes = [
+        {
+            'route_id': route.route_id,
+            'pharmacodynamics': route.pharmacodynamics,
+            'pharmacokinetics': route.pharmacokinetics,
+            'indications': [ri.indication_id for ri in route.route_indications],
+            'absorption_rate_min': route.absorption_rate_min,
+            'absorption_rate_max': route.absorption_rate_max,
+            'absorption_rate_unit_id': route.absorption_rate_unit_id,
+            'vod_rate_min': route.vod_rate_min,
+            'vod_rate_max': route.vod_rate_max,
+            'vod_rate_unit_id': route.vod_rate_unit_id,
+            'protein_binding_min': route.protein_binding_min * 100 if route.protein_binding_min is not None else None,
+            'protein_binding_max': route.protein_binding_max * 100 if route.protein_binding_max is not None else None,
+            'half_life_min': route.half_life_min,
+            'half_life_max': route.half_life_max,
+            'half_life_unit_id': route.half_life_unit_id,
+            'clearance_rate_min': route.clearance_rate_min,
+            'clearance_rate_max': route.clearance_rate_max,
+            'clearance_rate_unit_id': route.clearance_rate_unit_id,
+            'bioavailability_min': route.bioavailability_min * 100 if route.bioavailability_min is not None else None,
+            'bioavailability_max': route.bioavailability_max * 100 if route.bioavailability_max is not None else None,
+            'tmax_min': route.tmax_min,
+            'tmax_max': route.tmax_max,
+            'tmax_unit_id': route.tmax_unit_id,
+            'cmax_min': route.cmax_min,
+            'cmax_max': route.cmax_max,
+            'cmax_unit_id': route.cmax_unit_id,
+            'therapeutic_min': route.therapeutic_min,
+            'therapeutic_max': route.therapeutic_max,
+            'therapeutic_unit_id': route.therapeutic_unit_id,
+            'metabolism_organs': [mo.id for mo in route.metabolism_organs],
+            'metabolism_enzymes': [me.id for me in route.metabolism_enzymes],
+            'metabolites': [m.id for m in route.metabolites]
+        }
+        for route in detail.routes
+    ]
+    logger.debug(f"Rendering template for detail_id={detail_id}")
     return render_template(
         'update_detail.html',
         detail=detail,
@@ -3886,51 +4158,12 @@ def update_detail(detail_id):
         units_json=units_json,
         safety_categories=safety_categories,
         categories=categories,
-        selected_indications=detail.indications.split(',') if detail.indications else [],
-        selected_targets=detail.target_molecules.split(',') if detail.target_molecules else [],
-        selected_side_effects=[se.id for se in detail.side_effects] if detail.side_effects else [],
-        selected_categories=[cat.id for cat in drug.categories] if drug and drug.categories else [],
-        selected_routes=[
-            {
-                'route_id': route.route_id,
-                'pharmacodynamics': route.pharmacodynamics,
-                'pharmacokinetics': route.pharmacokinetics,
-                'indications': [ri.indication_id for ri in route.route_indications],
-                'absorption_rate_min': route.absorption_rate_min,
-                'absorption_rate_max': route.absorption_rate_max,
-                'absorption_rate_unit_id': route.absorption_rate_unit_id,
-                'vod_rate_min': route.vod_rate_min,
-                'vod_rate_max': route.vod_rate_max,
-                'vod_rate_unit_id': route.vod_rate_unit_id,
-                'protein_binding_min': route.protein_binding_min * 100 if route.protein_binding_min else None,
-                'protein_binding_max': route.protein_binding_max * 100 if route.protein_binding_max else None,
-                'half_life_min': route.half_life_min,
-                'half_life_max': route.half_life_max,
-                'half_life_unit_id': route.half_life_unit_id,
-                'clearance_rate_min': route.clearance_rate_min,
-                'clearance_rate_max': route.clearance_rate_max,
-                'clearance_rate_unit_id': route.clearance_rate_unit_id,
-                'bioavailability_min': route.bioavailability_min * 100 if route.bioavailability_min else None,
-                'bioavailability_max': route.bioavailability_max * 100 if route.bioavailability_max else None,
-                'tmax_min': route.tmax_min,
-                'tmax_max': route.tmax_max,
-                'tmax_unit_id': route.tmax_unit_id,
-                'cmax_min': route.cmax_min,
-                'cmax_max': route.cmax_max,
-                'cmax_unit_id': route.cmax_unit_id,
-                'therapeutic_min': route.therapeutic_min,
-                'therapeutic_max': route.therapeutic_max,
-                'therapeutic_unit_id': route.therapeutic_unit_id,
-                'metabolism_organs': [mo.id for mo in route.metabolism_organs],
-                'metabolism_enzymes': [me.id for me in route.metabolism_enzymes],
-                'metabolites': [m.id for m in route.metabolites]
-            }
-            for route in detail.routes
-        ]
+        selected_indications=selected_indications,
+        selected_targets=selected_targets,
+        selected_side_effects=selected_side_effects,
+        selected_categories=selected_categories,
+        selected_routes=selected_routes
     )
-
-
-
 
 
 
@@ -4133,8 +4366,6 @@ def get_salts():
     ])
 
 
-
-
 # Updated /interactions route
 @app.route('/interactions', methods=['GET', 'POST'])
 @login_required
@@ -4153,9 +4384,9 @@ def check_interactions():
             drug2_id = int(drug2_id) if drug2_id else None
             route_ids = [int(route_id) for route_id in route_ids if route_id] if route_ids else []
 
-            if not drug1_id or not drug2_id:
-                logger.error("Invalid drug IDs provided")
-                return render_template('interactions.html', drugs=drugs, interaction_results=[])
+            if not drug1_id or not drug2_id or drug1_id == drug2_id:
+                logger.error("Invalid or identical drug IDs provided")
+                return render_template('interactions.html', drugs=drugs, interaction_results=[], error="Please select two different drugs.")
 
             # Base query for drug interactions
             query = DrugInteraction.query.filter(
@@ -4165,13 +4396,13 @@ def check_interactions():
                 )
             )
 
-            # Filter by routes if provided
+            # Filter by routes if provided, using outerjoin to include general interactions
             if route_ids:
-                query = query.join(
+                query = query.outerjoin(
                     DrugInteraction.routes
                 ).filter(
-                    RouteOfAdministration.id.in_(route_ids)
-                )
+                    or_(RouteOfAdministration.id.in_(route_ids), RouteOfAdministration.id.is_(None))
+                ).distinct()  # Avoid duplicates
 
             interactions = query.all()
             logger.debug(f"Found {len(interactions)} interactions")
@@ -4194,26 +4425,26 @@ def check_interactions():
 
         except ValueError as e:
             logger.error(f"Invalid ID format: {e}")
-            return render_template('interactions.html', drugs=drugs, interaction_results=[])
+            return render_template('interactions.html', drugs=drugs, interaction_results=[], error="Invalid input format.")
         except Exception as e:
             logger.error(f"Error querying interactions: {e}")
-            return render_template('interactions.html', drugs=drugs, interaction_results=[])
+            return render_template('interactions.html', drugs=drugs, interaction_results=[], error="An error occurred while querying interactions.")
 
     return render_template('interactions.html', drugs=drugs, interaction_results=interaction_results)
 
 # Cache for PubMed abstracts
 ABSTRACT_CACHE = {}
 
-# Initialize zero-shot classifier with a valid BioBERT model
+# Initialize zero-shot classifier with an improved model
 device = 0 if torch.cuda.is_available() else -1
 try:
     classifier = pipeline(
         "zero-shot-classification",
-        model="dmis-lab/biobert-large-cased-v1.1",
+        model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
         device=device
     )
 except Exception as e:
-    logger.error(f"Failed to load BioBERT: {e}. Falling back to BART.")
+    logger.error(f"Failed to load DeBERTa-v3: {e}. Falling back to BART.")
     classifier = pipeline(
         "zero-shot-classification",
         model="facebook/bart-large-mnli",
@@ -4221,7 +4452,7 @@ except Exception as e:
     )
 
 def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
-    """Fetch relevant PubMed abstracts for drug interactions."""
+    """Fetch relevant PubMed abstracts for drug interactions with improved filtering."""
     cache_key = f"{drug1}:{drug2}"
     if cache_key in ABSTRACT_CACHE:
         logger.info(f"Using cached PubMed abstracts for {drug1} and {drug2}")
@@ -4229,12 +4460,12 @@ def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
 
     Entrez.email = "eczeneszeybek@gmail.com"
     Entrez.api_key = "51921ae5597d83823b3ce5499a5e7676d808"
-    term = f"({drug1} AND {drug2} AND (drug interaction OR contraindication OR adverse effect OR pharmacodynamic OR pharmacokinetic))"
+    term = f'("{drug1}" AND "{drug2}" AND (drug interaction OR contraindication OR adverse effect OR pharmacodynamic OR pharmacokinetic))'
     logger.info(f"Fetching PubMed abstracts for term: {term}")
 
     for attempt in range(max_retries):
         try:
-            handle = Entrez.esearch(db="pubmed", term=term, retmax=10)
+            handle = Entrez.esearch(db="pubmed", term=term, retmax=20)  # Increased retmax for more potential results
             record = Entrez.read(handle)
             ids = record["IdList"]
             handle.close()
@@ -4248,11 +4479,11 @@ def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
             raw_data = fetch_handle.read()
             abstracts = [
                 a.strip() for a in raw_data.split("\n\n")
-                if a.strip() and len(a) > 50 and any(term in a.lower() for term in ["interaction", "adverse", "contraindication", "severe", "critical"])
+                if a.strip() and len(a) > 100 and any(term in a.lower() for term in ["interaction", "adverse", "contraindication", "severe", "critical", "risk", "effect"])  # Stricter filtering
             ]
             fetch_handle.close()
             logger.info(f"Fetched {len(abstracts)} relevant abstracts for {drug1} and {drug2}")
-            ABSTRACT_CACHE[cache_key] = abstracts[:5]
+            ABSTRACT_CACHE[cache_key] = abstracts[:5]  # Limit to top 5
             return ABSTRACT_CACHE[cache_key]
         except Exception as e:
             logger.error(f"PubMed fetch attempt {attempt + 1}/{max_retries} failed: {e}")
@@ -4262,15 +4493,15 @@ def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
     return []
 
 def classify_severity(description, drug1_name, drug2_name, manual_severity=None):
-    """Classify interaction severity using description and PubMed abstracts."""
+    """Classify interaction severity using description and PubMed abstracts with enhanced rules."""
     labels = ["Mild", "Moderate", "Severe", "Critical"]
-    label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Kritik"}
+    label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Hayati Risk İçeren"}
 
-    # Expanded critical terms
+    # Expanded critical terms for better detection
     critical_terms = [
         "contraindicated", "life-threatening", "severe hypotension", "organ failure",
         "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest",
-        "severe adverse", "critical interaction", "prohibited", "fatal"
+        "severe adverse", "critical interaction", "prohibited", "fatal", "toxic", "overdose risk", "hospitalization"
     ]
     description_lower = description.lower()
     is_critical_in_description = any(term in description_lower for term in critical_terms)
@@ -4298,16 +4529,16 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
     ]
     processed_description = " ".join(relevant_desc[:5]) or description[:500]
 
-    # Create prompt
+    # Improved prompt for better classification accuracy
     prompt = (
-        f"Drug interaction between {drug1_name} and {drug2_name}. "
-        f"Manual Description: {processed_description}. "
-        f"PubMed Evidence: {evidence[:500]}. "
-        f"Classify the severity as: "
-        f"Mild (minimal impact, no major risks), "
-        f"Moderate (requires monitoring, manageable risks), "
-        f"Severe (significant risks, caution needed), "
-        f"Critical (contraindicated, life-threatening risks)."
+        f"Analyze the drug interaction severity between {drug1_name} and {drug2_name}.\n"
+        f"Description: {processed_description}.\n"
+        f"Supporting evidence from PubMed: {evidence[:500]}.\n"
+        f"Classify strictly into one category:\n"
+        f"- Mild: Minimal clinical impact, no significant risks or interventions needed.\n"
+        f"- Moderate: Noticeable effects requiring monitoring or minor adjustments.\n"
+        f"- Severe: High risk of harm, requires careful management or avoidance.\n"
+        f"- Critical: Life-threatening, contraindicated, or potentially fatal; must avoid combination."
     )
     logger.debug(f"Classification prompt: {prompt[:200]}...")
 
@@ -4317,20 +4548,20 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
         predicted_label = label_map[result["labels"][0]]
         confidence = result["scores"][0]
 
-        # Rule-based overrides
+        # Rule-based overrides for reliability
         if is_critical_in_description or is_critical_in_evidence:
             logger.info(f"Critical terms detected for {drug1_name} and {drug2_name} in description or evidence")
-            predicted_label = "Kritik"
+            predicted_label = "Hayati Risk İçeren"
             confidence = max(confidence, 0.95)
-        elif confidence < 0.75:  # Raised threshold for better reliability
+        elif confidence < 0.80:  # Raised threshold for more conservative predictions
             logger.warning(f"Low confidence ({confidence}) for {drug1_name} and {drug2_name}. Predicted: {predicted_label}")
-            predicted_label = "Şiddetli" if predicted_label != "Kritik" else predicted_label
-            confidence = 0.75
+            predicted_label = "Şiddetli" if predicted_label != "Hayati Risk İçeren" else predicted_label
+            confidence = 0.80
 
-        # Trust manual severity if Kritik
-        if manual_severity == "Kritik":
-            logger.info(f"Manual severity is Kritik for {drug1_name} and {drug2_name}, overriding prediction")
-            predicted_label = "Kritik"
+        # Trust manual severity if Hayati Risk İçeren
+        if manual_severity == "Hayati Risk İçeren":
+            logger.info(f"Manual severity is Hayati Risk İçeren for {drug1_name} and {drug2_name}, overriding prediction")
+            predicted_label = "Hayati Risk İçeren"
             confidence = 0.99
 
         # Log mismatches
@@ -4377,8 +4608,8 @@ def manage_interactions():
             alternatives = request.form.getlist('alternatives')
 
             # Validate inputs
-            if not all([drug1_id, drug2_id, interaction_type, interaction_description, severity_id]):
-                raise ValueError("Required fields are missing")
+            if not all([drug1_id, drug2_id, interaction_type, interaction_description, severity_id]) or drug1_id == drug2_id:
+                raise ValueError("Required fields are missing or drugs are identical")
 
             # Convert alternatives to comma-separated string
             alternatives_str = ''
@@ -4468,8 +4699,8 @@ def update_interaction(interaction_id):
             alternatives = request.form.getlist('alternatives')
 
             if not all([interaction.drug1_id, interaction.drug2_id, interaction.interaction_type, 
-                       interaction.interaction_description, interaction.severity_id]):
-                raise ValueError("Required fields are missing")
+                       interaction.interaction_description, interaction.severity_id]) or interaction.drug1_id == interaction.drug2_id:
+                raise ValueError("Required fields are missing or drugs are identical")
 
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
@@ -4482,29 +4713,21 @@ def update_interaction(interaction_id):
             if not drug1 or not drug2:
                 raise ValueError("Invalid drug IDs")
 
-            # Validate manual severity
+            # Get manual severity
             manual_severity = db.session.get(Severity, interaction.severity_id).name
-            critical_terms = ["contraindicated", "life-threatening", "severe hypotension"]
-            if any(term in interaction.interaction_description.lower() for term in critical_terms) and manual_severity != "Kritik":
+
+            # Validate manual severity (log warning if mismatch with critical terms)
+            critical_terms = ["contraindicated", "life-threatening", "severe hypotension", "organ failure", "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest"]
+            if any(term in interaction.interaction_description.lower() for term in critical_terms) and manual_severity != "Hayati Risk İçeren":
                 logger.warning(
                     f"Manual severity mismatch for {drug1.name_en} and {drug2.name_en}: "
-                    f"Critical terms detected, expected=Kritik, got={manual_severity}"
+                    f"Critical terms detected, expected=Hayati Risk İçeren, got={manual_severity}"
                 )
 
-            # Predict severity
-            abstracts = fetch_pubmed_abstracts(drug1.name_en, drug2.name_en)
-            combined_evidence = " ".join(abstracts)[:1000] if abstracts else "No evidence found"
+            # Predict severity (let the function handle PubMed fetching internally)
             interaction.predicted_severity, interaction.prediction_confidence = classify_severity(
-                interaction.interaction_description, combined_evidence, drug1.name_en, drug2.name_en
+                interaction.interaction_description, drug1.name_en, drug2.name_en, manual_severity
             )
-
-            # Log discrepancies
-            if interaction.predicted_severity != manual_severity:
-                logger.warning(
-                    f"Severity mismatch for {drug1.name_en} and {drug2.name_en}: "
-                    f"Manual={manual_severity}, Predicted={interaction.predicted_severity} "
-                    f"(Confidence={interaction.prediction_confidence})"
-                )
 
             if route_ids:
                 routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
@@ -4572,13 +4795,11 @@ def batch_process_interactions():
                     logger.error(f"Invalid drug IDs for interaction {interaction.id}")
                     continue
                 
-                abstracts = fetch_pubmed_abstracts(drug1.name_en, drug2.name_en)
-                combined_evidence = " ".join(abstracts)[:1000] if abstracts else "No evidence found"
+                manual_severity = db.session.get(Severity, interaction.severity_id).name
                 predicted_severity, prediction_confidence = classify_severity(
-                    interaction.interaction_description, combined_evidence, drug1.name_en, drug2.name_en
+                    interaction.interaction_description, drug1.name_en, drug2.name_en, manual_severity
                 )
                 
-                manual_severity = db.session.get(Severity, interaction.severity_id).name
                 if predicted_severity != manual_severity:
                     logger.warning(
                         f"Severity mismatch for {drug1.name_en} and {drug2.name_en}: "
@@ -4632,10 +4853,13 @@ def get_interactions():
     order_column_index = request.form.get('order[0][column]', type=int)
     order_direction = request.form.get('order[0][dir]', 'asc')
 
+    drug1_alias = aliased(Drug, name='drug1')
+    drug2_alias = aliased(Drug, name='drug2')
+
     column_map = {
         0: DrugInteraction.id,
-        1: Drug.name_en,  # drug1_name
-        2: Drug.name_en,  # drug2_name
+        1: drug1_alias.name_en,  # drug1_name
+        2: drug2_alias.name_en,  # drug2_name
         3: DrugInteraction.id,  # routes (handled in data)
         4: DrugInteraction.interaction_type,
         5: DrugInteraction.interaction_description,
@@ -4652,13 +4876,15 @@ def get_interactions():
     total_records = DrugInteraction.query.count()
 
     query = DrugInteraction.query \
-        .join(Drug, DrugInteraction.drug1_id == Drug.id) \
+        .join(drug1_alias, DrugInteraction.drug1_id == drug1_alias.id) \
+        .join(drug2_alias, DrugInteraction.drug2_id == drug2_alias.id) \
         .join(Severity, DrugInteraction.severity_id == Severity.id)
 
     if search_value:
         query = query.filter(
             db.or_(
-                Drug.name_en.ilike(f"%{search_value}%"),
+                drug1_alias.name_en.ilike(f"%{search_value}%"),
+                drug2_alias.name_en.ilike(f"%{search_value}%"),
                 DrugInteraction.interaction_description.ilike(f"%{search_value}%")
             )
         )
@@ -4712,7 +4938,6 @@ def get_interactions():
 
 
 
-
 # Updated /cdss/advanced Route
 @app.route('/cdss/advanced', methods=['GET', 'POST'])
 @login_required
@@ -4723,138 +4948,250 @@ def cdss_advanced():
     lab_tests = LabTest.query.all()
     interaction_results = None
     error = None
-
     if request.method == 'POST':
         try:
             age = request.form.get('age', type=int, default=30)
             weight = request.form.get('weight', type=float, default=70.0)
             crcl = request.form.get('crcl', type=float, default=None)
+            serum_creatinine = request.form.get('serum_creatinine', type=float, default=1.0)  # New: Allow user to input serum creatinine
             gender = request.form.get('gender', default='M')
+            pregnancy = request.form.get('pregnancy', default='no')  # New: Pregnancy status (yes/no)
+            hepatic_impairment = request.form.get('hepatic_impairment', default='none')  # New: Hepatic impairment level (none/mild/moderate/severe)
             selected_drugs = request.form.getlist('drugs')
             selected_indications = request.form.getlist('indications')
             selected_lab_tests = request.form.getlist('lab_tests')
             selected_route = request.form.get('route_id')
-
+            route_id = int(selected_route) if selected_route else None
             logger.debug(f"Form data: drugs={selected_drugs}, indications={selected_indications}, "
                         f"lab_tests={selected_lab_tests}, route={selected_route}, age={age}, "
-                        f"weight={weight}, crcl={crcl}, gender={gender}")
-
-            # Input validation
-            if age < 0 or weight <= 0 or (crcl is not None and crcl < 0):
+                        f"weight={weight}, crcl={crcl}, serum_creatinine={serum_creatinine}, gender={gender}, "
+                        f"pregnancy={pregnancy}, hepatic_impairment={hepatic_impairment}")
+            # Enhanced input validation
+            if age < 0 or age > 120 or weight <= 0 or weight > 300 or (crcl is not None and (crcl < 0 or crcl > 200)) or serum_creatinine <= 0:
                 logger.warning("Invalid input detected")
-                error = "Invalid input—check age, weight, or CrCl!"
+                error = "Invalid input—check age, weight, CrCl, or serum creatinine!"
             elif not selected_drugs:
                 error = "At least one drug must be selected!"
-
+            elif pregnancy not in ['yes', 'no']:
+                error = "Invalid pregnancy status!"
+            elif hepatic_impairment not in ['none', 'mild', 'moderate', 'severe']:
+                error = "Invalid hepatic impairment level!"
             if error:
                 return render_template('cdss_advanced.html', drugs=drugs, routes=routes,
                                      indications=indications, lab_tests=lab_tests,
                                      interaction_results=None, error=error)
-
-            # Calculate CrCl if not provided
-            if crcl is None and age and weight and gender:
-                crcl = calculate_crcl(age, weight, gender)
-
-            # Analyze all interactions
+            # Calculate CrCl if not provided, using provided serum_creatinine
+            if crcl is None and age and weight and gender and serum_creatinine:
+                crcl = calculate_crcl(age, weight, gender, serum_creatinine)
+            # New: Polypharmacy warning if more than 5 drugs selected
+            if len(selected_drugs) > 5:
+                logger.warning("Polypharmacy detected: >5 drugs selected")
+                # This could be added to results later, but for now, log it
+            # Analyze all interactions with new parameters
             interaction_results = analyze_interactions(
                 selected_drugs=selected_drugs,
-                route_id=selected_route,
+                route_id=route_id,
                 age=age,
                 weight=weight,
                 crcl=crcl,
                 conditions=[int(i) for i in selected_indications if i],
-                lab_tests=[int(t) for t in selected_lab_tests if t]
+                lab_tests=[int(t) for t in selected_lab_tests if t],
+                pregnancy=pregnancy == 'yes',
+                hepatic_impairment=hepatic_impairment
             )
             logger.debug(f"Interaction results: {len(interaction_results)} found")
-
+        except ValueError as e:
+            db.session.rollback()
+            logger.error(f"Invalid input: {str(e)}")
+            error = "Invalid input format—check IDs and values."
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Error processing CDSS request: {str(e)}")
             error = "An error occurred while processing your request."
-
     return render_template('cdss_advanced.html', drugs=drugs, routes=routes,
                          indications=indications, lab_tests=lab_tests,
                          interaction_results=interaction_results, error=error)
-
 # Helper Functions
 def calculate_crcl(age, weight, gender, serum_creatinine=1.0):
     """Calculate CrCl using Cockcroft-Gault formula."""
     factor = 0.85 if gender.upper() == 'F' else 1.0
-    return ((140 - age) * weight * factor) / (72 * serum_creatinine)
-
-def adjust_severity(base_severity, age, crcl, boost=0):
-    """Adjust severity based on patient factors."""
-    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}
+    crcl_value = ((140 - age) * weight * factor) / (72 * serum_creatinine)
+    # Enhanced: Add bounds to prevent unrealistic values
+    return max(10, min(200, crcl_value))  # Clamp between 10-200 mL/min
+def adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment, boost=0):
+    """Adjust severity based on patient factors. Enhanced with pregnancy and hepatic impairment."""
+    severity_map = {'Hafif': 1, 'Moderate': 2, 'Severe': 3, 'Critical': 4}
     score = severity_map.get(base_severity, 2) + boost
     if age > 75 or crcl < 30:
         score += 1
     elif age < 18:
         score += 0.5
-    if score >= 3:
+    if pregnancy:
+        score += 1.5  # Boost for pregnancy
+    if hepatic_impairment == 'mild':
+        score += 0.5
+    elif hepatic_impairment == 'moderate':
+        score += 1
+    elif hepatic_impairment == 'severe':
+        score += 1.5
+    # Enhanced: Map back to levels with new 'Critical' option
+    if score >= 4:
+        return "Critical"
+    elif score >= 3:
         return "Severe"
     elif score >= 2:
         return "Moderate"
     return "Hafif"
-
-def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl):
-    """Simulate pharmacokinetic interaction risk profile."""
+def simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl, pregnancy, hepatic_impairment):
+    """Simulate pharmacokinetic interaction risk profile using a one-compartment model with absorption."""
     half_life1 = detail1.half_life or 4.0
     half_life2 = detail2.half_life or 4.0
     clearance1 = detail1.clearance_rate or 100.0
     clearance2 = detail2.clearance_rate or 100.0
     bioavail1 = detail1.bioavailability or 1.0
     bioavail2 = detail2.bioavailability or 1.0
-
+    # Assume absorption rate constants (ka) for oral administration simulation
+    ka1 = 0.5  # 1/hr, arbitrary value for demonstration
+    ka2 = 0.5
+    # Elimination rate constants
+    ke1 = np.log(2) / half_life1
+    ke2 = np.log(2) / half_life2
+    # Adjust for age
     if age > 65:
         clearance1 *= 0.75
         clearance2 *= 0.75
     elif age < 18:
         clearance1 *= 1.2
         clearance2 *= 1.2
-
+    # Adjust for renal function
     if crcl:
         renal_factor = min(crcl / 100, 1.0)
         clearance1 *= renal_factor
         clearance2 *= renal_factor
-
+    # New: Adjust for hepatic impairment
+    hepatic_factor = 1.0
+    if hepatic_impairment == 'mild':
+        hepatic_factor = 0.9
+    elif hepatic_impairment == 'moderate':
+        hepatic_factor = 0.7
+    elif hepatic_impairment == 'severe':
+        hepatic_factor = 0.5
+    clearance1 *= hepatic_factor
+    clearance2 *= hepatic_factor
+    # New: Adjust for pregnancy (increased volume of distribution)
+    if pregnancy:
+        clearance1 *= 1.2
+        clearance2 *= 1.2
+    # Adjust for weight (assuming volume scales with weight)
     if weight:
-        clearance1 *= (weight / 70)
-        clearance2 *= (weight / 70)
-
+        volume_factor = weight / 70.0
+    else:
+        volume_factor = 1.0
+    # Time points
     time_points = np.linspace(0, 24, 100)
-    conc1 = bioavail1 * np.exp(-np.log(2) / half_life1 * time_points) * clearance1
-    conc2 = bioavail2 * np.exp(-np.log(2) / half_life2 * time_points) * clearance2
-    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3}.get(interaction.severity_level.name, 1)
-    risk_profile = base_risk * conc1 * conc2 * (1 if crcl > 30 else 1.5)
+    # Simulate concentrations using Bateman function for oral absorption: C(t) = (ka * dose * F / V * (ke - ka)) * (exp(-ka*t) - exp(-ke*t))
+    # Simplified without dose/V (normalized)
+    conc1 = bioavail1 * ka1 / (ke1 - ka1) * (np.exp(-ka1 * time_points) - np.exp(-ke1 * time_points)) * clearance1 / volume_factor
+    conc2 = bioavail2 * ka2 / (ke2 - ka2) * (np.exp(-ka2 * time_points) - np.exp(-ke2 * time_points)) * clearance2 / volume_factor
+    # Handle cases where ka == ke
+    conc1[np.isnan(conc1)] = 0
+    conc2[np.isnan(conc2)] = 0
+    base_risk = {'Hafif': 1, 'Moderate': 2, 'Severe': 3, 'Critical': 4}.get(interaction.severity_level.name, 1)
+    risk_profile = base_risk * conc1 * conc2 * (1 if crcl > 30 else 1.5) * (1.2 if pregnancy else 1.0)
+    # Enhanced: Add noise for more realistic simulation
+    risk_profile += np.random.normal(0, 0.1 * base_risk, len(time_points))
     return time_points, risk_profile
 
-def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions, lab_tests):
-    """Analyze drug-drug, drug-disease, and drug-lab test interactions."""
+def suggest_alternatives(drug_id, top_k=3):
+    """Suggest alternative drugs using cosine similarity on pharmacokinetic features (AI/ML-based)."""
+    drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
+    if not drug_detail:
+        return []
+    # Feature vector: half_life, clearance_rate, bioavailability
+    features = np.array([
+        drug_detail.half_life or 0,
+        drug_detail.clearance_rate or 0,
+        drug_detail.bioavailability or 0
+    ])
+    if np.all(features == 0):
+        return []
+    all_drugs = Drug.query.all()
+    similarities = []
+    for other_drug in all_drugs:
+        if other_drug.id == drug_id:
+            continue
+        other_detail = DrugDetail.query.filter_by(drug_id=other_drug.id).first()
+        if not other_detail:
+            continue
+        other_features = np.array([
+            other_detail.half_life or 0,
+            other_detail.clearance_rate or 0,
+            other_detail.bioavailability or 0
+        ])
+        if np.all(other_features == 0):
+            continue
+        # Cosine similarity
+        sim = np.dot(features, other_features) / (np.linalg.norm(features) * np.linalg.norm(other_features))
+        similarities.append((other_drug.name_en, sim))
+    # Sort by similarity descending
+    similarities.sort(key=lambda x: x[1], reverse=True)
+    top_alternatives = [name for name, sim in similarities[:top_k]]
+    return top_alternatives
+
+def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions, lab_tests, pregnancy, hepatic_impairment):
+    """Analyze drug-drug, drug-disease, and drug-lab test interactions. Enhanced with new patient factors, polypharmacy check, and AI-suggested alternatives."""
     results = []
     drug_ids = [int(d) for d in selected_drugs if d]
-    severity_map_db_to_func = {'Hafif': 'Hafif', 'Orta': 'Moderate', 'Şiddetli': 'Severe', 'Kritik': 'Severe'}
-
+    severity_map_db_to_func = {'Hafif': 'Hafif', 'Orta': 'Moderate', 'Şiddetli': 'Severe', 'Kritik': 'Critical', 'Hayati Risk İçeren': 'Critical'}
+    severity_order = {"Critical": 4, "Severe": 3, "Moderate": 2, "Hafif": 1}
+    # New: Polypharmacy alert if >5 drugs
+    if len(drug_ids) > 5:
+        poly_boost = 1 if len(drug_ids) > 10 else 0.5
+        results.append({
+            'type': 'Polypharmacy Alert',
+            'drug1': 'Multiple Drugs',
+            'drug2': f"{len(drug_ids)} drugs selected",
+            'route': "N/A",
+            'interaction_type': "High Risk",
+            'description': "Polypharmacy increases risk of interactions. Review regimen carefully.",
+            'severity': "Moderate",
+            'predicted_severity': adjust_severity("Moderate", age, crcl, pregnancy, hepatic_impairment, boost=poly_boost),
+            'peak_risk': 0,
+            'risk_profile': [(0, 3)],
+            'mechanism': "Cumulative Interactions",
+            'monitoring': "Monitor for adverse effects; deprescribe if possible",
+            'alternatives': "Simplify regimen",
+            'reference': "Clinical guideline on polypharmacy",
+            'evidence_level': "High"
+        })
     # 1. Drug-Drug Interactions
     for drug1_id, drug2_id in combinations(drug_ids, 2):
-        interactions = DrugInteraction.query.filter(
+        query = DrugInteraction.query.filter(
             or_(
                 and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
                 and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
             )
-        ).join(
-            interaction_route,
-            DrugInteraction.id == interaction_route.c.interaction_id
-        ).filter(
-            or_(interaction_route.c.route_id == route_id, interaction_route.c.route_id == None)
-        ).all()
-
+        )
+        if route_id is not None:
+            query = query.outerjoin(
+                interaction_route,
+                DrugInteraction.id == interaction_route.c.interaction_id
+            ).filter(
+                or_(interaction_route.c.route_id == route_id, interaction_route.c.route_id.is_(None))
+            ).distinct()
+        interactions = query.all()
         for interaction in interactions:
             drug1 = Drug.query.get(drug1_id)
             drug2 = Drug.query.get(drug2_id)
             detail1 = DrugDetail.query.filter_by(drug_id=drug1_id).first() or DrugDetail()
             detail2 = DrugDetail.query.filter_by(drug_id=drug2_id).first() or DrugDetail()
-
-            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl)
-
+            time_points, risk_profile = simulate_pk_interaction(detail1, detail2, interaction, age, weight, crcl, pregnancy, hepatic_impairment)
+            base_severity = severity_map_db_to_func.get(interaction.severity_level.name, 'Moderate')
+            alternatives = interaction.alternatives or "Not Provided"
+            if alternatives == "Not Provided":
+                suggested = suggest_alternatives(drug2_id)
+                if suggested:
+                    alternatives = ', '.join(suggested) + " (AI suggested)"
             result = {
                 'type': 'Drug-Drug Interaction',
                 'drug1': drug1.name_en,
@@ -4862,17 +5199,17 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
                 'route': RouteOfAdministration.query.get(route_id).name if route_id else "General",
                 'interaction_type': interaction.interaction_type,
                 'description': interaction.interaction_description,
-                'severity': severity_map_db_to_func.get(interaction.severity_level.name, 'Moderate'),
-                'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity_level.name, 'Moderate'), age, crcl),
-                'peak_risk': interaction.time_to_peak or time_points[risk_profile.argmax()],
+                'severity': base_severity,
+                'predicted_severity': adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment),
+                'peak_risk': interaction.time_to_peak or time_points[np.argmax(risk_profile)],
                 'risk_profile': list(zip(time_points, risk_profile)),
                 'mechanism': interaction.mechanism or "Not Provided",
                 'monitoring': interaction.monitoring or "Not Provided",
-                'alternatives': interaction.alternatives or "Not Provided",
-                'reference': interaction.reference or "Not Provided"
+                'alternatives': alternatives,
+                'reference': interaction.reference or "Not Provided",
+                'evidence_level': "High" if interaction.prediction_confidence > 0.9 else "Medium"  # New: Add evidence level based on confidence
             }
             results.append(result)
-
     # 2. Drug-Disease Interactions
     for drug_id in drug_ids:
         for condition_id in conditions:
@@ -4882,6 +5219,14 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
             if interaction:
                 drug = Drug.query.get(drug_id)
                 condition = Indication.query.get(condition_id)
+                base_severity = severity_map_db_to_func.get(interaction.severity, 'Moderate')
+                # Enhanced: Additional boost if pregnancy or hepatic issues relevant to condition
+                extra_boost = 1 if (pregnancy and "pregnancy" in condition.name_en.lower()) else 0
+                extra_boost += 1 if (hepatic_impairment != 'none' and "liver" in condition.name_en.lower()) else 0
+                alternatives = "Consider alternative therapy"
+                suggested = suggest_alternatives(drug_id)
+                if suggested:
+                    alternatives = ', '.join(suggested) + " (AI suggested)"
                 result = {
                     'type': 'Drug-Disease Interaction',
                     'drug1': drug.name_en,
@@ -4889,17 +5234,17 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
                     'route': "N/A",
                     'interaction_type': interaction.interaction_type,
                     'description': interaction.description or "No description provided",
-                    'severity': severity_map_db_to_func.get(interaction.severity, 'Moderate'),
-                    'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity, 'Moderate'), age, crcl),
+                    'severity': base_severity,
+                    'predicted_severity': adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment, boost=extra_boost),
                     'peak_risk': 0,
                     'risk_profile': [(0, 2)],
                     'mechanism': "Drug-Disease Interaction",
                     'monitoring': interaction.recommendation or "Not Provided",
-                    'alternatives': "Consider alternative therapy",
-                    'reference': "Database entry"
+                    'alternatives': alternatives,
+                    'reference': "Database entry",
+                    'evidence_level': "Medium"
                 }
                 results.append(result)
-
     # 3. Drug-Lab Test Interactions
     for drug_id in drug_ids:
         for lab_test_id in lab_tests:
@@ -4909,6 +5254,11 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
             if interaction:
                 drug = Drug.query.get(drug_id)
                 lab_test = LabTest.query.get(lab_test_id)
+                base_severity = severity_map_db_to_func.get(interaction.severity, 'Moderate')
+                alternatives = "Use alternative lab test if available"
+                suggested = suggest_alternatives(drug_id)
+                if suggested:
+                    alternatives = ', '.join(suggested) + " (AI suggested for drug replacement)"
                 result = {
                     'type': 'Drug-Lab Test Interaction',
                     'drug1': drug.name_en,
@@ -4916,24 +5266,27 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
                     'route': "N/A",
                     'interaction_type': interaction.interaction_type,
                     'description': interaction.description or "No description provided",
-                    'severity': severity_map_db_to_func.get(interaction.severity, 'Moderate'),
-                    'predicted_severity': adjust_severity(severity_map_db_to_func.get(interaction.severity, 'Moderate'), age, crcl),
+                    'severity': base_severity,
+                    'predicted_severity': adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment),
                     'peak_risk': 0,
                     'risk_profile': [(0, 2)],
                     'mechanism': "Drug-Lab Test Interference",
                     'monitoring': interaction.recommendation or "Confirm with alternative test",
-                    'alternatives': "Use alternative lab test if available",
-                    'reference': "Database entry"
+                    'alternatives': alternatives,
+                    'reference': "Database entry",
+                    'evidence_level': "Medium"
                 }
                 results.append(result)
-
-    # 4. Condition Risk Checks
+    # 4. Condition Risk Checks (Enhanced with more risks and patient factors)
     condition_risks = {
-        "renal failure": {"severity_boost": 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
-        "liver disease": {"severity_boost": 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
-        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"}
+        "renal failure": {"severity_boost": 1.5 if crcl < 30 else 1, "desc": "Worsened by renal impairment", "monitoring": "Monitor renal function"},
+        "liver disease": {"severity_boost": 1.5 if hepatic_impairment != 'none' else 1, "desc": "Risk of hepatotoxicity", "monitoring": "Check LFTs"},
+        "heart failure": {"severity_boost": 0.5, "desc": "May exacerbate fluid retention", "monitoring": "Monitor BP and weight"},
+        "pregnancy": {"severity_boost": 2 if pregnancy else 0, "desc": "Potential teratogenic effects", "monitoring": "Ultrasound monitoring if applicable"},
+        "hypertension": {"severity_boost": 0.5, "desc": "May affect blood pressure control", "monitoring": "Regular BP checks"},
+        "diabetes": {"severity_boost": 0.5, "desc": "Risk of glucose dysregulation", "monitoring": "Monitor blood glucose"}
+        # Add more as needed based on common conditions
     }
-
     for drug_id in drug_ids:
         drug = Drug.query.get(drug_id)
         for condition_id in conditions:
@@ -4941,7 +5294,11 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
             if condition and condition.name_en.lower() in condition_risks:
                 risk_info = condition_risks[condition.name_en.lower()]
                 base_severity = "Moderate"
-                adjusted_severity = adjust_severity(base_severity, age, crcl, boost=risk_info["severity_boost"])
+                adjusted_severity = adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment, boost=risk_info["severity_boost"])
+                alternatives = "Consider alternative therapy"
+                suggested = suggest_alternatives(drug_id)
+                if suggested:
+                    alternatives = ', '.join(suggested) + " (AI suggested)"
                 result = {
                     'type': 'Drug-Condition Alert',
                     'drug1': drug.name_en,
@@ -4955,11 +5312,37 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
                     'risk_profile': [(0, 2 + risk_info["severity_boost"])],
                     'mechanism': "Condition-Drug Interaction",
                     'monitoring': risk_info["monitoring"],
-                    'alternatives': "Consider alternative therapy",
-                    'reference': "Clinical guideline"
+                    'alternatives': alternatives,
+                    'reference': "Clinical guideline",
+                    'evidence_level': "High"
                 }
                 results.append(result)
-
+    # New: Add summary at the beginning
+    if results:
+        total_interactions = len(results)
+        max_severity = max([severity_order.get(r['predicted_severity'], 0) for r in results])
+        max_severity_label = next(k for k, v in severity_order.items() if v == max_severity)
+        overall_risk_score = sum([severity_order.get(r['predicted_severity'], 0) for r in results]) / total_interactions if total_interactions > 0 else 0
+        summary = {
+            'type': 'Summary',
+            'drug1': 'Overall',
+            'drug2': 'Regimen',
+            'route': "N/A",
+            'interaction_type': "Overview",
+            'description': f"Total interactions/alerts: {total_interactions}. Highest severity: {max_severity_label}. Overall risk score: {overall_risk_score:.2f}/4.",
+            'severity': max_severity_label,
+            'predicted_severity': max_severity_label,
+            'peak_risk': 0,
+            'risk_profile': [(0, overall_risk_score)],
+            'mechanism': "N/A",
+            'monitoring': "Review all alerts below",
+            'alternatives': "Optimize based on suggestions",
+            'reference': "CDSS Analysis",
+            'evidence_level': "High"
+        }
+        results.insert(0, summary)
+    # New: Sort remaining results by predicted_severity descending for prioritization
+    results[1:] = sorted(results[1:], key=lambda x: severity_order.get(x['predicted_severity'], 0), reverse=True)
     return results
 
 
@@ -5046,7 +5429,6 @@ def delete_unit(id):
         logger.error(f"Error deleting unit (ID: {id}): {str(e)}")
         flash("An error occurred while deleting the unit.", "error")
     return redirect(url_for('list_units'))
-
 
 # New Route for Adding Lab Tests
 @app.route('/lab_test/add', methods=['GET', 'POST'])
@@ -10253,7 +10635,6 @@ def pharmacokinetics():
     
     return render_template('pharmacokinetics.html', pk_data=pk_data, selected_drug_id=selected_drug_id, selected_drug=selected_drug)
 #PK modülü son...
-
 
 
 if __name__ == "__main__":

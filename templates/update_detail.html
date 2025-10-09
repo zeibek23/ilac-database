@@ -4,544 +4,587 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Update Drug Detail</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <!-- Select2 CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
     <!-- Summernote CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs5.min.css" rel="stylesheet">
-    
     <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Arial', sans-serif;
+        .select2-container .select2-selection--multiple {
+            min-height: 38px;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
         }
-        .container {
-            max-width: 1200px;
-            padding: 20px;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        .select2-container--default .select2-selection--single {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            height: 38px;
+            padding: 6px;
+        }
+        .summernote {
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+        }
+        .accordion-header {
+            cursor: pointer;
+            background-color: #f3f4f6;
+            padding: 12px;
+            border-radius: 0.375rem;
+            margin-bottom: 8px;
+        }
+        .accordion-content {
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+            max-height: 0;
+        }
+        .accordion-content.active {
+            max-height: 1000px;
+        }
+        .error-message {
+            color: #dc2626;
+            font-size: 0.875rem;
+            margin-top: 4px;
+        }
+        .is-invalid {
+            border-color: #dc2626 !important;
         }
         .form-group-pair {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
         }
         .form-group-pair label {
-            min-width: 150px;
-            font-weight: bold;
+            min-width: 120px;
+            font-weight: 600;
         }
         .route-group {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 5px;
-            background: #f9f9f9;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            border-radius: 0.375rem;
+            background: #f9fafb;
+            margin-bottom: 16px;
         }
-        .error-message {
-            color: #dc3545;
-            font-weight: bold;
-            margin-bottom: 15px;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
-        }
-        select, input, textarea {
-            border-radius: 5px;
-        }
-        h5 {
-            color: #333;
-            margin-bottom: 15px;
+        .route-toggle {
+            cursor: pointer;
+            color: #2563eb;
+            text-decoration: underline;
         }
     </style>
 </head>
-<body>
-    <div class="container my-5">
-        <h1 class="text-center mb-4">Update Drug Detail</h1>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-6 max-w-5xl bg-white rounded-lg shadow-lg my-8">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Update Drug Detail</h1>
         {% if error_message %}
-        <div class="alert alert-danger error-message">{{ error_message }}</div>
+        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">{{ error_message }}</div>
         {% endif %}
-        <form method="POST" enctype="multipart/form-data">
-            <!-- Drug Name -->
-            <div class="mb-3">
-                <label for="drug_id" class="form-label">Drug Name</label>
-                <select class="form-control" id="drug_id" name="drug_id" required>
-                    {% for drug in drugs %}
-                    <option value="{{ drug.id }}" {% if drug.id == detail.drug_id %}selected{% endif %}>{{ drug.name_en }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Salt -->
-            <div class="mb-3">
-                <label for="salt_id" class="form-label">Salt</label>
-                <select class="form-control" id="salt_id" name="salt_id">
-                    <option value="">None</option>
-                    {% for salt in salts %}
-                    <option value="{{ salt.id }}" {% if salt.id == detail.salt_id %}selected{% endif %}>{{ salt.name_en }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Molecular Formula -->
-            <div class="mb-3">
-                <label for="molecular_formula" class="form-label">Molecular Formula</label>
-                <input type="text" class="form-control" id="molecular_formula" name="molecular_formula" value="{{ detail.molecular_formula or '' }}">
-            </div>
-
-            <!-- Molecular Weight -->
-            <div class="form-group-pair">
-                <label for="molecular_weight" class="form-label">Molecular Weight</label>
-                <input type="number" step="0.01" class="form-control" id="molecular_weight" name="molecular_weight" value="{{ detail.molecular_weight or '' }}">
-                <select class="form-control" id="molecular_weight_unit_id" name="molecular_weight_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.molecular_weight_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Structure (Image) -->
-            <div class="mb-3">
-                <label for="structure" class="form-label">Structure (Image)</label>
-                {% if detail.structure %}
-                <div><a href="/static/{{ detail.structure }}" target="_blank">View Existing Image</a></div>
-                {% endif %}
-                <input type="file" class="form-control" id="structure" name="structure" accept="image/*,.svg">
-            </div>
-
-            <!-- 3D Structure -->
-            <div class="mb-3">
-                <label class="form-label">3D Structure (PDB)</label>
-                {% if detail.structure_3d %}
-                <div><a href="/static/{{ detail.structure_3d }}" target="_blank">View Existing 3D Structure</a></div>
-                {% endif %}
-                <p>Upload a new SMILES to regenerate 3D structure.</p>
-            </div>
-
-            <!-- SMILES -->
-            <div class="mb-3">
-                <label for="smiles" class="form-label">SMILES</label>
-                <input type="text" class="form-control" id="smiles" name="smiles" value="{{ detail.smiles or '' }}">
-            </div>
-
-            <!-- Synthesis -->
-            <div class="mb-3">
-                <label for="synthesis" class="form-label">Synthesis</label>
-                <textarea class="form-control summernote" id="synthesis" name="synthesis">{{ detail.synthesis or '' }}</textarea>
-            </div>
-
-            <!-- Mechanism of Action -->
-            <div class="mb-3">
-                <label for="mechanism_of_action" class="form-label">Mechanism of Action</label>
-                <textarea class="form-control summernote" id="mechanism_of_action" name="mechanism_of_action">{{ detail.mechanism_of_action or '' }}</textarea>
-            </div>
-
-            <!-- IUPAC Name -->
-            <div class="mb-3">
-                <label for="iupac_name" class="form-label">IUPAC Name</label>
-                <input type="text" class="form-control" id="iupac_name" name="iupac_name" value="{{ detail.iupac_name or '' }}">
-            </div>
-
-            <!-- Identifiers -->
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="cas_id" class="form-label">CAS ID</label>
-                    <input type="text" class="form-control" id="cas_id" name="cas_id" value="{{ detail.cas_id or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="rxcui" class="form-label">RXCUI</label>
-                    <input type="text" class="form-control" id="rxcui" name="rxcui" value="{{ detail.rxcui or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="pubchem_cid" class="form-label">PubChem CID</label>
-                    <input type="text" class="form-control" id="pubchem_cid" name="pubchem_cid" value="{{ detail.pubchem_cid or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="pubchem_sid" class="form-label">PubChem SID</label>
-                    <input type="text" class="form-control" id="pubchem_sid" name="pubchem_sid" value="{{ detail.pubchem_sid or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="inchikey" class="form-label">InChIKey</label>
-                    <input type="text" class="form-control" id="inchikey" name="inchikey" value="{{ detail.inchikey or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="ec_number" class="form-label">EC Number</label>
-                    <input type="text" class="form-control" id="ec_number" name="ec_number" value="{{ detail.ec_number or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="nci_code" class="form-label">NCI Code</label>
-                    <input type="text" class="form-control" id="nci_code" name="nci_code" value="{{ detail.nci_code or '' }}">
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="snomed_id" class="form-label">SNOMED ID</label>
-                    <input type="text" class="form-control" id="snomed_id" name="snomed_id" value="{{ detail.snomed_id or '' }}">
+        <form method="POST" enctype="multipart/form-data" id="drugDetailForm" class="space-y-6">
+            <!-- General Information Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">General Information</div>
+                <div class="accordion-content active">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="drug_id" class="block text-sm font-medium text-gray-700">Drug Name <span class="text-red-500">*</span></label>
+                            <select class="w-full p-2 border rounded-md" id="drug_id" name="drug_id" required aria-label="Select Drug">
+                                {% for drug in drugs %}
+                                <option value="{{ drug.id }}" {% if drug.id == detail.drug_id %}selected{% endif %}>{{ drug.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="error-message" id="drug_id_error"></div>
+                        </div>
+                        <div>
+                            <label for="salt_id" class="block text-sm font-medium text-gray-700">Salt</label>
+                            <select class="w-full p-2 border rounded-md" id="salt_id" name="salt_id" aria-label="Select Salt">
+                                <option value="">None</option>
+                                {% for salt in salts %}
+                                <option value="{{ salt.id }}" {% if salt.id == detail.salt_id %}selected{% endif %}>{{ salt.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="error-message" id="salt_id_error"></div>
+                        </div>
+                        <div>
+                            <label for="molecular_formula" class="block text-sm font-medium text-gray-700">Molecular Formula <span class="text-red-500">*</span></label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="molecular_formula" name="molecular_formula" value="{{ detail.molecular_formula or '' }}" required aria-label="Molecular Formula">
+                            <div class="error-message" id="molecular_formula_error"></div>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="molecular_weight" class="block text-sm font-medium text-gray-700">Molecular Weight</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="molecular_weight" name="molecular_weight" value="{{ detail.molecular_weight or '' }}" aria-label="Molecular Weight">
+                            <select class="w-32 p-2 border rounded-md" id="molecular_weight_unit_id" name="molecular_weight_unit_id" aria-label="Molecular Weight Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.molecular_weight_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="structure" class="block text-sm font-medium text-gray-700">Structure (Image)</label>
+                            {% if detail.structure %}
+                            <div class="mb-2"><a href="/static/{{ detail.structure }}" target="_blank" class="text-blue-600 hover:underline">View Existing Image</a></div>
+                            {% endif %}
+                            <input type="file" class="w-full p-2 border rounded-md" id="structure" name="structure" accept="image/png,image/jpeg,image/svg+xml" aria-label="Upload Structure Image">
+                            <p class="text-sm text-gray-500">Accepted formats: PNG, JPEG, SVG. Max size: 5MB.</p>
+                            <div class="error-message" id="structure_error"></div>
+                        </div>
+                        <div>
+                            <label for="smiles" class="block text-sm font-medium text-gray-700">SMILES</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="smiles" name="smiles" value="{{ detail.smiles or '' }}" aria-label="SMILES Notation">
+                            <div class="error-message" id="smiles_error"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">3D Structure (PDB)</label>
+                            {% if detail.structure_3d %}
+                            <div class="mb-2"><a href="/static/{{ detail.structure_3d }}" target="_blank" class="text-blue-600 hover:underline">View Existing 3D Structure</a></div>
+                            {% endif %}
+                            <p class="text-sm text-gray-500">Upload a new SMILES to regenerate 3D structure.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <!-- Physical Properties -->
-            <div class="form-group-pair">
-                <label for="boiling_point" class="form-label">Boiling Point</label>
-                <input type="number" step="0.01" class="form-control" id="boiling_point" name="boiling_point" value="{{ detail.boiling_point or '' }}">
-                <select class="form-control" id="boiling_point_unit_id" name="boiling_point_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.boiling_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group-pair">
-                <label for="melting_point" class="form-label">Melting Point</label>
-                <input type="number" step="0.01" class="form-control" id="melting_point" name="melting_point" value="{{ detail.melting_point or '' }}">
-                <select class="form-control" id="melting_point_unit_id" name="melting_point_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.melting_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group-pair">
-                <label for="density" class="form-label">Density</label>
-                <input type="number" step="0.01" class="form-control" id="density" name="density" value="{{ detail.density or '' }}">
-                <select class="form-control" id="density_unit_id" name="density_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.density_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group-pair">
-                <label for="solubility" class="form-label">Solubility</label>
-                <input type="number" step="0.01" class="form-control" id="solubility" name="solubility" value="{{ detail.solubility or '' }}">
-                <select class="form-control" id="solubility_unit_id" name="solubility_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.solubility_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group-pair">
-                <label for="flash_point" class="form-label">Flash Point</label>
-                <input type="number" step="0.01" class="form-control" id="flash_point" name="flash_point" value="{{ detail.flash_point or '' }}">
-                <select class="form-control" id="flash_point_unit_id" name="flash_point_unit_id">
-                    {% for unit in units %}
-                    <option value="{{ unit.id }}" {% if unit.id == detail.flash_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Pharmacological Properties -->
-            <div class="mb-3">
-                <label for="pharmacodynamics" class="form-label">Pharmacodynamics</label>
-                <textarea class="form-control summernote" id="pharmacodynamics" name="pharmacodynamics">{{ detail.pharmacodynamics or '' }}</textarea>
-            </div>
-            <div class="mb-3">
-                <label for="pharmacokinetics" class="form-label">General Pharmacokinetics</label>
-                <textarea class="form-control summernote" id="pharmacokinetics" name="pharmacokinetics">{{ detail.pharmacokinetics or '' }}</textarea>
-            </div>
-
-            <!-- Indications -->
-            <div class="mb-3">
-                <label for="indications" class="form-label">General Indications</label>
-                <select id="indications" name="indications[]" class="form-control select2" multiple>
-                    {% for indication in indications %}
-                    <option value="{{ indication.id }}" {% if indication.id|string in selected_indications %}selected{% endif %}>
-                        {{ indication.name_en }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Target Molecules -->
-            <div class="mb-3">
-                <label for="target_molecules" class="form-label">Target Molecules</label>
-                <select id="target_molecules" name="target_molecules[]" class="form-control select2" multiple>
-                    {% for target in targets %}
-                    <option value="{{ target.id }}" {% if target.id|string in selected_targets %}selected{% endif %}>
-                        {{ target.name_en }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Side Effects -->
-            <div class="mb-3">
-                <label for="side_effects" class="form-label">Side Effects</label>
-                <select id="side_effects" name="side_effects[]" class="form-control select2" multiple>
-                    {% for side_effect in side_effects %}
-                    <option value="{{ side_effect.id }}" {% if side_effect.id in selected_side_effects %}selected{% endif %}>
-                        {{ side_effect.name_en }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Drug Categories -->
-            <div class="mb-3">
-                <label for="category_ids" class="form-label">Drug Categories</label>
-                <select id="category_ids" name="category_ids[]" class="form-control select2" multiple>
-                    {% for category in categories %}
-                    <option value="{{ category.id }}" {% if category.id in selected_categories %}selected{% endif %}>
-                        {{ category.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Routes of Administration -->
-            <div class="mb-3">
-                <label for="routes" class="form-label">Routes of Administration</label>
-                <select id="routes" name="route_id[]" class="form-control select2" multiple>
-                    {% for route in routes %}
-                    <option value="{{ route.id }}" {% if route.id|string in selected_routes|map(attribute='route_id')|list %}selected{% endif %}>
-                        {{ route.name }} ({{ route.type }})
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Route-Specific Details -->
-            <div id="route-details-container">
-                {% for route in selected_routes %}
-                {% set route_obj = routes|selectattr('id', 'equalto', route.route_id|int)|first %}
-                <div class="route-group">
-                    <h5>Route: {{ route_obj.name if route_obj else 'Unknown Route' }} ({{ route_obj.type if route_obj else 'Unknown Type' }})</h5>
-                    <input type="hidden" name="route_id[]" value="{{ route.route_id }}">
-
-                    <div class="mb-3">
-                        <label for="route_pharmacodynamics_{{ route.route_id }}" class="form-label">Pharmacodynamics</label>
-                        <textarea class="form-control summernote" id="route_pharmacodynamics_{{ route.route_id }}" name="route_pharmacodynamics_{{ route.route_id }}">{{ route.pharmacodynamics or '' }}</textarea>
+            <!-- Chemical Identifiers Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Chemical Identifiers</div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="iupac_name" class="block text-sm font-medium text-gray-700">IUPAC Name</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="iupac_name" name="iupac_name" value="{{ detail.iupac_name or '' }}" aria-label="IUPAC Name">
+                        </div>
+                        <div>
+                            <label for="cas_id" class="block text-sm font-medium text-gray-700">CAS ID</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="cas_id" name="cas_id" value="{{ detail.cas_id or '' }}" aria-label="CAS ID">
+                        </div>
+                        <div>
+                            <label for="rxcui" class="block text-sm font-medium text-gray-700">RXCUI</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="rxcui" name="rxcui" value="{{ detail.rxcui or '' }}" aria-label="RXCUI">
+                        </div>
+                        <div>
+                            <label for="pubchem_cid" class="block text-sm font-medium text-gray-700">PubChem CID</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="pubchem_cid" name="pubchem_cid" value="{{ detail.pubchem_cid or '' }}" aria-label="PubChem CID">
+                        </div>
+                        <div>
+                            <label for="pubchem_sid" class="block text-sm font-medium text-gray-700">PubChem SID</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="pubchem_sid" name="pubchem_sid" value="{{ detail.pubchem_sid or '' }}" aria-label="PubChem SID">
+                        </div>
+                        <div>
+                            <label for="inchikey" class="block text-sm font-medium text-gray-700">InChIKey</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="inchikey" name="inchikey" value="{{ detail.inchikey or '' }}" aria-label="InChIKey">
+                        </div>
+                        <div>
+                            <label for="ec_number" class="block text-sm font-medium text-gray-700">EC Number</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="ec_number" name="ec_number" value="{{ detail.ec_number or '' }}" aria-label="EC Number">
+                        </div>
+                        <div>
+                            <label for="nci_code" class="block text-sm font-medium text-gray-700">NCI Code</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="nci_code" name="nci_code" value="{{ detail.nci_code or '' }}" aria-label="NCI Code">
+                        </div>
+                        <div>
+                            <label for="snomed_id" class="block text-sm font-medium text-gray-700">SNOMED ID</label>
+                            <input type="text" class="w-full p-2 border rounded-md" id="snomed_id" name="snomed_id" value="{{ detail.snomed_id or '' }}" aria-label="SNOMED ID">
+                        </div>
                     </div>
-
-                    <div class="mb-3">
-                        <label for="route_pharmacokinetics_{{ route.route_id }}" class="form-label">Pharmacokinetics</label>
-                        <textarea class="form-control summernote" id="route_pharmacokinetics_{{ route.route_id }}" name="route_pharmacokinetics_{{ route.route_id }}">{{ route.pharmacokinetics or '' }}</textarea>
+                </div>
+            </div>
+            <!-- Physical Properties Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Physical Properties</div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group-pair">
+                            <label for="boiling_point" class="block text-sm font-medium text-gray-700">Boiling Point</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="boiling_point" name="boiling_point" value="{{ detail.boiling_point or '' }}" aria-label="Boiling Point">
+                            <select class="w-32 p-2 border rounded-md" id="boiling_point_unit_id" name="boiling_point_unit_id" aria-label="Boiling Point Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.boiling_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="melting_point" class="block text-sm font-medium text-gray-700">Melting Point</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="melting_point" name="melting_point" value="{{ detail.melting_point or '' }}" aria-label="Melting Point">
+                            <select class="w-32 p-2 border rounded-md" id="melting_point_unit_id" name="melting_point_unit_id" aria-label="Melting Point Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.melting_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="density" class="block text-sm font-medium text-gray-700">Density</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="density" name="density" value="{{ detail.density or '' }}" aria-label="Density">
+                            <select class="w-32 p-2 border rounded-md" id="density_unit_id" name="density_unit_id" aria-label="Density Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.density_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="solubility" class="block text-sm font-medium text-gray-700">Solubility</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="solubility" name="solubility" value="{{ detail.solubility or '' }}" aria-label="Solubility">
+                            <select class="w-32 p-2 border rounded-md" id="solubility_unit_id" name="solubility_unit_id" aria-label="Solubility Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.solubility_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="flash_point" class="block text-sm font-medium text-gray-700">Flash Point</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="flash_point" name="flash_point" value="{{ detail.flash_point or '' }}" aria-label="Flash Point">
+                            <select class="w-32 p-2 border rounded-md" id="flash_point_unit_id" name="flash_point_unit_id" aria-label="Flash Point Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.flash_point_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
-
-                    <!-- Route-Specific Pharmacokinetic Parameters -->
-                    <div class="form-group-pair">
-                        <label for="absorption_rate_{{ route.route_id }}" class="form-label">Absorption Rate</label>
-                        <input type="text" class="form-control" id="absorption_rate_{{ route.route_id }}" name="absorption_rate_{{ route.route_id }}" value="{% if route.absorption_rate_min and route.absorption_rate_max %}{{ route.absorption_rate_min }}-{{ route.absorption_rate_max }}{% elif route.absorption_rate_min %}{{ route.absorption_rate_min }}{% endif %}">
-                        <select class="form-control" id="absorption_rate_unit_id_{{ route.route_id }}" name="absorption_rate_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.absorption_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
+                </div>
+            </div>
+            <!-- Pharmacological Properties Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Pharmacological Properties</div>
+                <div class="accordion-content">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="mechanism_of_action" class="block text-sm font-medium text-gray-700">Mechanism of Action</label>
+                            <textarea class="w-full p-2 border rounded-md summernote" id="mechanism_of_action" name="mechanism_of_action" aria-label="Mechanism of Action">{{ detail.mechanism_of_action or '' }}</textarea>
+                        </div>
+                        <div>
+                            <label for="synthesis" class="block text-sm font-medium text-gray-700">Synthesis</label>
+                            <textarea class="w-full p-2 border rounded-md summernote" id="synthesis" name="synthesis" aria-label="Synthesis">{{ detail.synthesis or '' }}</textarea>
+                        </div>
+                        <div>
+                            <label for="pharmacodynamics" class="block text-sm font-medium text-gray-700">Pharmacodynamics</label>
+                            <textarea class="w-full p-2 border rounded-md summernote" id="pharmacodynamics" name="pharmacodynamics" aria-label="Pharmacodynamics">{{ detail.pharmacodynamics or '' }}</textarea>
+                        </div>
+                        <div>
+                            <label for="pharmacokinetics" class="block text-sm font-medium text-gray-700">General Pharmacokinetics</label>
+                            <textarea class="w-full p-2 border rounded-md summernote" id="pharmacokinetics" name="pharmacokinetics" aria-label="General Pharmacokinetics">{{ detail.pharmacokinetics or '' }}</textarea>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="half_life" class="block text-sm font-medium text-gray-700">Half-Life</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="half_life" name="half_life" value="{{ detail.half_life or '' }}" aria-label="Half-Life">
+                            <select class="w-32 p-2 border rounded-md" id="half_life_unit_id" name="half_life_unit_id" aria-label="Half-Life Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.half_life_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="clearance_rate" class="block text-sm font-medium text-gray-700">Clearance Rate</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="clearance_rate" name="clearance_rate" value="{{ detail.clearance_rate or '' }}" aria-label="Clearance Rate">
+                            <select class="w-32 p-2 border rounded-md" id="clearance_rate_unit_id" name="clearance_rate_unit_id" aria-label="Clearance Rate Unit">
+                                {% for unit in units %}
+                                <option value="{{ unit.id }}" {% if unit.id == detail.clearance_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group-pair">
+                            <label for="bioavailability" class="block text-sm font-medium text-gray-700">Bioavailability (%)</label>
+                            <input type="number" step="0.01" class="flex-1 p-2 border rounded-md" id="bioavailability" name="bioavailability" value="{{ detail.bioavailability or '' }}" aria-label="Bioavailability">
+                        </div>
                     </div>
-                    <div class="form-group-pair">
-                        <label for="vod_rate_{{ route.route_id }}" class="form-label">Volume of Distribution</label>
-                        <input type="text" class="form-control" id="vod_rate_{{ route.route_id }}" name="vod_rate_{{ route.route_id }}" value="{% if route.vod_rate_min and route.vod_rate_max %}{{ route.vod_rate_min }}-{{ route.vod_rate_max }}{% elif route.vod_rate_min %}{{ route.vod_rate_min }}{% endif %}">
-                        <select class="form-control" id="vod_rate_unit_id_{{ route.route_id }}" name="vod_rate_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.vod_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
+                </div>
+            </div>
+            <!-- Classifications Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Classifications</div>
+                <div class="accordion-content">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="indications" class="block text-sm font-medium text-gray-700">General Indications</label>
+                            <select id="indications" name="indications[]" class="w-full select2" multiple aria-label="Select General Indications">
+                                {% for indication in indications %}
+                                <option value="{{ indication.id }}" {% if indication.id|string in selected_indications %}selected{% endif %}>
+                                    {{ indication.name_en }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="target_molecules" class="block text-sm font-medium text-gray-700">Target Molecules</label>
+                            <select id="target_molecules" name="target_molecules[]" class="w-full select2" multiple aria-label="Select Target Molecules">
+                                {% for target in targets %}
+                                <option value="{{ target.id }}" {% if target.id|string in selected_targets %}selected{% endif %}>
+                                    {{ target.name_en }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="side_effects" class="block text-sm font-medium text-gray-700">Side Effects</label>
+                            <select id="side_effects" name="side_effects[]" class="w-full select2" multiple aria-label="Select Side Effects">
+                                {% for side_effect in side_effects %}
+                                <option value="{{ side_effect.id }}" {% if side_effect.id in selected_side_effects %}selected{% endif %}>
+                                    {{ side_effect.name_en }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="category_ids" class="block text-sm font-medium text-gray-700">Drug Categories</label>
+                            <select id="category_ids" name="category_ids[]" class="w-full select2" multiple aria-label="Select Drug Categories">
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if category.id in selected_categories %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group-pair">
-                        <label for="protein_binding_{{ route.route_id }}" class="form-label">Protein Binding (%)</label>
-                        <input type="text" class="form-control" id="protein_binding_{{ route.route_id }}" name="protein_binding_{{ route.route_id }}" value="{% if route.protein_binding_min and route.protein_binding_max %}{{ route.protein_binding_min * 100 }}-{{ route.protein_binding_max * 100 }}{% elif route.protein_binding_min %}{{ route.protein_binding_min * 100 }}{% endif %}">
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="half_life_{{ route.route_id }}" class="form-label">Half-Life</label>
-                        <input type="text" class="form-control" id="half_life_{{ route.route_id }}" name="half_life_{{ route.route_id }}" value="{% if route.half_life_min and route.half_life_max %}{{ route.half_life_min }}-{{ route.half_life_max }}{% elif route.half_life_min %}{{ route.half_life_min }}{% endif %}">
-                        <select class="form-control" id="half_life_unit_id_{{ route.route_id }}" name="half_life_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.half_life_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="clearance_rate_{{ route.route_id }}" class="form-label">Clearance Rate</label>
-                        <input type="text" class="form-control" id="clearance_rate_{{ route.route_id }}" name="clearance_rate_{{ route.route_id }}" value="{% if route.clearance_rate_min and route.clearance_rate_max %}{{ route.clearance_rate_min }}-{{ route.clearance_rate_max }}{% elif route.clearance_rate_min %}{{ route.clearance_rate_min }}{% endif %}">
-                        <select class="form-control" id="clearance_rate_unit_id_{{ route.route_id }}" name="clearance_rate_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.clearance_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="bioavailability_{{ route.route_id }}" class="form-label">Bioavailability (%)</label>
-                        <input type="text" class="form-control" id="bioavailability_{{ route.route_id }}" name="bioavailability_{{ route.route_id }}" value="{% if route.bioavailability_min and route.bioavailability_max %}{{ route.bioavailability_min * 100 }}-{{ route.bioavailability_max * 100 }}{% elif route.bioavailability_min %}{{ route.bioavailability_min * 100 }}{% endif %}">
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="tmax_{{ route.route_id }}" class="form-label">Tmax</label>
-                        <input type="text" class="form-control" id="tmax_{{ route.route_id }}" name="tmax_{{ route.route_id }}" value="{% if route.tmax_min and route.tmax_max %}{{ route.tmax_min }}-{{ route.tmax_max }}{% elif route.tmax_min %}{{ route.tmax_min }}{% endif %}">
-                        <select class="form-control" id="tmax_unit_id_{{ route.route_id }}" name="tmax_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.tmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="cmax_{{ route.route_id }}" class="form-label">Cmax</label>
-                        <input type="text" class="form-control" id="cmax_{{ route.route_id }}" name="cmax_{{ route.route_id }}" value="{% if route.cmax_min and route.cmax_max %}{{ route.cmax_min }}-{{ route.cmax_max }}{% elif route.cmax_min %}{{ route.cmax_min }}{% endif %}">
-                        <select class="form-control" id="cmax_unit_id_{{ route.route_id }}" name="cmax_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.cmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group-pair">
-                        <label for="therapeutic_range_{{ route.route_id }}" class="form-label">Therapeutic Range</label>
-                        <input type="text" class="form-control" id="therapeutic_range_{{ route.route_id }}" name="therapeutic_range_{{ route.route_id }}" value="{% if route.therapeutic_min and route.therapeutic_max %}{{ route.therapeutic_min }}-{{ route.therapeutic_max }}{% elif route.therapeutic_min %}{{ route.therapeutic_min }}{% endif %}">
-                        <select class="form-control" id="therapeutic_unit_id_{{ route.route_id }}" name="therapeutic_unit_id_{{ route.route_id }}">
-                            {% for unit in units %}
-                            <option value="{{ unit.id }}" {% if unit.id == route.therapeutic_unit_id %}selected{% endif %}>{{ unit.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Metabolism Data -->
-                    <div class="mb-3">
-                        <label for="metabolism_organs_{{ route.route_id }}" class="form-label">Metabolism Organs</label>
-                        <select id="metabolism_organs_{{ route.route_id }}" name="metabolism_organs_{{ route.route_id }}[]" class="form-control select2" multiple>
-                            {% for organ in metabolism_organs %}
-                            <option value="{{ organ.id }}" {% if organ.id in route.metabolism_organs %}selected{% endif %}>
-                                {{ organ.name_en }}
+                </div>
+            </div>
+            <!-- Routes of Administration Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Routes of Administration</div>
+                <div class="accordion-content">
+                    <div>
+                        <label for="routes" class="block text-sm font-medium text-gray-700">Routes of Administration <span class="text-red-500">*</span></label>
+                        <select id="routes" name="route_id[]" class="w-full select2" multiple required aria-label="Select Routes of Administration">
+                            {% for route in routes %}
+                            <option value="{{ route.id }}" {% if route.id|string in selected_routes|map(attribute='route_id')|list %}selected{% endif %}>
+                                {{ route.name }} ({{ route.type }})
                             </option>
                             {% endfor %}
                         </select>
+                        <div class="error-message" id="routes_error"></div>
                     </div>
-                    <div class="mb-3">
-                        <label for="metabolism_enzymes_{{ route.route_id }}" class="form-label">Metabolism Enzymes</label>
-                        <select id="metabolism_enzymes_{{ route.route_id }}" name="metabolism_enzymes_{{ route.route_id }}[]" class="form-control select2" multiple>
-                            {% for enzyme in metabolism_enzymes %}
-                            <option value="{{ enzyme.id }}" {% if enzyme.id in route.metabolism_enzymes %}selected{% endif %}>
-                                {{ enzyme.name_en }}
-                            </option>
-                            {% endfor %}
-                        </select>
+                    <div id="route-details-container" class="mt-4">
+                        {% for route in selected_routes %}
+                        {% set route_obj = routes|selectattr('id', 'equalto', route.route_id|int)|first %}
+                        <div class="route-group" data-route-id="{{ route.route_id }}">
+                            <h5 class="font-semibold text-gray-700 route-toggle" data-route-id="{{ route.route_id }}">Route: {{ route_obj.name if route_obj else 'Unknown Route' }} ({{ route_obj.type if route_obj else 'Unknown Type' }})</h5>
+                            <input type="hidden" name="route_id[]" value="{{ route.route_id }}">
+                            <div class="route-content" style="display: none;">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="route_pharmacodynamics_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Pharmacodynamics</label>
+                                        <textarea class="w-full p-2 border rounded-md" id="route_pharmacodynamics_{{ route.route_id }}" name="route_pharmacodynamics_{{ route.route_id }}" aria-label="Pharmacodynamics for Route {{ route_obj.name if route_obj else route.route_id }}">{{ route.pharmacodynamics or '' }}</textarea>
+                                    </div>
+                                    <div>
+                                        <label for="route_pharmacokinetics_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Pharmacokinetics</label>
+                                        <textarea class="w-full p-2 border rounded-md" id="route_pharmacokinetics_{{ route.route_id }}" name="route_pharmacokinetics_{{ route.route_id }}" aria-label="Pharmacokinetics for Route {{ route_obj.name if route_obj else route.route_id }}">{{ route.pharmacokinetics or '' }}</textarea>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="absorption_rate_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Absorption Rate</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="absorption_rate_{{ route.route_id }}" name="absorption_rate_{{ route.route_id }}" value="{% if route.absorption_rate_min is not none and route.absorption_rate_max is not none %}{{ route.absorption_rate_min }}-{{ route.absorption_rate_max }}{% elif route.absorption_rate_min is not none %}{{ route.absorption_rate_min }}{% endif %}" aria-label="Absorption Rate for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="absorption_rate_unit_id_{{ route.route_id }}" name="absorption_rate_unit_id_{{ route.route_id }}" aria-label="Absorption Rate Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.absorption_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="absorption_rate_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="vod_rate_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Volume of Distribution</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="vod_rate_{{ route.route_id }}" name="vod_rate_{{ route.route_id }}" value="{% if route.vod_rate_min is not none and route.vod_rate_max is not none %}{{ route.vod_rate_min }}-{{ route.vod_rate_max }}{% elif route.vod_rate_min is not none %}{{ route.vod_rate_min }}{% endif %}" aria-label="Volume of Distribution for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="vod_rate_unit_id_{{ route.route_id }}" name="vod_rate_unit_id_{{ route.route_id }}" aria-label="Volume of Distribution Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.vod_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="vod_rate_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="protein_binding_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Protein Binding (%)</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="protein_binding_{{ route.route_id }}" name="protein_binding_{{ route.route_id }}" value="{% if route.protein_binding_min is not none and route.protein_binding_max is not none %}{{ (route.protein_binding_min * 100)|round(2) }}-{{ (route.protein_binding_max * 100)|round(2) }}{% elif route.protein_binding_min is not none %}{{ (route.protein_binding_min * 100)|round(2) }}{% endif %}" aria-label="Protein Binding for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <div class="error-message" id="protein_binding_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="half_life_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Half-Life</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="half_life_{{ route.route_id }}" name="half_life_{{ route.route_id }}" value="{% if route.half_life_min is not none and route.half_life_max is not none %}{{ route.half_life_min }}-{{ route.half_life_max }}{% elif route.half_life_min is not none %}{{ route.half_life_min }}{% endif %}" aria-label="Half-Life for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="half_life_unit_id_{{ route.route_id }}" name="half_life_unit_id_{{ route.route_id }}" aria-label="Half-Life Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.half_life_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="half_life_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="clearance_rate_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Clearance Rate</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="clearance_rate_{{ route.route_id }}" name="clearance_rate_{{ route.route_id }}" value="{% if route.clearance_rate_min is not none and route.clearance_rate_max is not none %}{{ route.clearance_rate_min }}-{{ route.clearance_rate_max }}{% elif route.clearance_rate_min is not none %}{{ route.clearance_rate_min }}{% endif %}" aria-label="Clearance Rate for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="clearance_rate_unit_id_{{ route.route_id }}" name="clearance_rate_unit_id_{{ route.route_id }}" aria-label="Clearance Rate Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.clearance_rate_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="clearance_rate_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="bioavailability_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Bioavailability (%)</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="bioavailability_{{ route.route_id }}" name="bioavailability_{{ route.route_id }}" value="{% if route.bioavailability_min is not none and route.bioavailability_max is not none %}{{ (route.bioavailability_min * 100)|round(2) }}-{{ (route.bioavailability_max * 100)|round(2) }}{% elif route.bioavailability_min is not none %}{{ (route.bioavailability_min * 100)|round(2) }}{% endif %}" aria-label="Bioavailability for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <div class="error-message" id="bioavailability_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="tmax_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Tmax</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="tmax_{{ route.route_id }}" name="tmax_{{ route.route_id }}" value="{% if route.tmax_min is not none and route.tmax_max is not none %}{{ route.tmax_min }}-{{ route.tmax_max }}{% elif route.tmax_min is not none %}{{ route.tmax_min }}{% endif %}" aria-label="Tmax for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="tmax_unit_id_{{ route.route_id }}" name="tmax_unit_id_{{ route.route_id }}" aria-label="Tmax Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.tmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="tmax_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="cmax_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Cmax</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="cmax_{{ route.route_id }}" name="cmax_{{ route.route_id }}" value="{% if route.cmax_min is not none and route.cmax_max is not none %}{{ route.cmax_min }}-{{ route.cmax_max }}{% elif route.cmax_min is not none %}{{ route.cmax_min }}{% endif %}" aria-label="Cmax for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="cmax_unit_id_{{ route.route_id }}" name="cmax_unit_id_{{ route.route_id }}" aria-label="Cmax Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.cmax_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="cmax_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div class="form-group-pair">
+                                        <label for="therapeutic_range_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Therapeutic Range</label>
+                                        <input type="text" class="flex-1 p-2 border rounded-md" id="therapeutic_range_{{ route.route_id }}" name="therapeutic_range_{{ route.route_id }}" value="{% if route.therapeutic_min is not none and route.therapeutic_max is not none %}{{ route.therapeutic_min }}-{{ route.therapeutic_max }}{% elif route.therapeutic_min is not none %}{{ route.therapeutic_min }}{% endif %}" aria-label="Therapeutic Range for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                        <select class="w-32 p-2 border rounded-md" id="therapeutic_unit_id_{{ route.route_id }}" name="therapeutic_unit_id_{{ route.route_id }}" aria-label="Therapeutic Range Unit">
+                                            {% for unit in units %}
+                                            <option value="{{ unit.id }}" {% if unit.id == route.therapeutic_unit_id %}selected{% endif %}>{{ unit.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <div class="error-message" id="therapeutic_range_{{ route.route_id }}_error"></div>
+                                    </div>
+                                    <div>
+                                        <label for="metabolism_organs_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Metabolism Organs</label>
+                                        <select id="metabolism_organs_{{ route.route_id }}" name="metabolism_organs_{{ route.route_id }}[]" class="w-full" multiple aria-label="Select Metabolism Organs for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                            {% for organ in metabolism_organs %}
+                                            <option value="{{ organ.id }}" {% if organ.id in route.metabolism_organs %}selected{% endif %}>
+                                                {{ organ.name_en }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="metabolism_enzymes_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Metabolism Enzymes</label>
+                                        <select id="metabolism_enzymes_{{ route.route_id }}" name="metabolism_enzymes_{{ route.route_id }}[]" class="w-full" multiple aria-label="Select Metabolism Enzymes for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                            {% for enzyme in metabolism_enzymes %}
+                                            <option value="{{ enzyme.id }}" {% if enzyme.id in route.metabolism_enzymes %}selected{% endif %}>
+                                                {{ enzyme.name_en }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="metabolites_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Metabolites</label>
+                                        <select id="metabolites_{{ route.route_id }}" name="metabolites_{{ route.route_id }}[]" class="w-full" multiple aria-label="Select Metabolites for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                            {% for metabolite in metabolites %}
+                                            <option value="{{ metabolite.id }}" {% if metabolite.id in route.metabolites %}selected{% endif %}>
+                                                {{ metabolite.name_en }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="route_indications_{{ route.route_id }}" class="block text-sm font-medium text-gray-700">Indications</label>
+                                        <select id="route_indications_{{ route.route_id }}" name="route_indications_{{ route.route_id }}[]" class="w-full" multiple aria-label="Select Indications for Route {{ route_obj.name if route_obj else route.route_id }}">
+                                            {% for indication in indications %}
+                                            <option value="{{ indication.id }}" {% if indication.id in route.indications %}selected{% endif %}>
+                                                {{ indication.name_en }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
-                    <div class="mb-3">
-                        <label for="metabolites_{{ route.route_id }}" class="form-label">Metabolites</label>
-                        <select id="metabolites_{{ route.route_id }}" name="metabolites_{{ route.route_id }}[]" class="form-control select2" multiple>
-                            {% for metabolite in metabolites %}
-                            <option value="{{ metabolite.id }}" {% if metabolite.id in route.metabolites %}selected{% endif %}>
-                                {{ metabolite.name_en }}
-                            </option>
-                            {% endfor %}
-                        </select>
+                </div>
+            </div>
+            <!-- Safety and Warnings Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Safety and Warnings</div>
+                <div class="accordion-content">
+                    <div class="space-y-4">
+                        <div class="flex items-center">
+                            <input class="h-4 w-4 text-blue-600 border-gray-300 rounded" type="checkbox" id="black_box_warning" name="black_box_warning" {% if detail.black_box_warning %}checked{% endif %} aria-label="Black Box Warning">
+                            <label class="ml-2 block text-sm font-medium text-gray-700" for="black_box_warning">Black Box Warning</label>
+                        </div>
+                        <div id="black_box_details_group" class="mt-2" {% if not detail.black_box_warning %}style="display: none;"{% endif %}>
+                            <label for="black_box_details" class="block text-sm font-medium text-gray-700">Black Box Warning Details</label>
+                            <textarea class="w-full p-2 border rounded-md summernote" id="black_box_details" name="black_box_details" aria-label="Black Box Warning Details">{{ detail.black_box_details or '' }}</textarea>
+                        </div>
+                        <div>
+                            <label for="pregnancy_safety_id" class="block text-sm font-medium text-gray-700">Pregnancy Safety Category</label>
+                            <select class="w-full p-2 border rounded-md" id="pregnancy_safety_id" name="pregnancy_safety_id" aria-label="Select Pregnancy Safety Category">
+                                <option value="">Select Pregnancy Safety</option>
+                                {% for sc in safety_categories %}
+                                <option value="{{ sc.id }}" {% if sc.id == detail.pregnancy_safety_id %}selected{% endif %}>{{ sc.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="pregnancy_details_group" class="mt-2" {% if detail.pregnancy_safety_id and detail.pregnancy_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
+                                <label for="pregnancy_details" class="block text-sm font-medium text-gray-700">Pregnancy Safety Details</label>
+                                <textarea class="w-full p-2 border rounded-md summernote" id="pregnancy_details" name="pregnancy_details" aria-label="Pregnancy Safety Details">{{ detail.pregnancy_details or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="lactation_safety_id" class="block text-sm font-medium text-gray-700">Lactation Safety Category</label>
+                            <select class="w-full p-2 border rounded-md" id="lactation_safety_id" name="lactation_safety_id" aria-label="Select Lactation Safety Category">
+                                <option value="">Select Lactation Safety</option>
+                                {% for sc in safety_categories %}
+                                <option value="{{ sc.id }}" {% if sc.id == detail.lactation_safety_id %}selected{% endif %}>{{ sc.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="lactation_details_group" class="mt-2" {% if detail.lactation_safety_id and detail.lactation_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
+                                <label for="lactation_details" class="block text-sm font-medium text-gray-700">Lactation Safety Details</label>
+                                <textarea class="w-full p-2 border rounded-md summernote" id="lactation_details" name="lactation_details" aria-label="Lactation Safety Details">{{ detail.lactation_details or '' }}</textarea>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- Route-Specific Indications -->
-                    <div class="mb-3">
-                        <label for="route_indications_{{ route.route_id }}" class="form-label">Indications</label>
-                        <select id="route_indications_{{ route.route_id }}" name="route_indications_{{ route.route_id }}[]" class="form-control select2" multiple>
-                            {% for indication in indications %}
-                            <option value="{{ indication.id }}" {% if indication.id in route.indications %}selected{% endif %}>
-                                {{ indication.name_en }}
-                            </option>
-                            {% endfor %}
-                        </select>
+                </div>
+            </div>
+            <!-- References Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">References</div>
+                <div class="accordion-content">
+                    <div>
+                        <label for="references" class="block text-sm font-medium text-gray-700">References</label>
+                        <textarea class="w-full p-2 border rounded-md summernote" id="references" name="references" aria-label="References">{{ detail.references or '' }}</textarea>
                     </div>
                 </div>
-                {% endfor %}
             </div>
-
-            <!-- Black Box Warning -->
-            <div class="mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="black_box_warning" name="black_box_warning" {% if detail.black_box_warning %}checked{% endif %}>
-                    <label class="form-check-label" for="black_box_warning">Black Box Warning</label>
-                </div>
-                <div id="black_box_details_group" class="mt-2" {% if not detail.black_box_warning %}style="display: none;"{% endif %}>
-                    <label for="black_box_details" class="form-label">Black Box Warning Details</label>
-                    <textarea class="form-control summernote" id="black_box_details" name="black_box_details">{{ detail.black_box_details or '' }}</textarea>
-                </div>
-            </div>
-
-            <!-- Pregnancy Safety -->
-            <div class="mb-3">
-                <label for="pregnancy_safety_id" class="form-label">Pregnancy Safety Category</label>
-                <select class="form-control" id="pregnancy_safety_id" name="pregnancy_safety_id">
-                    <option value="">Select Pregnancy Safety</option>
-                    {% for sc in safety_categories %}
-                    <option value="{{ sc.id }}" {% if sc.id == detail.pregnancy_safety_id %}selected{% endif %}>{{ sc.name }}</option>
-                    {% endfor %}
-                </select>
-                <div id="pregnancy_details_group" class="mt-2" {% if detail.pregnancy_safety_id and detail.pregnancy_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
-                    <label for="pregnancy_details" class="form-label">Pregnancy Safety Details</label>
-                    <textarea class="form-control summernote" id="pregnancy_details" name="pregnancy_details">{{ detail.pregnancy_details or '' }}</textarea>
+            <!-- Approvals Section -->
+            <div class="accordion">
+                <div class="accordion-header font-semibold text-lg text-gray-700">Approvals</div>
+                <div class="accordion-content">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="flex items-center">
+                            <input class="h-4 w-4 text-blue-600 border-gray-300 rounded" type="checkbox" id="fda_approved" name="fda_approved" {% if detail.fda_approved %}checked{% endif %} aria-label="FDA Approved">
+                            <label class="ml-2 block text-sm font-medium text-gray-700" for="fda_approved">FDA Approved</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input class="h-4 w-4 text-blue-600 border-gray-300 rounded" type="checkbox" id="ema_approved" name="ema_approved" {% if detail.ema_approved %}checked{% endif %} aria-label="EMA Approved">
+                            <label class="ml-2 block text-sm font-medium text-gray-700" for="ema_approved">EMA Approved</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input class="h-4 w-4 text-blue-600 border-gray-300 rounded" type="checkbox" id="titck_approved" name="titck_approved" {% if detail.titck_approved %}checked{% endif %} aria-label="TITCK Approved">
+                            <label class="ml-2 block text-sm font-medium text-gray-700" for="titck_approved">TITCK Approved</label>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            <!-- Lactation Safety -->
-            <div class="mb-3">
-                <label for="lactation_safety_id" class="form-label">Lactation Safety Category</label>
-                <select class="form-control" id="lactation_safety_id" name="lactation_safety_id">
-                    <option value="">Select Lactation Safety</option>
-                    {% for sc in safety_categories %}
-                    <option value="{{ sc.id }}" {% if sc.id == detail.lactation_safety_id %}selected{% endif %}>{{ sc.name }}</option>
-                    {% endfor %}
-                </select>
-                <div id="lactation_details_group" class="mt-2" {% if detail.lactation_safety_id and detail.lactation_safety.name in ['Caution', 'Contraindicated'] %}{% else %}style="display: none;"{% endif %}>
-                    <label for="lactation_details" class="form-label">Lactation Safety Details</label>
-                    <textarea class="form-control summernote" id="lactation_details" name="lactation_details">{{ detail.lactation_details or '' }}</textarea>
-                </div>
-            </div>
-
-
-            <!-- References -->
-            <div class="mb-3">
-                <label for="references" class="form-label">References</label>
-                <textarea class="form-control summernote" id="references" name="references">{{ detail.references or '' }}</textarea>
-            </div>
-
-            <!-- Approvals -->
-            <div class="row">
-                <div class="col-md-4 form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="fda_approved" name="fda_approved" {% if detail.fda_approved %}checked{% endif %}>
-                    <label class="form-check-label" for="fda_approved">FDA Approved</label>
-                </div>
-                <div class="col-md-4 form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="ema_approved" name="ema_approved" {% if detail.ema_approved %}checked{% endif %}>
-                    <label class="form-check-label" for="ema_approved">EMA Approved</label>
-                </div>
-                <div class="col-md-4 form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="titck_approved" name="titck_approved" {% if detail.titck_approved %}checked{% endif %}>
-                    <label class="form-check-label" for="titck_approved">TITCK Approved</label>
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Update</button>
+            <button type="submit" class="w-full md:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Update</button>
         </form>
     </div>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Select2 JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
     <!-- Summernote JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs5.min.js"></script>
-
     <script>
         $(document).ready(function () {
-            // Initialize Select2
-            $('.select2').select2({
+            console.log('Starting frontend initialization');
+
+            // Initialize Select2 for non-route fields
+            $('#indications, #target_molecules, #side_effects, #category_ids, #routes').select2({
                 placeholder: "Select or search...",
                 allowClear: true,
                 width: '100%'
             });
-            $('#category_ids').select2({
-                placeholder: "Select or search categories...",
-                allowClear: true,
-                width: '100%'
-            });
-            // Validate drug_id on form submission
-                $('form').on('submit', function (e) {
-                    const drugId = $('#drug_id').val();
-                    if (!drugId || isNaN(drugId) || drugId === '') {
-                        e.preventDefault();
-                        alert('Please select a valid drug.');
-                        return false;
-                    }
-                });            
-            // Initialize Summernote
-            $('.summernote').summernote({
+            console.log('Non-route Select2 initialized');
+
+            // Initialize Summernote for non-route fields
+            $('#mechanism_of_action, #synthesis, #pharmacodynamics, #pharmacokinetics, #black_box_details, #pregnancy_details, #lactation_details, #references').summernote({
                 height: 200,
                 toolbar: [
                     ['style', ['style']],
@@ -551,15 +594,45 @@
                     ['insert', ['link']]
                 ]
             });
-            $('#pregnancy_details, #lactation_details').summernote({
-                height: 200,
-                toolbar: [
-                    ['style', ['style']],
-                    ['font', ['bold', 'italic', 'underline']],
-                    ['para', ['ul', 'ol', 'paragraph']],
-                    ['color', ['color']],
-                    ['insert', ['link']]
-                ]
+            console.log('Non-route Summernote initialized');
+
+            // Accordion functionality
+            $('.accordion-header').on('click', function () {
+                const content = $(this).next('.accordion-content');
+                const isOpen = content.hasClass('active');
+                $('.accordion-content').removeClass('active').css('max-height', '0');
+                if (!isOpen) {
+                    content.addClass('active').css('max-height', content[0].scrollHeight + 'px');
+                }
+            });
+
+            // Toggle route content
+            $(document).on('click', '.route-toggle', function () {
+                const routeId = $(this).data('routeId');
+                const content = $(`.route-group[data-route-id="${routeId}"] .route-content`);
+                const isOpen = content.is(':visible');
+                content.slideToggle();
+                if (!isOpen && !content.data('initialized')) {
+                    // Initialize Select2 for route-specific fields
+                    $(`#metabolism_organs_${routeId}, #metabolism_enzymes_${routeId}, #metabolites_${routeId}, #route_indications_${routeId}`).select2({
+                        placeholder: "Select or search...",
+                        allowClear: true,
+                        width: '100%'
+                    });
+                    // Initialize Summernote for route-specific fields
+                    $(`#route_pharmacodynamics_${routeId}, #route_pharmacokinetics_${routeId}`).summernote({
+                        height: 200,
+                        toolbar: [
+                            ['style', ['style']],
+                            ['font', ['bold', 'italic', 'underline']],
+                            ['para', ['ul', 'ol', 'paragraph']],
+                            ['color', ['color']],
+                            ['insert', ['link']]
+                        ]
+                    });
+                    content.data('initialized', true);
+                    console.log(`Initialized Select2 and Summernote for route ${routeId}`);
+                }
             });
 
             // Toggle Black Box Details
@@ -579,172 +652,278 @@
                 $('#lactation_details_group').toggle(selected === 'Caution' || selected === 'Contraindicated');
             });
 
+            // Route data for pre-population
+            const routeData = {{ selected_routes|tojson|safe }};
+            console.log('Route data loaded:', routeData);
 
-            // Route Selection Handling
-            $('#routes').on('change', function () {
-                const selectedRoutes = $(this).val() || [];
-                const routeDetailsContainer = $('#route-details-container');
-                const existingRouteIds = $('.route-group input[name="route_id[]"]').map(function() { return $(this).val(); }).get();
+            // Function to validate range input
+            function validateRangeInput(value) {
+                if (!value) return true;
+                const rangePattern = /^(\d+(\.\d+)?)(-(\d+(\.\d+)?))?$/;
+                const singlePattern = /^\d+(\.\d+)?$/;
+                return rangePattern.test(value) || singlePattern.test(value);
+            }
 
-                // Remove unselected routes
-                $('.route-group').each(function() {
-                    const routeId = $(this).find('input[name="route_id[]"]').val();
-                    if (!selectedRoutes.includes(routeId)) {
-                        $(this).remove();
-                    }
-                });
+            // Function to validate SMILES
+            function validateSmiles(value) {
+                if (!value) return true;
+                const smilesPattern = /^[A-Za-z0-9@+\-\[\]\(\)\\\/=#+*]+$/;
+                let bracketCount = 0;
+                for (let char of value) {
+                    if (char === '[' || char === '(') bracketCount++;
+                    if (char === ']' || char === ')') bracketCount--;
+                }
+                return smilesPattern.test(value) && bracketCount === 0;
+            }
 
-                // Add new routes
-                selectedRoutes.forEach(routeId => {
-                    if (!existingRouteIds.includes(routeId)) {
-                        const routeName = $('#routes option[value="' + routeId + '"]').text();
-                        const routeGroup = `
-                            <div class="route-group">
-                                <h5>Route: ${routeName}</h5>
-                                <input type="hidden" name="route_id[]" value="${routeId}">
-                                <div class="mb-3">
-                                    <label for="route_pharmacodynamics_${routeId}" class="form-label">Pharmacodynamics</label>
-                                    <textarea class="form-control summernote" id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}"></textarea>
+            // Function to create a route group
+            function createRouteGroup(routeId, routeName, routeInfo = {}) {
+                if ($(`.route-group[data-route-id="${routeId}"]`).length) return;
+                const routeGroup = $(`
+                    <div class="route-group" data-route-id="${routeId}">
+                        <h5 class="font-semibold text-gray-700 route-toggle" data-route-id="${routeId}">Route: ${routeName}</h5>
+                        <input type="hidden" name="route_id[]" value="${routeId}">
+                        <div class="route-content" style="display: none;">
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="route_pharmacodynamics_${routeId}" class="block text-sm font-medium text-gray-700">Pharmacodynamics</label>
+                                    <textarea class="w-full p-2 border rounded-md" id="route_pharmacodynamics_${routeId}" name="route_pharmacodynamics_${routeId}" aria-label="Pharmacodynamics for Route ${routeName}">${routeInfo.pharmacodynamics || ''}</textarea>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="route_pharmacokinetics_${routeId}" class="form-label">Pharmacokinetics</label>
-                                    <textarea class="form-control summernote" id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}"></textarea>
+                                <div>
+                                    <label for="route_pharmacokinetics_${routeId}" class="block text-sm font-medium text-gray-700">Pharmacokinetics</label>
+                                    <textarea class="w-full p-2 border rounded-md" id="route_pharmacokinetics_${routeId}" name="route_pharmacokinetics_${routeId}" aria-label="Pharmacokinetics for Route ${routeName}">${routeInfo.pharmacokinetics || ''}</textarea>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="absorption_rate_${routeId}" class="form-label">Absorption Rate</label>
-                                    <input type="text" class="form-control" id="absorption_rate_${routeId}" name="absorption_rate_${routeId}">
-                                    <select class="form-control" id="absorption_rate_unit_id_${routeId}" name="absorption_rate_unit_id_${routeId}">
+                                    <label for="absorption_rate_${routeId}" class="block text-sm font-medium text-gray-700">Absorption Rate</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="absorption_rate_${routeId}" name="absorption_rate_${routeId}" value="${routeInfo.absorption_rate_min && routeInfo.absorption_rate_max ? `${routeInfo.absorption_rate_min}-${routeInfo.absorption_rate_max}` : routeInfo.absorption_rate_min || ''}" aria-label="Absorption Rate for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="absorption_rate_unit_id_${routeId}" name="absorption_rate_unit_id_${routeId}" aria-label="Absorption Rate Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.absorption_rate_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="absorption_rate_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="vod_rate_${routeId}" class="form-label">Volume of Distribution</label>
-                                    <input type="text" class="form-control" id="vod_rate_${routeId}" name="vod_rate_${routeId}">
-                                    <select class="form-control" id="vod_rate_unit_id_${routeId}" name="vod_rate_unit_id_${routeId}">
+                                    <label for="vod_rate_${routeId}" class="block text-sm font-medium text-gray-700">Volume of Distribution</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="vod_rate_${routeId}" name="vod_rate_${routeId}" value="${routeInfo.vod_rate_min && routeInfo.vod_rate_max ? `${routeInfo.vod_rate_min}-${routeInfo.vod_rate_max}` : routeInfo.vod_rate_min || ''}" aria-label="Volume of Distribution for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="vod_rate_unit_id_${routeId}" name="vod_rate_unit_id_${routeId}" aria-label="Volume of Distribution Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.vod_rate_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="vod_rate_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="protein_binding_${routeId}" class="form-label">Protein Binding (%)</label>
-                                    <input type="text" class="form-control" id="protein_binding_${routeId}" name="protein_binding_${routeId}">
+                                    <label for="protein_binding_${routeId}" class="block text-sm font-medium text-gray-700">Protein Binding (%)</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="protein_binding_${routeId}" name="protein_binding_${routeId}" value="${routeInfo.protein_binding_min && routeInfo.protein_binding_max ? `${routeInfo.protein_binding_min}-${routeInfo.protein_binding_max}` : routeInfo.protein_binding_min || ''}" aria-label="Protein Binding for Route ${routeName}">
+                                    <div class="error-message" id="protein_binding_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="half_life_${routeId}" class="form-label">Half-Life</label>
-                                    <input type="text" class="form-control" id="half_life_${routeId}" name="half_life_${routeId}">
-                                    <select class="form-control" id="half_life_unit_id_${routeId}" name="half_life_unit_id_${routeId}">
+                                    <label for="half_life_${routeId}" class="block text-sm font-medium text-gray-700">Half-Life</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="half_life_${routeId}" name="half_life_${routeId}" value="${routeInfo.half_life_min && routeInfo.half_life_max ? `${routeInfo.half_life_min}-${routeInfo.half_life_max}` : routeInfo.half_life_min || ''}" aria-label="Half-Life for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="half_life_unit_id_${routeId}" name="half_life_unit_id_${routeId}" aria-label="Half-Life Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.half_life_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="half_life_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="clearance_rate_${routeId}" class="form-label">Clearance Rate</label>
-                                    <input type="text" class="form-control" id="clearance_rate_${routeId}" name="clearance_rate_${routeId}">
-                                    <select class="form-control" id="clearance_rate_unit_id_${routeId}" name="clearance_rate_unit_id_${routeId}">
+                                    <label for="clearance_rate_${routeId}" class="block text-sm font-medium text-gray-700">Clearance Rate</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="clearance_rate_${routeId}" name="clearance_rate_${routeId}" value="${routeInfo.clearance_rate_min && routeInfo.clearance_rate_max ? `${routeInfo.clearance_rate_min}-${routeInfo.clearance_rate_max}` : routeInfo.clearance_rate_min || ''}" aria-label="Clearance Rate for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="clearance_rate_unit_id_${routeId}" name="clearance_rate_unit_id_${routeId}" aria-label="Clearance Rate Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.clearance_rate_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="clearance_rate_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="bioavailability_${routeId}" class="form-label">Bioavailability (%)</label>
-                                    <input type="text" class="form-control" id="bioavailability_${routeId}" name="bioavailability_${routeId}">
+                                    <label for="bioavailability_${routeId}" class="block text-sm font-medium text-gray-700">Bioavailability (%)</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="bioavailability_${routeId}" name="bioavailability_${routeId}" value="${routeInfo.bioavailability_min && routeInfo.bioavailability_max ? `${routeInfo.bioavailability_min}-${routeInfo.bioavailability_max}` : routeInfo.bioavailability_min || ''}" aria-label="Bioavailability for Route ${routeName}">
+                                    <div class="error-message" id="bioavailability_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="tmax_${routeId}" class="form-label">Tmax</label>
-                                    <input type="text" class="form-control" id="tmax_${routeId}" name="tmax_${routeId}">
-                                    <select class="form-control" id="tmax_unit_id_${routeId}" name="tmax_unit_id_${routeId}">
+                                    <label for="tmax_${routeId}" class="block text-sm font-medium text-gray-700">Tmax</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="tmax_${routeId}" name="tmax_${routeId}" value="${routeInfo.tmax_min && routeInfo.tmax_max ? `${routeInfo.tmax_min}-${routeInfo.tmax_max}` : routeInfo.tmax_min || ''}" aria-label="Tmax for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="tmax_unit_id_${routeId}" name="tmax_unit_id_${routeId}" aria-label="Tmax Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.tmax_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="tmax_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="cmax_${routeId}" class="form-label">Cmax</label>
-                                    <input type="text" class="form-control" id="cmax_${routeId}" name="cmax_${routeId}">
-                                    <select class="form-control" id="cmax_unit_id_${routeId}" name="cmax_unit_id_${routeId}">
+                                    <label for="cmax_${routeId}" class="block text-sm font-medium text-gray-700">Cmax</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="cmax_${routeId}" name="cmax_${routeId}" value="${routeInfo.cmax_min && routeInfo.cmax_max ? `${routeInfo.cmax_min}-${routeInfo.cmax_max}` : routeInfo.cmax_min || ''}" aria-label="Cmax for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="cmax_unit_id_${routeId}" name="cmax_unit_id_${routeId}" aria-label="Cmax Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.cmax_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="cmax_${routeId}_error"></div>
                                 </div>
                                 <div class="form-group-pair">
-                                    <label for="therapeutic_range_${routeId}" class="form-label">Therapeutic Range</label>
-                                    <input type="text" class="form-control" id="therapeutic_range_${routeId}" name="therapeutic_range_${routeId}">
-                                    <select class="form-control" id="therapeutic_unit_id_${routeId}" name="therapeutic_unit_id_${routeId}">
+                                    <label for="therapeutic_range_${routeId}" class="block text-sm font-medium text-gray-700">Therapeutic Range</label>
+                                    <input type="text" class="flex-1 p-2 border rounded-md" id="therapeutic_range_${routeId}" name="therapeutic_range_${routeId}" value="${routeInfo.therapeutic_min && routeInfo.therapeutic_max ? `${routeInfo.therapeutic_min}-${routeInfo.therapeutic_max}` : routeInfo.therapeutic_min || ''}" aria-label="Therapeutic Range for Route ${routeName}">
+                                    <select class="w-32 p-2 border rounded-md" id="therapeutic_unit_id_${routeId}" name="therapeutic_unit_id_${routeId}" aria-label="Therapeutic Range Unit">
                                         {% for unit in units %}
-                                        <option value="{{ unit.id }}">{{ unit.name }}</option>
+                                        <option value="{{ unit.id }}" ${routeInfo.therapeutic_unit_id == {{ unit.id }} ? 'selected' : ''}>{{ unit.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div class="error-message" id="therapeutic_range_${routeId}_error"></div>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="metabolism_organs_${routeId}" class="form-label">Metabolism Organs</label>
-                                    <select id="metabolism_organs_${routeId}" name="metabolism_organs_${routeId}[]" class="form-control select2" multiple>
+                                <div>
+                                    <label for="metabolism_organs_${routeId}" class="block text-sm font-medium text-gray-700">Metabolism Organs</label>
+                                    <select id="metabolism_organs_${routeId}" name="metabolism_organs_${routeId}[]" class="w-full" multiple aria-label="Select Metabolism Organs for Route ${routeName}">
                                         {% for organ in metabolism_organs %}
-                                        <option value="{{ organ.id }}">{{ organ.name_en }}</option>
+                                        <option value="{{ organ.id }}" ${routeInfo.metabolism_organs && routeInfo.metabolism_organs.includes({{ organ.id }}) ? 'selected' : ''}>{{ organ.name_en }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="metabolism_enzymes_${routeId}" class="form-label">Metabolism Enzymes</label>
-                                    <select id="metabolism_enzymes_${routeId}" name="metabolism_enzymes_${routeId}[]" class="form-control select2" multiple>
+                                <div>
+                                    <label for="metabolism_enzymes_${routeId}" class="block text-sm font-medium text-gray-700">Metabolism Enzymes</label>
+                                    <select id="metabolism_enzymes_${routeId}" name="metabolism_enzymes_${routeId}[]" class="w-full" multiple aria-label="Select Metabolism Enzymes for Route ${routeName}">
                                         {% for enzyme in metabolism_enzymes %}
-                                        <option value="{{ enzyme.id }}">{{ enzyme.name_en }}</option>
+                                        <option value="{{ enzyme.id }}" ${routeInfo.metabolism_enzymes && routeInfo.metabolism_enzymes.includes({{ enzyme.id }}) ? 'selected' : ''}>{{ enzyme.name_en }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="metabolites_${routeId}" class="form-label">Metabolites</label>
-                                    <select id="metabolites_${routeId}" name="metabolites_${routeId}[]" class="form-control select2" multiple>
+                                <div>
+                                    <label for="metabolites_${routeId}" class="block text-sm font-medium text-gray-700">Metabolites</label>
+                                    <select id="metabolites_${routeId}" name="metabolites_${routeId}[]" class="w-full" multiple aria-label="Select Metabolites for Route ${routeName}">
                                         {% for metabolite in metabolites %}
-                                        <option value="{{ metabolite.id }}">{{ metabolite.name_en }}</option>
+                                        <option value="{{ metabolite.id }}" ${routeInfo.metabolites && routeInfo.metabolites.includes({{ metabolite.id }}) ? 'selected' : ''}>{{ metabolite.name_en }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="route_indications_${routeId}" class="form-label">Indications</label>
-                                    <select id="route_indications_${routeId}" name="route_indications_${routeId}[]" class="form-control select2" multiple>
+                                <div>
+                                    <label for="route_indications_${routeId}" class="block text-sm font-medium text-gray-700">Indications</label>
+                                    <select id="route_indications_${routeId}" name="route_indications_${routeId}[]" class="w-full" multiple aria-label="Select Indications for Route ${routeName}">
                                         {% for indication in indications %}
-                                        <option value="{{ indication.id }}">{{ indication.name_en }}</option>
+                                        <option value="{{ indication.id }}" ${routeInfo.indications && routeInfo.indications.includes({{ indication.id }}) ? 'selected' : ''}>{{ indication.name_en }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
                             </div>
-                        `;
-                        routeDetailsContainer.append(routeGroup);
+                        </div>
+                    </div>
+                `);
+                $('#route-details-container').append(routeGroup);
+            }
 
-                        // Initialize Select2 and Summernote for new elements
-                        $(`#route_indications_${routeId}, #metabolism_organs_${routeId}, #metabolism_enzymes_${routeId}, #metabolites_${routeId}`).select2({
-                            placeholder: "Select or search...",
-                            allowClear: true,
-                            width: '100%'
-                        });
-                        $(`#route_pharmacodynamics_${routeId}, #route_pharmacokinetics_${routeId}`).summernote({
-                            height: 200,
-                            toolbar: [
-                                ['style', ['style']],
-                                ['font', ['bold', 'italic', 'underline']],
-                                ['para', ['ul', 'ol', 'paragraph']],
-                                ['color', ['color']],
-                                ['insert', ['link']]
-                            ]
-                        });
+            // Route Selection Handling
+            $('#routes').on('change', function () {
+                console.log('Routes changed:', $(this).val());
+                const selectedRoutes = $(this).val() || [];
+                const routeDetailsContainer = $('#route-details-container');
+                $('.route-group').each(function() {
+                    const routeId = $(this).data('routeId');
+                    if (!selectedRoutes.includes(routeId.toString())) {
+                        $(this).remove();
                     }
                 });
-            });
-
-            // Initialize Select2 for existing route-specific indications
-            $('select[id^="route_indications_"], select[id^="metabolism_organs_"], select[id^="metabolism_enzymes_"], select[id^="metabolites_"]').each(function () {
-                $(this).select2({
-                    placeholder: "Select or search...",
-                    allowClear: true,
-                    width: '100%'
+                selectedRoutes.forEach(routeId => {
+                    const routeOption = $(`#routes option[value="${routeId}"]`);
+                    const routeName = routeOption.text() || 'Unknown Route';
+                    const routeInfo = routeData.find(r => r.route_id == routeId) || {};
+                    createRouteGroup(routeId, routeName, routeInfo);
                 });
             });
+
+            // Form Validation
+            $('#drugDetailForm').on('submit', function (e) {
+                console.log('Form submission started');
+                let isValid = true;
+                $('.error-message').text('');
+                $('.form-control, .select2-container').removeClass('is-invalid');
+
+                // Validate drug_id
+                const drugId = $('#drug_id').val();
+                if (!drugId || isNaN(drugId)) {
+                    $('#drug_id_error').text('Please select a valid drug.');
+                    $('#drug_id').addClass('is-invalid');
+                    isValid = false;
+                }
+
+                // Validate molecular_formula
+                const molecularFormula = $('#molecular_formula').val().trim();
+                if (!molecularFormula) {
+                    $('#molecular_formula_error').text('Molecular formula is required.');
+                    $('#molecular_formula').addClass('is-invalid');
+                    isValid = false;
+                }
+
+                // Validate SMILES
+                const smiles = $('#smiles').val().trim();
+                if (smiles && !validateSmiles(smiles)) {
+                    $('#smiles_error').text('Invalid SMILES format. Ensure valid characters and balanced brackets.');
+                    $('#smiles').addClass('is-invalid');
+                    isValid = false;
+                }
+
+                // Validate routes
+                const selectedRoutes = $('#routes').val() || [];
+                if (!selectedRoutes.length) {
+                    $('#routes_error').text('At least one route is required.');
+                    $('#routes').next('.select2-container').addClass('is-invalid');
+                    isValid = false;
+                }
+
+                // Validate file input
+                const structureFile = $('#structure')[0].files[0];
+                if (structureFile) {
+                    const maxSize = 5 * 1024 * 1024; // 5MB
+                    if (structureFile.size > maxSize) {
+                        $('#structure_error').text('File size must be less than 5MB.');
+                        $('#structure').addClass('is-invalid');
+                        isValid = false;
+                    }
+                    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml'];
+                    if (!allowedTypes.includes(structureFile.type)) {
+                        $('#structure_error').text('Only PNG, JPEG, or SVG files are allowed.');
+                        $('#structure').addClass('is-invalid');
+                        isValid = false;
+                    }
+                }
+
+                // Validate route-specific pharmacokinetic parameters
+                $('.route-group').each(function() {
+                    const routeId = $(this).data('routeId');
+                    const pkFields = [
+                        'absorption_rate', 'vod_rate', 'protein_binding', 'half_life',
+                        'clearance_rate', 'bioavailability', 'tmax', 'cmax', 'therapeutic_range'
+                    ];
+                    let hasPkData = false;
+                    pkFields.forEach(field => {
+                        const input = $(`#${field}_${routeId}`);
+                        const value = input.val().trim();
+                        if (value) {
+                            if (!validateRangeInput(value)) {
+                                $(`#${field}_${routeId}_error`).text('Enter a valid number or range (e.g., "10-20" or "15").');
+                                input.addClass('is-invalid');
+                                isValid = false;
+                            } else {
+                                hasPkData = true;
+                            }
+                        }
+                    });
+                    if (!hasPkData) {
+                        $(`#absorption_rate_${routeId}_error`).text('At least one pharmacokinetic parameter is required for this route.');
+                        isValid = false;
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('Please correct the errors in the form before submitting.');
+                }
+                console.log('Form validation completed, isValid:', isValid);
+            });
+
+            // Open first accordion by default
+            $('.accordion-content').first().addClass('active').css('max-height', $('.accordion-content').first()[0].scrollHeight + 'px');
+            console.log('Frontend initialization completed');
         });
     </script>
 </body>

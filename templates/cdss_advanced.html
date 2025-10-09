@@ -9,6 +9,7 @@
         .severity-low { background-color: #d4edda; }
         .severity-moderate { background-color: #fff3cd; }
         .severity-severe { background-color: #f8d7da; }
+        .severity-critical { background-color: #dc3545; color: white; }
         .select2-container { width: 100% !important; }
         .select2-selection__choice { font-size: 0.9rem; }
         .select2-selection__rendered { line-height: 1.5 !important; }
@@ -28,21 +29,43 @@
             <div class="row mb-3">
                 <div class="col">
                     <label for="age" class="form-label">Age</label>
-                    <input type="number" class="form-control" id="age" name="age" min="0" value="{{ request.form.get('age', 30) }}" required>
+                    <input type="number" class="form-control" id="age" name="age" min="0" max="120" value="{{ request.form.get('age', 30) }}" required>
                 </div>
                 <div class="col">
                     <label for="weight" class="form-label">Weight (kg)</label>
-                    <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="0" value="{{ request.form.get('weight', 70.0) }}" required>
+                    <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="0" max="300" value="{{ request.form.get('weight', 70.0) }}" required>
                 </div>
                 <div class="col">
                     <label for="crcl" class="form-label">Creatinine Clearance (mL/min, optional)</label>
-                    <input type="number" class="form-control" id="crcl" name="crcl" step="0.1" min="0" placeholder="Auto-calculated if blank" value="{{ request.form.get('crcl', '') }}">
+                    <input type="number" class="form-control" id="crcl" name="crcl" step="0.1" min="0" max="200" placeholder="Auto-calculated if blank" value="{{ request.form.get('crcl', '') }}">
                 </div>
+                <div class="col">
+                    <label for="serum_creatinine" class="form-label">Serum Creatinine (mg/dL, optional)</label>
+                    <input type="number" class="form-control" id="serum_creatinine" name="serum_creatinine" step="0.01" min="0" placeholder="1.0 if blank" value="{{ request.form.get('serum_creatinine', 1.0) }}">
+                </div>
+            </div>
+            <div class="row mb-3">
                 <div class="col">
                     <label for="gender" class="form-label">Gender</label>
                     <select class="form-control" id="gender" name="gender" required>
                         <option value="M" {% if request.form.get('gender', 'M') == 'M' %}selected{% endif %}>Male</option>
                         <option value="F" {% if request.form.get('gender', 'M') == 'F' %}selected{% endif %}>Female</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="pregnancy" class="form-label">Pregnancy</label>
+                    <select class="form-control" id="pregnancy" name="pregnancy" required>
+                        <option value="no" {% if request.form.get('pregnancy', 'no') == 'no' %}selected{% endif %}>No</option>
+                        <option value="yes" {% if request.form.get('pregnancy', 'no') == 'yes' %}selected{% endif %}>Yes</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label for="hepatic_impairment" class="form-label">Hepatic Impairment</label>
+                    <select class="form-control" id="hepatic_impairment" name="hepatic_impairment" required>
+                        <option value="none" {% if request.form.get('hepatic_impairment', 'none') == 'none' %}selected{% endif %}>None</option>
+                        <option value="mild" {% if request.form.get('hepatic_impairment', 'none') == 'mild' %}selected{% endif %}>Mild</option>
+                        <option value="moderate" {% if request.form.get('hepatic_impairment', 'none') == 'moderate' %}selected{% endif %}>Moderate</option>
+                        <option value="severe" {% if request.form.get('hepatic_impairment', 'none') == 'severe' %}selected{% endif %}>Severe</option>
                     </select>
                 </div>
             </div>
@@ -124,13 +147,13 @@
                 </thead>
                 <tbody>
                     {% for result in interaction_results %}
-                    <tr class="{% if result.predicted_severity == 'Severe' %}severity-severe{% elif result.predicted_severity == 'Moderate' %}severity-moderate{% else %}severity-low{% endif %}">
+                    <tr class="{% if result.predicted_severity == 'Critical' %}severity-critical{% elif result.predicted_severity == 'Severe' %}severity-severe{% elif result.predicted_severity == 'Moderate' %}severity-moderate{% else %}severity-low{% endif %}">
                         <td>{{ result.type }}</td>
                         <td>{{ result.drug1 }}</td>
                         <td>{{ result.drug2 }}</td>
                         <td>{{ result.severity }}</td>
                         <td>{{ result.predicted_severity }}</td>
-                        <td>{{ result.description }}</td>
+                        <td>{{ result.description }}{% if result.get('evidence_level') %} (Evidence: {{ result.evidence_level }}){% endif %}</td>
                         <td>{{ result.monitoring }}</td>
                         <td>{{ result.alternatives }}</td>
                     </tr>
