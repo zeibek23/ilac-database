@@ -113,6 +113,19 @@
             border: 1px solid #e5e7eb;
             border-radius: 8px;
         }
+        /* Category Badge Styles */
+        .category-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            margin: 0.25rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: transform 0.2s ease;
+        }
+        .category-badge:hover {
+            transform: scale(1.1);
+        }
         @media (max-width: 768px) {
             .table-container {
                 overflow-x: auto;
@@ -123,6 +136,10 @@
             }
             #viewer {
                 height: 300px;
+            }
+            .category-badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.4rem;
             }
         }
         /* Pregnancy/Lactation Status Colors */
@@ -137,7 +154,6 @@
         <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
             <i class="fas fa-capsules section-icon"></i>Comprehensive Drug Details
         </h1>
-
         <!-- Search Bar -->
         <section class="mb-10 fade-in">
             <div class="card bg-white rounded-xl shadow-lg p-6">
@@ -147,7 +163,6 @@
                 </div>
             </div>
         </section>
-
         <!-- Details Table -->
         <section class="fade-in">
             <div class="card bg-white rounded-xl shadow-lg p-6">
@@ -156,6 +171,7 @@
                         <thead>
                             <tr>
                                 <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
+                                <th><i class="fas fa-tags section-icon"></i>Categories</th>
                                 <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th>
                                 <th><i class="fas fa-vial section-icon"></i>Salt</th>
                                 <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
@@ -199,6 +215,17 @@
                             {% for detail in details %}
                             <tr>
                                 <td>{{ detail.drug_name }}</td>
+                                <td>
+                                    {% if detail.categories %}
+                                    <div class="flex flex-wrap gap-1">
+                                        {% for category in detail.categories %}
+                                        <span class="category-badge bg-blue-100 text-blue-800 tooltip-text" title="{{ category.name }}">{{ category.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <span class="text-gray-500">No Categories Assigned</span>
+                                    {% endif %}
+                                </td>
                                 <td class="rich-text">{{ detail.mechanism_of_action|safe if detail.mechanism_of_action else 'N/A' }}</td>
                                 <td>{{ detail.salt_name if detail.salt_name else 'N/A' }}</td>
                                 <td>
@@ -365,8 +392,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <!-- Update colspan to account for new columns -->
-                                <td colspan="36" class="text-center text-gray-500 py-4">No details available.</td>
+                                <td colspan="37" class="text-center text-gray-500 py-4">No details available.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -374,7 +400,6 @@
                 </div>
             </div>
         </section>
-
         <!-- Modal for 3D Structure -->
         <div id="structureModal" class="modal">
             <div class="modal-content">
@@ -384,7 +409,6 @@
             </div>
         </div>
     </div>
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script>
@@ -397,39 +421,32 @@
                 pageLength: 10,
                 scrollX: true,
                 columnDefs: [
-                    { width: '200px', targets: [26, 27, 28, 32, 34, 35] }, // Adjusted for new columns (indications, side effects, targets, routes, pregnancy, lactation)
-                    { width: '100px', targets: [9, 11] }, // Synthesis, SMILES
-                    { width: '120px', targets: [7] }, // 3D Structure column
-                    { width: '150px', targets: [1] }, // Mechanism of Action column
-                    { width: '150px', targets: [33, 34] } // Pregnancy and Lactation columns
+                    { width: '200px', targets: [1, 27, 28, 29, 33, 35, 36] }, // Categories, indications, side effects, targets, routes, pregnancy, lactation
+                    { width: '100px', targets: [10, 12] }, // Synthesis, SMILES
+                    { width: '120px', targets: [8] }, // 3D Structure column
+                    { width: '150px', targets: [2] }, // Mechanism of Action column
+                    { width: '150px', targets: [34, 35] } // Pregnancy and Lactation columns
                 ]
             });
-
             $('#searchBox').on('keyup', function () {
                 table.search(this.value).draw();
             });
-
             // Modal handling
             const modal = $('#structureModal');
             const modalTitle = $('#modalTitle');
             const viewerDiv = $('#viewer');
             let viewer = null;
-
             $('.view-3d-btn').on('click', function () {
                 const structureUrl = $(this).data('structure');
                 const drugName = $(this).data('drug');
-
                 // Set modal title
                 modalTitle.text(`3D Structure of ${drugName}`);
-
                 // Clear previous viewer
                 viewerDiv.empty();
-
                 // Initialize 3Dmol.js viewer
                 viewer = $3Dmol.createViewer('viewer', {
                     backgroundColor: 'white'
                 });
-
                 // Fetch and render PDB file
                 $.get(structureUrl, function (data) {
                     viewer.addModel(data, 'pdb');
@@ -439,17 +456,14 @@
                 }, 'text').fail(function () {
                     viewerDiv.html('<p class="text-red-500">Error loading 3D structure.</p>');
                 });
-
                 // Show modal
                 modal.css('display', 'flex');
             });
-
             // Close modal
             $('.modal-close').on('click', function () {
                 modal.css('display', 'none');
                 viewerDiv.empty(); // Clear viewer
             });
-
             // Close modal when clicking outside
             modal.on('click', function (e) {
                 if (e.target === modal[0]) {

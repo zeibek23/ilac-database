@@ -5,10 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Routes</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         .description-text {
             max-width: 300px;
             word-wrap: break-word;
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .table th {
+            background-color: #f8f9fa;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .btn-icon {
+            margin-right: 5px;
         }
     </style>
 </head>
@@ -51,37 +65,49 @@
         </div>
 
         <!-- Mevcut Route'ları Listeleme -->
-        <div class="card p-3 shadow-sm">
-            <h4 class="card-title">Existing Routes</h4>
-            <table class="table table-striped table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Route Name</th>
-                        <th>Type</th>
-                        <th>Description</th>
-                        <th>Parent Route</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for route in routes %}
-                    <tr>
-                        <td>{{ route.name }}</td>
-                        <td>{{ route.type }}</td>
-                        <td class="description-text">{{ route.description if route.description else 'N/A' }}</td>
-                        <td>{{ route.parent.name if route.parent else 'None' }}</td>
-                        <td>
-                            <!-- Update Button with Modal Trigger -->
-                            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#updateModal{{ route.id }}">Update</button>
-                            <!-- Delete Button -->
-                            <form action="/routes/delete/{{ route.id }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ route.name }}?');">
-                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="card p-3 shadow-lg border-0">
+            <div class="card-header text-center py-3">
+                <h4 class="card-title mb-0">Existing Routes</h4>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped table-hover table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Route Name</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Parent Route</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for route in routes %}
+                        <tr>
+                            <td class="fw-bold">{{ route.name }}</td>
+                            <td>
+                                <span class="badge {% if route.type == 'Systemic' %}bg-primary{% elif route.type == 'Local' %}bg-success{% else %}bg-warning text-dark{% endif %} rounded-pill">
+                                    {{ route.type }}
+                                </span>
+                            </td>
+                            <td class="description-text">{{ route.description if route.description else 'N/A' }}</td>
+                            <td>{{ route.parent.name if route.parent else 'None' }}</td>
+                            <td>
+                                <!-- Update Button with Modal Trigger -->
+                                <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#updateModal{{ route.id }}">
+                                    <i class="bi bi-pencil-square btn-icon"></i> Update
+                                </button>
+                                <!-- Delete Button -->
+                                <form action="/routes/delete/{{ route.id }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ route.name }}?');">
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="bi bi-trash btn-icon"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 

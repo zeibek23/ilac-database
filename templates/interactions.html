@@ -26,36 +26,36 @@
         .table tbody tr:hover {
             background-color: #f1f1f1;
         }
-        .severity-Hafif {
+        .severity-Mild {
             background-color: #d4edda !important;
             color: #155724 !important;
         }
-        .severity-Orta {
+        .severity-Moderate {
             background-color: #fff3cd !important;
             color: #856404 !important;
         }
-        .severity-Şiddetli {
+        .severity-Severe {
             background-color: #f8d7da !important;
             color: #721c24 !important;
         }
-        .severity-Kritik {
+        .severity-Critical {
             background-color: #d9534f !important;
             color: white !important;
             font-weight: bold;
         }
-        .severity-ai-Hafif {
+        .severity-ai-Mild {
             background-color: #d4edda !important;
             color: #155724 !important;
         }
-        .severity-ai-Orta {
+        .severity-ai-Moderate {
             background-color: #fff3cd !important;
             color: #856404 !important;
         }
-        .severity-ai-Şiddetli {
+        .severity-ai-Severe {
             background-color: #f8d7da !important;
             color: #721c24 !important;
         }
-        .severity-ai-Kritik {
+        .severity-ai-Critical {
             background-color: #d9534f !important;
             color: white !important;
             font-weight: bold;
@@ -68,101 +68,149 @@
             visibility: visible !important;
             opacity: 1 !important;
         }
+        .severity-legend {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .severity-legend h5 {
+            margin-bottom: 15px;
+        }
+        .severity-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .severity-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center mb-4">Etkileşim Kontrolü</h1>
+        <h1 class="text-center mb-4">Interaction Check</h1>
 
         <!-- Form Section -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">İlaçları ve Veriliş Yollarını Seçin</h4>
+                <h4 class="mb-0">Select Drugs and Routes of Administration</h4>
             </div>
             <div class="card-body">
                 <form method="POST">
                     <div class="mb-3">
-                        <label for="drug1" class="form-label">İlaç 1 Seçin</label>
+                        <label for="drug1" class="form-label">Select Drug 1 <span data-bs-toggle="tooltip" data-bs-placement="top" title="Choose the first drug to check for interactions. Start typing to search.">&#9432;</span></label>
                         <select name="drug1_id" id="drug1" class="form-select" required></select>
                     </div>
                     <div class="mb-3">
-                        <label for="drug2" class="form-label">İlaç 2 Seçin</label>
+                        <label for="drug2" class="form-label">Select Drug 2 <span data-bs-toggle="tooltip" data-bs-placement="top" title="Choose the second drug to check for interactions. Start typing to search.">&#9432;</span></label>
                         <select name="drug2_id" id="drug2" class="form-select" required></select>
                     </div>
                     <div class="mb-3">
-                        <label for="routes" class="form-label">Veriliş Yolları (Opsiyonel)</label>
+                        <label for="routes" class="form-label">Routes of Administration (Optional) <span data-bs-toggle="tooltip" data-bs-placement="top" title="Select one or more routes if the interaction depends on how the drugs are administered. Leave blank for general interactions.">&#9432;</span></label>
                         <select name="route_ids" id="routes" class="form-select" multiple></select>
                     </div>
                     <button type="submit" class="btn btn-primary w-100" id="submitBtn">
                         <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
-                        Etkileşimi Kontrol Et
+                        Check Interaction
                     </button>
                 </form>
+                <div class="severity-legend">
+                    <h5>Severity Levels Explanation</h5>
+                    <div class="severity-item">
+                        <div class="severity-color" style="background-color: #d4edda;"></div>
+                        <span><strong>Mild:</strong> Minimal clinical impact, no significant risks.</span>
+                    </div>
+                    <div class="severity-item">
+                        <div class="severity-color" style="background-color: #fff3cd;"></div>
+                        <span><strong>Moderate:</strong> Noticeable effects requiring monitoring.</span>
+                    </div>
+                    <div class="severity-item">
+                        <div class="severity-color" style="background-color: #f8d7da;"></div>
+                        <span><strong>Severe:</strong> High risk of harm, requires careful management.</span>
+                    </div>
+                    <div class="severity-item">
+                        <div class="severity-color" style="background-color: #d9534f;"></div>
+                        <span><strong>Critical:</strong> Life-threatening, avoid combination.</span>
+                    </div>
+                </div>
             </div>
         </div>
+
+        {% if error %}
+        <div class="alert alert-danger mt-4">
+            {{ error }}
+        </div>
+        {% endif %}
 
         {% if interaction_results %}
         <div class="card shadow-sm">
             <div class="card-header bg-success text-white">
-                <h4 class="mb-0">Etkileşim Sonuçları</h4>
+                <h4 class="mb-0">Interaction Results</h4>
             </div>
             <div class="card-body">
-                <table class="table table-bordered table-hover">
-                    <thead>
-                        <tr>
-                            <th>İlaç 1</th>
-                            <th>İlaç 2</th>
-                            <th>Uygulama Yolları</th>
-                            <th>Tür</th>
-                            <th>Açıklama</th>
-                            <th>Şiddet</th>
-                            <th>AI Tarafından Öngörülen Şiddet</th>
-                            <th>Mekanizma</th>
-                            <th>İzleme</th>
-                            <th>Alternatifler</th>
-                            <th>Referans</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for interaction in interaction_results %}
-                        <tr>
-                            <td>{{ interaction.drug1 }}</td>
-                            <td>{{ interaction.drug2 }}</td>
-                            <td>{{ interaction.route }}</td>
-                            <td>{{ interaction.interaction_type }}</td>
-                            <td>{{ interaction.interaction_description | safe }}</td>
-                            <td class="
-                                {% if interaction.severity == 'Hafif' %}severity-Hafif
-                                {% elif interaction.severity == 'Orta' %}severity-Orta
-                                {% elif interaction.severity == 'Şiddetli' %}severity-Şiddetli
-                                {% elif interaction.severity == 'Kritik' %}severity-Kritik
-                                {% endif %}
-                            ">
-                                {{ interaction.severity or 'Bilinmiyor' }}
-                            </td>
-                            <td class="
-                                {% if interaction.predicted_severity == 'Hafif' %}severity-ai-Hafif
-                                {% elif interaction.predicted_severity == 'Orta' %}severity-ai-Orta
-                                {% elif interaction.predicted_severity == 'Şiddetli' %}severity-ai-Şiddetli
-                                {% elif interaction.predicted_severity == 'Kritik' %}severity-ai-Kritik
-                                {% else %}severity-ai-not-available
-                                {% endif %}
-                            ">
-                                {{ interaction.predicted_severity or 'Bilinmiyor' }}
-                            </td>
-                            <td>{{ interaction.mechanism }}</td>
-                            <td>{{ interaction.monitoring }}</td>
-                            <td>{{ interaction.alternatives }}</td>
-                            <td>{{ interaction.reference }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>Drug 1</th>
+                                <th>Drug 2</th>
+                                <th>Routes of Administration</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th>Severity</th>
+                                <th>AI Predicted Severity</th>
+                                <th>Mechanism</th>
+                                <th>Monitoring</th>
+                                <th>Alternatives</th>
+                                <th>Reference</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for interaction in interaction_results %}
+                            <tr>
+                                <td>{{ interaction.drug1 }}</td>
+                                <td>{{ interaction.drug2 }}</td>
+                                <td>{{ interaction.route }}</td>
+                                <td>{{ interaction.interaction_type }}</td>
+                                <td>{{ interaction.interaction_description | safe }}</td>
+                                <td class="
+                                    {% if interaction.severity == 'Hafif' %}severity-Mild
+                                    {% elif interaction.severity == 'Orta' %}severity-Moderate
+                                    {% elif interaction.severity == 'Şiddetli' %}severity-Severe
+                                    {% elif interaction.severity == 'Hayati Risk İçeren' %}severity-Critical
+                                    {% endif %}
+                                ">
+                                    {{ interaction.severity | replace('Hafif', 'Mild') | replace('Orta', 'Moderate') | replace('Şiddetli', 'Severe') | replace('Hayati Risk İçeren', 'Critical') or 'Unknown' }}
+                                </td>
+                                <td class="
+                                    {% if interaction.predicted_severity == 'Hafif' %}severity-ai-Mild
+                                    {% elif interaction.predicted_severity == 'Orta' %}severity-ai-Moderate
+                                    {% elif interaction.predicted_severity == 'Şiddetli' %}severity-ai-Severe
+                                    {% elif interaction.predicted_severity == 'Hayati Risk İçeren' %}severity-ai-Critical
+                                    {% else %}severity-ai-not-available
+                                    {% endif %}
+                                ">
+                                    {{ interaction.predicted_severity | replace('Hafif', 'Mild') | replace('Orta', 'Moderate') | replace('Şiddetli', 'Severe') | replace('Hayati Risk İçeren', 'Critical') or 'Unknown' }}
+                                </td>
+                                <td>{{ interaction.mechanism }}</td>
+                                <td>{{ interaction.monitoring }}</td>
+                                <td>{{ interaction.alternatives }}</td>
+                                <td>{{ interaction.reference }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         {% else %}
         <div class="text-center mt-4">
-            <p class="text-muted">Etkileşim bulunamadı. Lütfen ilaçları seçin ve tekrar deneyin.</p>
+            <p class="text-muted">No interaction found. Please select drugs and try again.</p>
         </div>
         {% endif %}
     </div>
@@ -204,19 +252,31 @@ $(document).ready(function() {
             },
             minimumInputLength: 0, // Allow searching with empty input for routes
             allowClear: true,
-            multiple: multiple,
-            language: 'tr'
+            multiple: multiple
         });
     }
 
-    initSelect2("#drug1", "İlaç 1 seçin...", "/api/active_ingredients");
-    initSelect2("#drug2", "İlaç 2 seçin...", "/api/active_ingredients");
-    initSelect2("#routes", "Veriliş yolları seçin...", "/api/routes", true);
+    initSelect2("#drug1", "Select Drug 1...", "/api/active_ingredients");
+    initSelect2("#drug2", "Select Drug 2...", "/api/active_ingredients");
+    initSelect2("#routes", "Select routes of administration...", "/api/routes", true);
+
+    // Enable Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
 
     $('form').on('submit', function(e) {
         e.preventDefault();
+        // Client-side validation: Check if drug1 and drug2 are different
+        var drug1Val = $('#drug1').val();
+        var drug2Val = $('#drug2').val();
+        if (drug1Val === drug2Val && drug1Val !== null) {
+            alert('Please select two different drugs.');
+            return;
+        }
         var $btn = $('#submitBtn');
-        $btn.prop('disabled', true).text('Kontrol Ediliyor...');
+        $btn.prop('disabled', true).text('Checking...');
         $btn.find('.spinner-border').removeClass('d-none');
 
         // Ensure multiple route_ids are sent as an array
@@ -231,17 +291,17 @@ $(document).ready(function() {
             type: 'POST',
             data: formData,
             success: function(response) {
-                $btn.prop('disabled', false).text('Etkileşimi Kontrol Et');
+                $btn.prop('disabled', false).text('Check Interaction');
                 $btn.find('.spinner-border').addClass('d-none');
                 document.open();
                 document.write(response);
                 document.close();
             },
             error: function(xhr) {
-                $btn.prop('disabled', false).text('Etkileşimi Kontrol Et');
+                $btn.prop('disabled', false).text('Check Interaction');
                 $btn.find('.spinner-border').addClass('d-none');
                 console.error("Error submitting form:", xhr.responseText);
-                alert('Etkileşim kontrol edilirken bir hata oluştu: ' + xhr.responseText);
+                alert('An error occurred while checking the interaction: ' + xhr.responseText);
             }
         });
     });
