@@ -11,7 +11,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-    <!-- Added custom CSS for validation feedback -->
     <style>
         .is-invalid {
             border-color: #dc3545 !important;
@@ -30,7 +29,7 @@
     <div class="container mt-5">
         <h1 class="text-center mb-4">Add New Drug Detail</h1>
         <form action="/details/add" method="POST" enctype="multipart/form-data" id="drug-detail-form">
-            <!-- Uyarı Mesajı -->
+            <!-- Error Message -->
             {% if error_message %}
             <div class="alert alert-danger">
                 {{ error_message }}
@@ -131,7 +130,7 @@
                     <input type="text" class="form-control" id="ec_number" name="ec_number" aria-label="EC Number">
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="nci_code" class="form-label">NCI code</label>
+                    <label for="nci_code" class="form-label">NCI Code</label>
                     <input type="text" class="form-control" id="nci_code" name="nci_code" aria-label="NCI Code">
                 </div>
                 <div class="col-md-4 mb-3">
@@ -207,12 +206,12 @@
             </div>
 
             <!-- Black Box Warning -->
-            <div class="form-group">
-                <label for="black_box_warning">Contains Black Box Warning</label>
-                <input type="checkbox" id="black_box_warning" name="black_box_warning" aria-label="Black Box Warning Checkbox">
+            <div class="form-group mb-3">
+                <label for="black_box_warning" class="form-label">Contains Black Box Warning</label>
+                <input type="checkbox" id="black_box_warning" name="black_box_warning" class="form-check-input" aria-label="Black Box Warning Checkbox">
             </div>
-            <div id="black_box_details_container" style="display: none;" aria-hidden="true">
-                <label for="black_box_details">Black Box Warning Details</label>
+            <div id="black_box_details_container" style="display: none;" aria-hidden="true" class="mb-3">
+                <label for="black_box_details" class="form-label">Black Box Warning Details</label>
                 <div id="black_box_details_editor" style="height: 200px;" aria-label="Black Box Warning Details Editor"></div>
                 <input type="hidden" id="black_box_details" name="black_box_details">
             </div>
@@ -225,8 +224,8 @@
             </div>
 
             <!-- Pharmacokinetics -->
-            <div class="form-group">
-                <label for="pharmacokinetics" class="form-label" data-bs-toggle="tooltip" title="ADME properties (absorption, distribution, metabolism, excretion)">General Pharmacokinetics:</label>
+            <div class="mb-3">
+                <label for="pharmacokinetics" class="form-label" data-bs-toggle="tooltip" title="ADME properties (absorption, distribution, metabolism, excretion)">General Pharmacokinetics</label>
                 <small class="form-text text-muted">Provide pharmacokinetics data such as absorption, distribution, metabolism, and excretion (ADME) that applies to the entire drug.</small>
                 <div id="pharmacokinetics_editor" style="height: 200px;" aria-label="Pharmacokinetics Editor"></div>
                 <input type="hidden" id="pharmacokinetics" name="pharmacokinetics">
@@ -239,25 +238,61 @@
                 <input type="hidden" id="mechanism_of_action" name="mechanism_of_action">
             </div>
 
-            <!-- Pregnancy Safety -->
-            <div class="form-group">
-                <label for="pregnancy_safety_id">Pregnancy Safety</label>
-                <select class="form-control" id="pregnancy_safety_id" name="pregnancy_safety_id" required aria-label="Pregnancy Safety Category">
-                    <option value="">Select a category</option>
-                    {% for category in safety_categories %}
-                        <option value="{{ category.id }}">{{ category.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group" id="pregnancy_details_group" style="display: none;" aria-hidden="true">
-                <label for="pregnancy_details">Pregnancy Details</label>
-                <div id="pregnancy_details_editor" style="height: 200px;" aria-label="Pregnancy Details Editor"></div>
-                <input type="hidden" id="pregnancy_details" name="pregnancy_details">
+            <!-- Pregnancy Safety (Trimesters) -->
+            <div class="mb-3">
+                <h5>Pregnancy Safety</h5>
+                <!-- First Trimester -->
+                <div class="form-group mb-2">
+                    <label for="pregnancy_safety_trimester1_id" class="form-label">First Trimester</label>
+                    <select class="form-control" id="pregnancy_safety_trimester1_id" name="pregnancy_safety_trimester1_id" required aria-label="Pregnancy Safety Category - First Trimester">
+                        <option value="">Select a category</option>
+                        {% for category in safety_categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-2" id="pregnancy_details_trimester1_group" style="display: none;" aria-hidden="true">
+                    <label for="pregnancy_details_trimester1" class="form-label">First Trimester Details</label>
+                    <div id="pregnancy_details_trimester1_editor" style="height: 200px;" aria-label="Pregnancy Details Editor - First Trimester"></div>
+                    <input type="hidden" id="pregnancy_details_trimester1" name="pregnancy_details_trimester1">
+                </div>
+
+                <!-- Second Trimester -->
+                <div class="form-group mb-2">
+                    <label for="pregnancy_safety_trimester2_id" class="form-label">Second Trimester</label>
+                    <select class="form-control" id="pregnancy_safety_trimester2_id" name="pregnancy_safety_trimester2_id" required aria-label="Pregnancy Safety Category - Second Trimester">
+                        <option value="">Select a category</option>
+                        {% for category in safety_categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-2" id="pregnancy_details_trimester2_group" style="display: none;" aria-hidden="true">
+                    <label for="pregnancy_details_trimester2" class="form-label">Second Trimester Details</label>
+                    <div id="pregnancy_details_trimester2_editor" style="height: 200px;" aria-label="Pregnancy Details Editor - Second Trimester"></div>
+                    <input type="hidden" id="pregnancy_details_trimester2" name="pregnancy_details_trimester2">
+                </div>
+
+                <!-- Third Trimester -->
+                <div class="form-group mb-2">
+                    <label for="pregnancy_safety_trimester3_id" class="form-label">Third Trimester</label>
+                    <select class="form-control" id="pregnancy_safety_trimester3_id" name="pregnancy_safety_trimester3_id" required aria-label="Pregnancy Safety Category - Third Trimester">
+                        <option value="">Select a category</option>
+                        {% for category in safety_categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-2" id="pregnancy_details_trimester3_group" style="display: none;" aria-hidden="true">
+                    <label for="pregnancy_details_trimester3" class="form-label">Third Trimester Details</label>
+                    <div id="pregnancy_details_trimester3_editor" style="height: 200px;" aria-label="Pregnancy Details Editor - Third Trimester"></div>
+                    <input type="hidden" id="pregnancy_details_trimester3" name="pregnancy_details_trimester3">
+                </div>
             </div>
 
             <!-- Lactation Safety -->
-            <div class="form-group">
-                <label for="lactation_safety_id">Lactation Safety</label>
+            <div class="form-group mb-3">
+                <label for="lactation_safety_id" class="form-label">Lactation Safety</label>
                 <select class="form-control" id="lactation_safety_id" name="lactation_safety_id" required aria-label="Lactation Safety Category">
                     <option value="">Select a category</option>
                     {% for category in safety_categories %}
@@ -265,15 +300,15 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group" id="lactation_details_group" style="display: none;" aria-hidden="true">
-                <label for="lactation_details">Lactation Details</label>
+            <div class="form-group mb-3" id="lactation_details_group" style="display: none;" aria-hidden="true">
+                <label for="lactation_details" class="form-label">Lactation Details</label>
                 <div id="lactation_details_editor" style="height: 200px;" aria-label="Lactation Details Editor"></div>
                 <input type="hidden" id="lactation_details" name="lactation_details">
             </div>
 
             <!-- Target Molecules -->
-            <div class="form-group">
-                <label for="target_molecules">Target Molecules</label>
+            <div class="form-group mb-3">
+                <label for="target_molecules" class="form-label">Target Molecules</label>
                 <input type="text" id="target-search" class="form-control" placeholder="Search target molecules..." aria-label="Search Target Molecules">
                 <div id="target-results" class="dropdown-menu"></div>
                 <ul id="selected-targets" class="list-group mt-2"></ul>
@@ -320,13 +355,13 @@
             </div>
 
             <!-- Route-Specific Indications -->
-            <div id="route-indications-container">
+            <div id="route-indications-container" class="mb-3">
                 <!-- This will be dynamically populated with route-specific indication selectors -->
             </div>
 
-            <!-- Pharmacodynamics ve Pharmacokinetics -->
-            <div id="route-effects-container">
-                <!-- Bu alan dinamik olarak doldurulacak -->
+            <!-- Pharmacodynamics and Pharmacokinetics -->
+            <div id="route-effects-container" class="mb-3">
+                <!-- This will be dynamically populated -->
             </div>
 
             <!-- References -->
@@ -358,19 +393,20 @@
     // Warn if no safety categories
     if (Object.keys(safetyCategories).length === 0) {
         console.warn('No safety categories available. Pregnancy and lactation dropdowns may not function correctly.');
-        $('#pregnancy_details_group').hide();
+        $('#pregnancy_details_trimester1_group').hide();
+        $('#pregnancy_details_trimester2_group').hide();
+        $('#pregnancy_details_trimester3_group').hide();
         $('#lactation_details_group').hide();
     }
 
     let currentDrugId = null; // Track the current drug ID
 
-    // Metabolite Editor Functions (moved to global scope)
+    // Metabolite Editor Functions
     window.editMetabolites = function(routeId) {
-        console.log('editMetabolites called with routeId:', routeId); // Debug log
+        console.log('editMetabolites called with routeId:', routeId);
         const routesDropdown = document.getElementById('routes');
         const routeName = Array.from(routesDropdown.options).find(opt => opt.value === routeId)?.text || 'Route';
 
-        // Create modal HTML with proper ARIA attributes
         const modal = `
             <div class="modal fade" id="metaboliteModal_${routeId}" tabindex="-1" aria-labelledby="metaboliteModalLabel_${routeId}" aria-hidden="true">
                 <div class="modal-dialog">
@@ -401,7 +437,6 @@
         `;
         document.body.insertAdjacentHTML('beforeend', modal);
 
-        // Populate parent metabolite dropdown
         const parentSelect = document.getElementById(`parent_metabolite_${routeId}`);
         const currentMetabolites = $(`#metabolites_${routeId}`).select2('data');
         currentMetabolites.forEach(m => {
@@ -409,7 +444,6 @@
             parentSelect.appendChild(option);
         });
 
-        // Initialize and show modal
         try {
             const modalEl = document.getElementById(`metaboliteModal_${routeId}`);
             const bsModal = new bootstrap.Modal(modalEl, {
@@ -417,8 +451,6 @@
                 keyboard: false
             });
             bsModal.show();
-
-            // Clean up modal when hidden
             modalEl.addEventListener('hidden.bs.modal', () => {
                 modalEl.remove();
             }, { once: true });
@@ -429,7 +461,7 @@
     };
 
     window.renderMetaboliteTree = async function(routeId) {
-        console.log('renderMetaboliteTree called with routeId:', routeId); // Debug log
+        console.log('renderMetaboliteTree called with routeId:', routeId);
         const select = document.getElementById(`metabolites_${routeId}`);
         const diagram = document.getElementById(`metabolite_diagram_${routeId}`);
         if (!select || !diagram) {
@@ -446,7 +478,7 @@
         try {
             const drugId = currentDrugId;
             const response = await fetch(`/api/metabolites/full?ids=${encodeURIComponent(selectedIds.join(','))}&drug_id=${drugId || ''}`, {
-                credentials: 'include' // Ensure session cookies are sent
+                credentials: 'include'
             });
             if (!response.ok) {
                 throw new Error(`Fetch failed: ${response.status} - ${response.statusText}`);
@@ -474,7 +506,7 @@
     };
 
     window.addMetabolite = async function(routeId) {
-        console.log('addMetabolite called with routeId:', routeId); // Debug log
+        console.log('addMetabolite called with routeId:', routeId);
         const name = document.getElementById(`new_metabolite_${routeId}`).value.trim();
         const parentId = document.getElementById(`parent_metabolite_${routeId}`).value || null;
         if (!name) {
@@ -490,7 +522,7 @@
             const response = await fetch('/api/metabolites/add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include', // Ensure session cookies are sent
+                credentials: 'include',
                 body: JSON.stringify({ name, parent_id: parentId, drug_id: drugId })
             });
             if (!response.ok) {
@@ -546,7 +578,17 @@
             modules: { toolbar: toolbarOptions }
         });
 
-        const pregnancyDetailsQuill = new Quill('#pregnancy_details_editor', {
+        const pregnancyDetailsTrimester1Quill = new Quill('#pregnancy_details_trimester1_editor', {
+            theme: 'snow',
+            modules: { toolbar: toolbarOptions }
+        });
+
+        const pregnancyDetailsTrimester2Quill = new Quill('#pregnancy_details_trimester2_editor', {
+            theme: 'snow',
+            modules: { toolbar: toolbarOptions }
+        });
+
+        const pregnancyDetailsTrimester3Quill = new Quill('#pregnancy_details_trimester3_editor', {
             theme: 'snow',
             modules: { toolbar: toolbarOptions }
         });
@@ -568,24 +610,34 @@
             $('#pharmacokinetics').val(pkQuill.root.innerHTML);
             $('#synthesis').val(synthesisQuill.root.innerHTML);
             $('#references').val(referencesQuill.root.innerHTML);
-            $('#pregnancy_details').val(pregnancyDetailsQuill.root.innerHTML);
+            $('#pregnancy_details_trimester1').val(pregnancyDetailsTrimester1Quill.root.innerHTML);
+            $('#pregnancy_details_trimester2').val(pregnancyDetailsTrimester2Quill.root.innerHTML);
+            $('#pregnancy_details_trimester3').val(pregnancyDetailsTrimester3Quill.root.innerHTML);
             $('#lactation_details').val(lactationDetailsQuill.root.innerHTML);
             $('#black_box_details').val(blackBoxDetailsQuill.root.innerHTML);
 
             // Client-side validation for pregnancy/lactation
-            const pregnancySafetyId = $('#pregnancy_safety_id').val();
-            const lactationSafetyId = $('#lactation_safety_id').val();
-            const pregnancySafetyName = safetyCategories[pregnancySafetyId] || '';
-            const lactationSafetyName = safetyCategories[lactationSafetyId] || '';
-            const pregnancyDetails = pregnancyDetailsQuill.root.innerHTML.trim();
-            const lactationDetails = lactationDetailsQuill.root.innerHTML.trim();
+            const trimesters = [
+                { id: 'trimester1', quill: pregnancyDetailsTrimester1Quill },
+                { id: 'trimester2', quill: pregnancyDetailsTrimester2Quill },
+                { id: 'trimester3', quill: pregnancyDetailsTrimester3Quill }
+            ];
 
-            if (pregnancySafetyId && (pregnancySafetyName === 'Caution' || pregnancySafetyName === 'Contraindicated') && pregnancyDetails === '<p><br></p>') {
-                e.preventDefault();
-                alert('Please provide details for Pregnancy Safety (Caution or Contraindicated).');
-                $('#pregnancy_safety_id').addClass('is-invalid');
-                return;
+            for (const trimester of trimesters) {
+                const safetyId = $(`#pregnancy_safety_${trimester.id}_id`).val();
+                const safetyName = safetyCategories[safetyId] || '';
+                const details = trimester.quill.root.innerHTML.trim();
+                if (safetyId && (safetyName === 'Caution' || safetyName === 'Contraindicated') && details === '<p><br></p>') {
+                    e.preventDefault();
+                    alert(`Please provide details for Pregnancy Safety (${trimester.id.replace('trimester', 'Trimester ')}) when set to Caution or Contraindicated.`);
+                    $(`#pregnancy_safety_${trimester.id}_id`).addClass('is-invalid');
+                    return;
+                }
             }
+
+            const lactationSafetyId = $('#lactation_safety_id').val();
+            const lactationSafetyName = safetyCategories[lactationSafetyId] || '';
+            const lactationDetails = lactationDetailsQuill.root.innerHTML.trim();
             if (lactationSafetyId && (lactationSafetyName === 'Caution' || lactationSafetyName === 'Contraindicated') && lactationDetails === '<p><br></p>') {
                 e.preventDefault();
                 alert('Please provide details for Lactation Safety (Caution or Contraindicated).');
@@ -632,14 +684,34 @@
         });
 
         // Initialize Select2 for pregnancy/lactation dropdowns
-        $('#pregnancy_safety_id').select2({
+        $('#pregnancy_safety_trimester1_id').select2({
             placeholder: "Select a category",
             allowClear: true,
             width: '100%'
         }).on('change', function () {
-            console.log('Pregnancy Safety changed:', this.value);
+            console.log('Pregnancy Safety Trimester 1 changed:', this.value);
             $(this).removeClass('is-invalid');
-            togglePregnancyDetails();
+            togglePregnancyDetails('trimester1');
+        });
+
+        $('#pregnancy_safety_trimester2_id').select2({
+            placeholder: "Select a category",
+            allowClear: true,
+            width: '100%'
+        }).on('change', function () {
+            console.log('Pregnancy Safety Trimester 2 changed:', this.value);
+            $(this).removeClass('is-invalid');
+            togglePregnancyDetails('trimester2');
+        });
+
+        $('#pregnancy_safety_trimester3_id').select2({
+            placeholder: "Select a category",
+            allowClear: true,
+            width: '100%'
+        }).on('change', function () {
+            console.log('Pregnancy Safety Trimester 3 changed:', this.value);
+            $(this).removeClass('is-invalid');
+            togglePregnancyDetails('trimester3');
         });
 
         $('#lactation_safety_id').select2({
@@ -694,7 +766,7 @@
             console.log("Drug ID changed to:", currentDrugId);
             document.getElementById('routes').dispatchEvent(new Event('change'));
         });
-        
+
         // Category Search
         $('#categories').select2({
             placeholder: "Search for categories...",
@@ -868,18 +940,19 @@
         });
 
         // Toggle functions for pregnancy/lactation details
-        function togglePregnancyDetails() {
-            const pregnancySafetyId = document.getElementById('pregnancy_safety_id').value;
-            const pregnancyDetailsGroup = document.getElementById('pregnancy_details_group');
-            const pregnancySafetyName = safetyCategories[pregnancySafetyId] || '';
-            if (pregnancySafetyName === 'Caution' || pregnancySafetyName === 'Contraindicated') {
-                pregnancyDetailsGroup.style.display = 'block';
-                pregnancyDetailsGroup.setAttribute('aria-hidden', 'false');
+        function togglePregnancyDetails(trimester) {
+            const safetyId = document.getElementById(`pregnancy_safety_${trimester}_id`).value;
+            const detailsGroup = document.getElementById(`pregnancy_details_${trimester}_group`);
+            const safetyName = safetyCategories[safetyId] || '';
+            if (safetyName === 'Caution' || safetyName === 'Contraindicated') {
+                detailsGroup.style.display = 'block';
+                detailsGroup.setAttribute('aria-hidden', 'false');
             } else {
-                pregnancyDetailsGroup.style.display = 'none';
-                pregnancyDetailsGroup.setAttribute('aria-hidden', 'true');
-                pregnancyDetailsQuill.root.innerHTML = '';
-                $('#pregnancy_details').val('');
+                detailsGroup.style.display = 'none';
+                detailsGroup.setAttribute('aria-hidden', 'true');
+                const quill = window[`pregnancyDetails${trimester.charAt(0).toUpperCase() + trimester.slice(1)}Quill`];
+                quill.root.innerHTML = '';
+                $(`#pregnancy_details_${trimester}`).val('');
             }
         }
 
@@ -926,7 +999,7 @@
         // Validate range inputs
         function validateRangeInput(input) {
             const value = input.value.trim().replace('–', '-');
-            input.value = value; // Update the input value
+            input.value = value;
             if (!value) return true;
             if (value.includes('-')) {
                 const [min, max] = value.split('-').map(v => parseFloat(v.trim()));
@@ -983,7 +1056,6 @@
                 const routeId = option.value;
                 const routeName = option.textContent;
 
-                // Route-specific effects
                 const effectsDiv = document.createElement('div');
                 effectsDiv.classList.add('mb-3');
                 effectsDiv.innerHTML = `
@@ -1096,7 +1168,6 @@
                 `;
                 effectsContainer.appendChild(effectsDiv);
 
-                // Route-specific indications
                 const indicationSection = document.createElement('div');
                 indicationSection.classList.add('mb-3');
                 indicationSection.innerHTML = `
@@ -1106,7 +1177,6 @@
                 `;
                 indicationsContainer.appendChild(indicationSection);
 
-                // Initialize Select2 for metabolism dropdowns
                 $(`#metabolism_organs_${routeId}`).select2({
                     placeholder: "Select organs for this drug...",
                     ajax: {
@@ -1149,7 +1219,6 @@
                     width: '100%'
                 }).on('change', () => window.renderMetaboliteTree(routeId));
 
-                // Initialize Select2 for route-specific indications
                 $(`#route_indications_${routeId}`).select2({
                     placeholder: `Search indications for ${routeName}...`,
                     ajax: {
@@ -1176,7 +1245,6 @@
                     width: '100%'
                 });
 
-                // Add validation for route-specific fields
                 ['absorption_rate', 'vod_rate', 'half_life', 'clearance_rate', 'tmax', 'cmax', 'therapeutic_range'].forEach(field => {
                     const input = document.getElementById(`${field}_${routeId}`);
                     const unitSelect = document.getElementById(`${field}_unit_id_${routeId}`);

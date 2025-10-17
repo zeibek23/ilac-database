@@ -28,7 +28,8 @@ import os
 os.environ["TRANSFORMERS_BACKEND"] = "torch"
 
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
-
+from flask_caching import Cache
+cache = Cache()
 import urllib.parse  # For proper URL encoding
 import time
 import logging
@@ -301,8 +302,13 @@ class DrugDetail(db.Model):
     clearance_rate = db.Column(db.Float, nullable=True)
     clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     bioavailability = db.Column(db.Float, nullable=True)
-    pregnancy_safety_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
-    pregnancy_details = db.Column(db.Text, nullable=True)
+    # New trimester-specific fields
+    pregnancy_safety_trimester1_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_details_trimester1 = db.Column(db.Text)
+    pregnancy_safety_trimester2_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_details_trimester2 = db.Column(db.Text)
+    pregnancy_safety_trimester3_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_details_trimester3 = db.Column(db.Text)
     lactation_safety_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
     lactation_details = db.Column(db.Text, nullable=True)
     references = db.Column(db.Text, nullable=True)
@@ -317,7 +323,9 @@ class DrugDetail(db.Model):
     flash_point_unit = db.relationship('Unit', foreign_keys=[flash_point_unit_id])
     half_life_unit = db.relationship('Unit', foreign_keys=[half_life_unit_id])
     clearance_rate_unit = db.relationship('Unit', foreign_keys=[clearance_rate_unit_id])
-    pregnancy_safety = db.relationship('SafetyCategory', foreign_keys=[pregnancy_safety_id])
+    pregnancy_safety_trimester1 = db.relationship('SafetyCategory', foreign_keys=[pregnancy_safety_trimester1_id])
+    pregnancy_safety_trimester2 = db.relationship('SafetyCategory', foreign_keys=[pregnancy_safety_trimester2_id])
+    pregnancy_safety_trimester3 = db.relationship('SafetyCategory', foreign_keys=[pregnancy_safety_trimester3_id])
     lactation_safety = db.relationship('SafetyCategory', foreign_keys=[lactation_safety_id])
 
 # Database Model for Indications
@@ -1662,7 +1670,7 @@ def generate_3d_structure(smiles, output_filename):
         return None, f"Error generating 3D structure: {str(e)}"
 
 
-#Detais_Add Route:
+# Details_Add Route:
 
 # Define allowed tags, attributes, and styles for sanitization
 ALLOWED_TAGS = ['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a']
@@ -1816,12 +1824,27 @@ def add_detail():
             pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
             black_box_details = clean_text(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
 
-            pregnancy_safety_id = request.form.get('pregnancy_safety_id', type=int)
-            pregnancy_details = None
-            if pregnancy_safety_id:
-                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_id)
+            # Pregnancy safety for each trimester
+            pregnancy_safety_trimester1_id = request.form.get('pregnancy_safety_trimester1_id', type=int)
+            pregnancy_details_trimester1 = None
+            if pregnancy_safety_trimester1_id:
+                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester1_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
-                    pregnancy_details = clean_text(request.form.get('pregnancy_details'))
+                    pregnancy_details_trimester1 = clean_text(request.form.get('pregnancy_details_trimester1'))
+
+            pregnancy_safety_trimester2_id = request.form.get('pregnancy_safety_trimester2_id', type=int)
+            pregnancy_details_trimester2 = None
+            if pregnancy_safety_trimester2_id:
+                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester2_id)
+                if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
+                    pregnancy_details_trimester2 = clean_text(request.form.get('pregnancy_details_trimester2'))
+
+            pregnancy_safety_trimester3_id = request.form.get('pregnancy_safety_trimester3_id', type=int)
+            pregnancy_details_trimester3 = None
+            if pregnancy_safety_trimester3_id:
+                pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester3_id)
+                if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
+                    pregnancy_details_trimester3 = clean_text(request.form.get('pregnancy_details_trimester3'))
 
             lactation_safety_id = request.form.get('lactation_safety_id', type=int)
             lactation_details = None
@@ -2002,8 +2025,12 @@ def add_detail():
                 clearance_rate_unit_id=clearance_rate_unit_id,
                 bioavailability=bioavailability,
                 references=references,
-                pregnancy_safety_id=pregnancy_safety_id,
-                pregnancy_details=pregnancy_details,
+                pregnancy_safety_trimester1_id=pregnancy_safety_trimester1_id,
+                pregnancy_details_trimester1=pregnancy_details_trimester1,
+                pregnancy_safety_trimester2_id=pregnancy_safety_trimester2_id,
+                pregnancy_details_trimester2=pregnancy_details_trimester2,
+                pregnancy_safety_trimester3_id=pregnancy_safety_trimester3_id,
+                pregnancy_details_trimester3=pregnancy_details_trimester3,
                 lactation_safety_id=lactation_safety_id,
                 lactation_details=lactation_details
             )
@@ -2246,6 +2273,7 @@ def generate_and_update_structures():
 
 if __name__ == '__main__':
     generate_and_update_structures()
+
 @app.route('/details', methods=['GET'])
 @login_required
 def view_details():
@@ -3489,7 +3517,9 @@ def drug_detail(drug_id):
         ]
 
         # Fetch pregnancy and lactation safety info
-        pregnancy_safety = detail.pregnancy_safety.name if detail.pregnancy_safety else 'N/A'
+        pregnancy_safety_trimester1 = detail.pregnancy_safety_trimester1.name if detail.pregnancy_safety_trimester1 else 'N/A'
+        pregnancy_safety_trimester2 = detail.pregnancy_safety_trimester2.name if detail.pregnancy_safety_trimester2 else 'N/A'
+        pregnancy_safety_trimester3 = detail.pregnancy_safety_trimester3.name if detail.pregnancy_safety_trimester3 else 'N/A'
         lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
 
         enriched_details.append({
@@ -3536,8 +3566,12 @@ def drug_detail(drug_id):
             'black_box_warning': detail.black_box_warning,
             'black_box_details': detail.black_box_details,
             'references': detail.references,
-            'pregnancy_safety': pregnancy_safety,
-            'pregnancy_details': detail.pregnancy_details,
+            'pregnancy_safety_trimester1': pregnancy_safety_trimester1,
+            'pregnancy_details_trimester1': detail.pregnancy_details_trimester1,
+            'pregnancy_safety_trimester2': pregnancy_safety_trimester2,
+            'pregnancy_details_trimester2': detail.pregnancy_details_trimester2,
+            'pregnancy_safety_trimester3': pregnancy_safety_trimester3,
+            'pregnancy_details_trimester3': detail.pregnancy_details_trimester3,
             'lactation_safety': lactation_safety,
             'lactation_details': detail.lactation_details
         })
@@ -10372,7 +10406,7 @@ def delete_category(cat_id):
     return redirect(url_for('manage_categories'))
 #İlaç Kategorileri SON...
 
-#PK modülü...
+#Pharmacokinetics Module
 @app.route('/metabolism', methods=['GET', 'POST'])
 @login_required
 def manage_metabolism():
@@ -10568,52 +10602,68 @@ def get_drug_routes():
         'metabolites': route.metabolites or '{}'
     } for route in routes])
 
-
 @app.route('/pharmacokinetics', methods=['GET'])
 def pharmacokinetics():
     selected_drug_id = request.args.get('drug_id', type=int)
-    pk_data = None
+    dose = request.args.get('dose', 100, type=float)
+    pk_data = []
     selected_drug = None
+    chart_data = []
 
     if selected_drug_id:
         selected_drug = Drug.query.get(selected_drug_id)
         if not selected_drug:
-            return render_template('pharmacokinetics.html', error="Drug not found", pk_data=None, selected_drug_id=selected_drug_id), 404
+            return render_template('pharmacokinetics.html', error="Drug not found", pk_data=None, selected_drug_id=selected_drug_id, chart_data=None), 404
         
-        details = DrugDetail.query.filter_by(drug_id=selected_drug_id).all()
-        pk_data = []
+        details = DrugDetail.query.filter_by(drug_id=selected_drug_id).options(db.joinedload(DrugDetail.routes)).all()
+        
         for detail in details:
             for route in detail.routes:
-                half_life = (route.half_life_min or 0 + route.half_life_max or 0) / 2 or 1
-                vod = (route.vod_rate_min or 0 + route.vod_rate_max or 0) / 2 or 1
-                bio = (route.bioavailability_min or 0 + route.bioavailability_max or 0) / 2
-                ke = math.log(2) / half_life
-                dose = 100
-                time = [i / 2 for i in range(48)]
-                concentrations = []
-                for t in time:
-                    c0 = (dose * bio) / vod
-                    concentration = c0 * math.exp(-ke * t)
-                    concentrations.append(concentration)
+                # Validate pharmacokinetic parameters
+                half_life_min = route.half_life_min or 0
+                half_life_max = route.half_life_max or 0
+                half_life_avg = (half_life_min + half_life_max) / 2
+                vod_min = route.vod_rate_min or 0
+                vod_max = route.vod_rate_max or 0
+                vod_avg = (vod_min + vod_max) / 2
+                bio_min = route.bioavailability_min or 0
+                bio_max = route.bioavailability_max or 0
+                bio_avg = (bio_min + bio_max) / 2
 
-                auc = 0
-                for i in range(len(concentrations) - 1):
-                    auc += (concentrations[i] + concentrations[i + 1]) * (time[i + 1] - time[i]) / 2
+                # Skip invalid routes
+                if half_life_avg <= 0 or vod_avg <= 0 or bio_avg <= 0:
+                    logging.warning(f"Skipping route {route.route.name} for drug_id {selected_drug_id}: Invalid PK parameters (half_life_avg={half_life_avg}, vod_avg={vod_avg}, bio_avg={bio_avg})")
+                    continue
+
+                ke = math.log(2) / half_life_avg  # Elimination rate constant
+                time = np.arange(0, 24, 0.1)  # Higher resolution for smoother curve
+                c0 = (dose * bio_avg) / vod_avg  # Initial concentration
+                concentrations = c0 * np.exp(-ke * time)
+                auc = np.trapz(concentrations, time) if len(concentrations) > 1 else 0
+
+                # Prepare data for chart
+                chart_dataset = {
+                    'label': f"{route.route.name} (AUC: {round(auc, 2)} mg/L·h)",
+                    'data': concentrations.tolist(),
+                    'borderColor': '#1f77b4' if route.route.name.lower() == 'oral' else '#ff7f0e',  # Distinct colors
+                    'fill': False
+                }
+                chart_data.append(chart_dataset)
 
                 pk_entry = {
                     'route_name': route.route.name,
                     'absorption_rate_min': route.absorption_rate_min or 0,
                     'absorption_rate_max': route.absorption_rate_max or 0,
-                    'vod_rate_min': route.vod_rate_min or 0,
-                    'vod_rate_max': route.vod_rate_max or 0,
+                    'vod_rate_min': vod_min,
+                    'vod_rate_max': vod_max,
                     'protein_binding_min': (route.protein_binding_min or 0) * 100,
                     'protein_binding_max': (route.protein_binding_max or 0) * 100,
-                    'half_life_min': route.half_life_min or 0,
-                    'half_life_max': route.half_life_max or 0,
+                    'half_life_min': half_life_min,
+                    'half_life_max': half_life_max,
                     'clearance_rate_min': route.clearance_rate_min or 0,
                     'clearance_rate_max': route.clearance_rate_max or 0,
-                    'bioavailability_min': (route.bioavailability_min or 0) * 100,
-                    'bioavailability_max': (route.bioavailability_max or 0) * 100,
+                    'bioavailability_min': bio_min * 100,
+                    'bioavailability_max': bio_max * 100,
                     'tmax_min': route.tmax_min or 0,
                     'tmax_max': route.tmax_max or 0,
                     'cmax_min': route.cmax_min or 0,
@@ -10622,19 +10672,56 @@ def pharmacokinetics():
                     'pharmacokinetics': route.pharmacokinetics or "N/A",
                     'therapeutic_min': route.therapeutic_min or 0,
                     'therapeutic_max': route.therapeutic_max or 0,
-                    'therapeutic_unit': route.therapeutic_unit or "mg/L",  # New
+                    'therapeutic_unit': route.therapeutic_unit.name if route.therapeutic_unit else "mg/L",
                     'metabolites': [
                         {'id': met.id, 'name': met.name, 'parent_id': met.parent_id}
                         for met in route.metabolites
                     ] if route.metabolites else [],
                     'metabolism_organs': [organ.name for organ in route.metabolism_organs],
                     'metabolism_enzymes': [enzyme.name for enzyme in route.metabolism_enzymes],
-                    'auc': round(auc, 2)
+                    'auc': round(auc, 2),
+                    'concentrations': list(zip(time.tolist(), concentrations.tolist()))
                 }
                 pk_data.append(pk_entry)
     
-    return render_template('pharmacokinetics.html', pk_data=pk_data, selected_drug_id=selected_drug_id, selected_drug=selected_drug)
-#PK modülü son...
+    # Generate Chart.js configuration
+    chart = {
+        'type': 'line',
+        'data': {
+            'labels': time.tolist(),
+            'datasets': chart_data
+        },
+        'options': {
+            'responsive': True,
+            'plugins': {
+                'title': {
+                    'display': True,
+                    'text': f'Concentration vs Time for {selected_drug.name_en if selected_drug else "Selected Drug"} (Dose: {dose} mg)'
+                },
+                'legend': {
+                    'display': True
+                }
+            },
+            'scales': {
+                'x': {
+                    'title': {
+                        'display': True,
+                        'text': 'Time (hours)'
+                    }
+                },
+                'y': {
+                    'title': {
+                        'display': True,
+                        'text': 'Concentration (mg/L)'
+                    },
+                    'beginAtZero': True
+                }
+            }
+        }
+    } if chart_data else None
+
+    return render_template('pharmacokinetics.html', pk_data=pk_data, selected_drug_id=selected_drug_id, selected_drug=selected_drug, chart_data=chart)
+# PK modülü son...
 
 
 if __name__ == "__main__":
