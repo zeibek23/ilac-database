@@ -83,6 +83,9 @@ def run_migrations_online():
 
     def include_object(object, name, type_, reflected, compare_to):
         if type_ == "table":
+            # Explicitly exclude alembic_version table
+            if name == 'alembic_version':
+                return False
             schema = object.schema or 'public'
             return schema in INCLUDE_SCHEMAS and schema not in EXCLUDE_SCHEMAS
         return True

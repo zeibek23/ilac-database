@@ -3,24 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Detailed information about {{ drug.name_en }} including chemical properties, pharmacology, and routes of administration.">
     <title>{{ drug.name_en }} Details</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
     <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
     <style>
+        :root {
+            --primary-bg: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            --card-bg: #ffffff;
+            --text-primary: #1f2937;
+            --header-bg: linear-gradient(to right, #4f46e5, #7c3aed);
+            --header-hover-bg: linear-gradient(to right, #4338ca, #6d28d9);
+            --shadow-color: rgba(0, 0, 0, 0.15);
+        }
+        [data-theme="dark"] {
+            --primary-bg: linear-gradient(135deg, #1e293b, #2e3a59);
+            --card-bg: #2d3748;
+            --text-primary: #e5e7eb;
+            --header-bg: linear-gradient(to right, #5b21b6, #9333ea);
+            --header-hover-bg: linear-gradient(to right, #4c1d95, #7e22ce);
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
         body {
-            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            background: var(--primary-bg);
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
+            color: var(--text-primary);
+            transition: background 0.3s ease, color 0.3s ease;
         }
         .card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             border-radius: 12px;
+            background: var(--card-bg);
+            box-shadow: 0 4px 10px var(--shadow-color);
         }
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 10px 20px var(--shadow-color);
         }
         .fade-in {
             animation: fadeIn 0.5s ease-in;
@@ -28,6 +49,13 @@
         @keyframes fadeIn {
             0% { opacity: 0; transform: translateY(10px); }
             100% { opacity: 1; transform: translateY(0); }
+        }
+        .slide-in {
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            0% { opacity: 0; transform: translateX(-20px); }
+            100% { opacity: 1; transform: translateX(0); }
         }
         .btn-primary {
             transition: background-color 0.3s ease, transform 0.2s ease;
@@ -39,14 +67,24 @@
         .section-icon {
             margin-right: 8px;
         }
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--card-bg);
+            padding: 1rem;
+            box-shadow: 0 2px 4px var(--shadow-color);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
         .sidebar {
             position: sticky;
             top: 100px;
             height: fit-content;
-            background: linear-gradient(135deg, #ffffff, #f3e8ff);
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 10px var(--shadow-color);
         }
         .sidebar a {
             display: block;
@@ -54,31 +92,35 @@
             margin-bottom: 5px;
             border-radius: 8px;
             transition: background-color 0.2s ease;
+            color: #4f46e5;
         }
-        .sidebar a:hover {
+        .sidebar a:hover, .sidebar a:focus {
             background-color: #e0e7ff;
+            outline: none;
         }
         .collapsible-header {
             cursor: pointer;
             padding: 12px;
-            background: linear-gradient(to right, #4f46e5, #7c3aed);
+            background: var(--header-bg);
             color: white;
             border-radius: 8px;
             margin-bottom: 10px;
-            transition: background-color 0.3s ease;
+            transition: background 0.3s ease;
         }
-        .collapsible-header:hover {
-            background: linear-gradient(to right, #4338ca, #6d28d9);
+        .collapsible-header:hover, .collapsible-header:focus {
+            background: var(--header-hover-bg);
+            outline: none;
         }
         .collapsible-content {
             display: none;
             padding: 16px;
-            background: #f9fafb;
+            background: var(--card-bg);
             border-radius: 8px;
         }
         .rich-text p {
             margin-bottom: 1rem;
-            line-height: 1.6;
+            line-height: 1.8;
+            font-size: 1rem;
         }
         .rich-text ul, .rich-text ol {
             margin-left: 1.5rem;
@@ -89,7 +131,7 @@
         }
         .rich-text b, .rich-text strong {
             font-weight: 600;
-            color: #1f2937;
+            color: var(--text-primary);
         }
         .rich-text i, .rich-text em {
             font-style: italic;
@@ -117,12 +159,12 @@
             align-items: center;
         }
         .modal-content {
-            background: linear-gradient(135deg, #ffffff, #f3e8ff);
+            background: var(--card-bg);
             border-radius: 12px;
             padding: 20px;
             max-width: 700px;
             width: 90%;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 20px var(--shadow-color);
             position: relative;
             animation: fadeIn 0.3s ease-in;
         }
@@ -134,8 +176,9 @@
             cursor: pointer;
             color: #4b5563;
         }
-        .modal-close:hover {
-            color: #1f2937;
+        .modal-close:hover, .modal-close:focus {
+            color: var(--text-primary);
+            outline: none;
         }
         #viewer {
             width: 100%;
@@ -157,7 +200,7 @@
             100% { transform: rotate(360deg); }
         }
         .metabolite-tree {
-            background-color: #f9fafb;
+            background-color: var(--card-bg);
             border-radius: 8px;
             padding: 16px;
             border-left: 4px solid #4f46e5;
@@ -170,8 +213,9 @@
             border-radius: 6px;
             transition: background-color 0.2s ease;
         }
-        .metabolite-node:hover {
+        .metabolite-node:hover, .metabolite-node:focus-within {
             background-color: #e0e7ff;
+            outline: none;
         }
         .metabolite-node .toggle {
             cursor: pointer;
@@ -180,7 +224,7 @@
         }
         .metabolite-node .name {
             font-weight: 500;
-            color: #1f2937;
+            color: var(--text-primary);
         }
         .metabolite-node .icon {
             margin-right: 8px;
@@ -215,23 +259,98 @@
             font-weight: 500;
             margin-left: 4px;
         }
-        /* Pregnancy/Lactation Status Colors */
         .safety-safe { color: #10b981; font-weight: bold; }
         .safety-caution { color: #f59e0b; font-weight: bold; }
         .safety-contraindicated { color: #ef4444; font-weight: bold; }
         .safety-unknown { color: #6b7280; font-weight: bold; }
-        /* New Section Title Styling */
         .section-title {
-            font-weight: 700; /* Bold */
-            color: #1f2937; /* Dark gray for contrast */
-            font-size: 1.1rem; /* Slightly larger */
-            display: inline-block; /* Ensure proper spacing */
-            margin-right: 0.5rem; /* Space between title and content */
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        .copy-btn {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: #4f46e5;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .copy-btn:hover, .copy-btn:focus {
+            background: #4338ca;
+            outline: none;
+        }
+        .tooltip {
+            position: relative;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 20;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9rem;
+        }
+        .tooltip:hover .tooltip-text, .tooltip:focus-within .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        .search-bar {
+            margin-bottom: 1.5rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background: var(--card-bg);
+        }
+        .search-bar input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: #4f46e5;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .theme-toggle:hover, .theme-toggle:focus {
+            background: #4338ca;
+            outline: none;
+        }
+        .updated-indicator {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 4px 8px;
+            background: #10b981;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9rem;
         }
         @media (max-width: 1024px) {
             .sidebar {
                 position: static;
                 margin-bottom: 20px;
+            }
+            .sticky-header {
+                position: static;
             }
         }
         @media (max-width: 768px) {
@@ -249,34 +368,55 @@
     </style>
 </head>
 <body class="antialiased">
+    <!-- Sticky Header -->
+    <header class="sticky-header fade-in">
+        <div class="flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">
+                <i class="fas fa-capsules mr-2"></i>{{ drug.name_en }}
+                {% if drug.updated_at and (drug.updated_at | string | to_datetime) > (now | to_datetime | add_days(-30)) %}
+                <span class="updated-indicator" title="Updated within the last 30 days">Recently Updated</span>
+                {% endif %}
+            </h2>
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+                    <i class="fas fa-moon mr-2"></i><span>Dark Mode</span>
+                </button>
+                <button id="printBtn" class="btn-primary bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" aria-label="Print drug details">
+                    <i class="fas fa-print mr-1"></i>Print
+                </button>
+            </div>
+        </div>
+    </header>
+
     <div class="container mx-auto px-4 py-12 max-w-7xl flex flex-col lg:flex-row gap-8">
         <!-- Sidebar -->
         <aside class="lg:w-1/4">
-            <div class="sidebar fade-in">
-                <h3 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-compass section-icon"></i>Quick Navigation</h3>
-                <a href="#drug-info" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-capsules mr-2"></i>Drug Information</a>
-                <a href="#salts" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-vial mr-2"></i>Associated Salts</a>
+            <div class="sidebar fade-in" role="navigation" aria-label="Quick navigation">
+                <h3 class="text-xl font-bold mb-4"><i class="fas fa-compass section-icon"></i>Quick Navigation</h3>
+                <a href="#drug-info" class="text-indigo-600 hover:text-indigo-800" tabindex="0"><i class="fas fa-capsules mr-2"></i>Drug Information</a>
+                <a href="#salts" class="text-indigo-600 hover:text-indigo-800" tabindex="0"><i class="fas fa-vial mr-2"></i>Associated Salts</a>
                 {% for detail in details if not detail.is_drug_only %}
-                <a href="#salt-{{ detail.salt_id }}" class="text-indigo-600 hover:text-indigo-800"><i class="fas fa-vial mr-2"></i>Salt: {{ detail.salt_name }}</a>
+                <a href="#salt-{{ detail.salt_id }}" class="text-indigo-600 hover:text-indigo-800" tabindex="0"><i class="fas fa-vial mr-2"></i>Salt: {{ detail.salt_name }}</a>
                 {% endfor %}
             </div>
         </aside>
 
         <!-- Main Content -->
         <main class="lg:w-3/4">
-            <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
-                <i class="fas fa-capsules section-icon"></i>{{ drug.name_en }} Details
-            </h1>
+            <!-- Search Bar -->
+            <div class="search-bar fade-in" role="search">
+                <input type="text" id="searchInput" placeholder="Search drug details (e.g., indications, side effects)" aria-label="Search drug details">
+            </div>
 
             <!-- Drug Information -->
             {% for detail in details if detail.is_drug_only %}
             <section id="drug-info" class="mb-10 fade-in">
-                <div class="collapsible-header">
+                <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="drug-info-content">
                     <i class="fas fa-capsules section-icon"></i>Drug Information: {{ drug.name_en }}
                 </div>
-                <div class="collapsible-content card bg-white p-6 drug-only">
+                <div id="drug-info-content" class="collapsible-content card p-6 drug-only">
                     <!-- General Information -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
+                    <h3 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Drug Name:</strong> {{ drug.name_en }}</p>
@@ -293,10 +433,29 @@
                             </p>
                             <p class="mb-3">
                                 <strong class="section-title">Pregnancy Safety:</strong>
-                                <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
-                                {% if detail.pregnancy_details %}
-                                <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details|safe }}</span>
-                                {% endif %}
+                                <ul class="list-disc pl-5 space-y-1">
+                                    <li>
+                                        <strong>First Trimester:</strong>
+                                        <span class="safety-{{ detail.pregnancy_safety_trimester1|lower }}">{{ detail.pregnancy_safety_trimester1 }}</span>
+                                        {% if detail.pregnancy_details_trimester1 %}
+                                        <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details_trimester1|safe }}</span>
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <strong>Second Trimester:</strong>
+                                        <span class="safety-{{ detail.pregnancy_safety_trimester2|lower }}">{{ detail.pregnancy_safety_trimester2 }}</span>
+                                        {% if detail.pregnancy_details_trimester2 %}
+                                        <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details_trimester2|safe }}</span>
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <strong>Third Trimester:</strong>
+                                        <span class="safety-{{ detail.pregnancy_safety_trimester3|lower }}">{{ detail.pregnancy_safety_trimester3 }}</span>
+                                        {% if detail.pregnancy_details_trimester3 %}
+                                        <br><strong class="section-title">Details:</strong> <span class="rich-text">{{ detail.pregnancy_details_trimester3|safe }}</span>
+                                        {% endif %}
+                                    </li>
+                                </ul>
                             </p>
                             <p class="mb-3">
                                 <strong class="section-title">Lactation Safety:</strong>
@@ -322,7 +481,7 @@
                             <p class="mb-3">
                                 <strong class="section-title">Structure:</strong>
                                 {% if detail.structure %}
-                                <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[150px] rounded-lg mt-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="/static/{{ detail.structure }}" alt="2D structure of {{ drug.name_en }}" class="max-w-[150px] rounded-lg mt-2 lazy-img" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <span class="structure-error hidden">2D structure unavailable</span>
                                 {% else %}
                                 <span class="structure-error">No structure provided</span>
@@ -331,7 +490,7 @@
                             <p class="mb-3">
                                 <strong class="section-title">3D Structure:</strong>
                                 {% if detail.structure_3d %}
-                                <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }}">
+                                <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }}" aria-label="View 3D structure of {{ drug.name_en }}">
                                     <i class="fas fa-cube mr-1"></i>View 3D
                                 </button>
                                 {% else %}
@@ -342,13 +501,18 @@
                     </div>
 
                     <!-- Chemical Properties -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Molecular Formula:</strong> {{ detail.molecular_formula or "N/A" }}</p>
                             <p class="mb-3"><strong class="section-title">Molecular Weight:</strong> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
                             <p class="mb-3"><strong class="section-title">IUPAC Name:</strong> {{ detail.iupac_name or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}
+                                {% if detail.smiles %}
+                                <span class="copy-btn" data-copy="{{ detail.smiles }}" role="button" aria-label="Copy SMILES to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                         <div>
                             <p class="mb-3"><strong class="section-title">Boiling Point:</strong> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
@@ -363,24 +527,64 @@
                     </div>
 
                     <!-- Identifiers -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}
+                                {% if detail.cas_id %}
+                                <span class="copy-btn" data-copy="{{ detail.cas_id }}" role="button" aria-label="Copy CAS ID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}
+                                {% if detail.rxcui %}
+                                <span class="copy-btn" data-copy="{{ detail.rxcui }}" role="button" aria-label="Copy RXCUI to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}
+                                {% if detail.pubchem_cid %}
+                                <span class="copy-btn" data-copy="{{ detail.pubchem_cid }}" role="button" aria-label="Copy PubChem CID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}
+                                {% if detail.pubchem_sid %}
+                                <span class="copy-btn" data-copy="{{ detail.pubchem_sid }}" role="button" aria-label="Copy PubChem SID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                         <div>
-                            <p class="mb-3"><strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}
+                                {% if detail.inchikey %}
+                                <span class="copy-btn" data-copy="{{ detail.inchikey }}" role="button" aria-label="Copy InChIKey to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}
+                                {% if detail.ec_number %}
+                                <span class="copy-btn" data-copy="{{ detail.ec_number }}" role="button" aria-label="Copy EC Number to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}
+                                {% if detail.nci_code %}
+                                <span class="copy-btn" data-copy="{{ detail.nci_code }}" role="button" aria-label="Copy NCI Code to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}
+                                {% if detail.snomed_id %}
+                                <span class="copy-btn" data-copy="{{ detail.snomed_id }}" role="button" aria-label="Copy SNOMED ID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
 
                     <!-- Pharmacology -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Pharmacodynamics:</strong> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
@@ -433,15 +637,15 @@
                     </div>
 
                     <!-- Routes of Administration -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-route section-icon"></i>Routes of Administration</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-route section-icon"></i>Routes of Administration</h3>
                     {% if detail.routes %}
                     <ul class="space-y-6">
                         {% for route in detail.routes %}
-                        <li class="border-l-4 border-indigo-500 pl-4">
-                            <div class="collapsible-header">
+                        <li class="border-l-4 border-indigo-500 pl-4 slide-in">
+                            <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="route-{{ detail.id }}-{{ loop.index }}">
                                 <i class="fas fa-route section-icon"></i>{{ route.name }}
                             </div>
-                            <div class="collapsible-content">
+                            <div id="route-{{ detail.id }}-{{ loop.index }}" class="collapsible-content">
                                 <p class="mb-2"><strong class="section-title">Pharmacodynamics:</strong> {{ route.pharmacodynamics or "N/A" }}</p>
                                 <p class="mb-2"><strong class="section-title">Pharmacokinetics:</strong> {{ route.pharmacokinetics or "N/A" }}</p>
                                 <p class="mb-2">
@@ -463,15 +667,42 @@
                                 </p>
                                 <p class="mb-2"><strong class="section-title">Pharmacokinetic Parameters:</strong></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
-                                    <li><strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
-                                    <li><strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
-                                    <li><strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
-                                    <li><strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
-                                    <li><strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
-                                    <li><strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}
+                                        <span class="tooltip-text">Rate at which the drug is absorbed into the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}
+                                        <span class="tooltip-text">Extent to which the drug is distributed in body tissues.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}
+                                        <span class="tooltip-text">Percentage of drug bound to plasma proteins.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}
+                                        <span class="tooltip-text">Time taken for half the drug to be eliminated from the body.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}
+                                        <span class="tooltip-text">Rate at which the drug is removed from the body.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}
+                                        <span class="tooltip-text">Fraction of the drug that reaches systemic circulation.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}
+                                        <span class="tooltip-text">Time to reach maximum concentration in the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}
+                                        <span class="tooltip-text">Maximum concentration of the drug in the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}
+                                        <span class="tooltip-text">Concentration range where the drug is effective and safe.</span>
+                                    </li>
                                     <li>
                                         <strong class="section-title">Metabolism Organs:</strong>
                                         {% if route.metabolism_organs %}
@@ -493,13 +724,13 @@
                                         {% if route.metabolites %}
                                         <div class="metabolite-tree">
                                             <ul>
-                                                <li class="metabolite-node">
+                                                <li class="metabolite-node" tabindex="0">
                                                     <i class="fas fa-circle icon"></i>
                                                     <span class="name">{{ drug.name_en }}</span>
                                                     <ul>
                                                         {% macro render_metabolites(metabolites, parent_id=None) %}
                                                             {% for met in metabolites if met.parent_id == parent_id %}
-                                                                <li class="metabolite-node" data-met-id="{{ met.id }}">
+                                                                <li class="metabolite-node" data-met-id="{{ met.id }}" tabindex="0">
                                                                     <i class="fas fa-chevron-right toggle"></i>
                                                                     <i class="fas fa-circle-notch icon"></i>
                                                                     <span class="name">{{ met.name }}</span>
@@ -527,11 +758,11 @@
                     <p class="text-gray-500">No routes available.</p>
                     {% endif %}
                     <!-- References -->
-                    <h3 id="drug-references" class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-book section-icon"></i>References</h3>
+                    <h3 id="drug-references" class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-book section-icon"></i>References</h3>
                     <p class="mb-3 rich-text">{{ detail.references | safe if detail.references else "Not Given" }}</p>
                     <!-- Actions -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-cog section-icon"></i>Actions</h3>
-                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600">
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-cog section-icon"></i>Actions</h3>
+                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600" aria-label="Update details for {{ drug.name_en }}">
                         <i class="fas fa-edit mr-1"></i>Update Details
                     </a>
                 </div>
@@ -540,15 +771,15 @@
 
             <!-- Associated Salts -->
             <section id="salts" class="mb-10 fade-in">
-                <div class="collapsible-header">
+                <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="salts-content">
                     <i class="fas fa-vial section-icon"></i>Associated Salts
                 </div>
-                <div class="collapsible-content card bg-white p-6">
+                <div id="salts-content" class="collapsible-content card p-6">
                     {% if salts %}
                     <ul class="list-disc pl-5 space-y-2">
                         {% for salt in salts %}
                         <li class="text-gray-600">
-                            <span class="font-medium text-gray-800">{{ salt.name_tr }}</span> ({{ salt.name_en }})
+                            <span class="font-medium">{{ salt.name_tr }}</span> ({{ salt.name_en }})
                         </li>
                         {% endfor %}
                     </ul>
@@ -561,12 +792,12 @@
             <!-- Salt-Specific Information -->
             {% for detail in details if not detail.is_drug_only %}
             <section id="salt-{{ detail.salt_id }}" class="mb-10 fade-in salt-section">
-                <div class="collapsible-header">
+                <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="salt-{{ detail.salt_id }}-content">
                     <i class="fas fa-vial section-icon"></i>Drug with Salt: {{ detail.salt_name }}
                 </div>
-                <div class="collapsible-content card bg-white p-6">
+                <div id="salt-{{ detail.salt_id }}-content" class="collapsible-content card p-6">
                     <!-- General Information -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
+                    <h3 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle section-icon"></i>General Information</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Drug Name:</strong> {{ drug.name_en }}</p>
@@ -611,7 +842,7 @@
                             <p class="mb-3">
                                 <strong class="section-title">Structure:</strong>
                                 {% if detail.structure %}
-                                <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[150px] rounded-lg mt-2" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="/static/{{ detail.structure }}" alt="2D structure of {{ drug.name_en }} with {{ detail.salt_name }}" class="max-w-[150px] rounded-lg mt-2 lazy-img" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <span class="structure-error hidden">2D structure unavailable</span>
                                 {% else %}
                                 <span class="structure-error">No structure provided</span>
@@ -620,7 +851,7 @@
                             <p class="mb-3">
                                 <strong class="section-title">3D Structure:</strong>
                                 {% if detail.structure_3d %}
-                                <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }} with {{ detail.salt_name }}">
+                                <button class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ drug.name_en }} with {{ detail.salt_name }}" aria-label="View 3D structure of {{ drug.name_en }} with {{ detail.salt_name }}">
                                     <i class="fas fa-cube mr-1"></i>View 3D
                                 </button>
                                 {% else %}
@@ -631,13 +862,18 @@
                     </div>
 
                     <!-- Chemical Properties -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-flask section-icon"></i>Chemical Properties</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Molecular Formula:</strong> {{ detail.molecular_formula or "N/A" }}</p>
                             <p class="mb-3"><strong class="section-title">Molecular Weight:</strong> {{ detail.molecular_weight or "N/A" }} {{ detail.molecular_weight_unit }}</p>
                             <p class="mb-3"><strong class="section-title">IUPAC Name:</strong> {{ detail.iupac_name or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">SMILES:</strong> {{ detail.smiles or "N/A" }}
+                                {% if detail.smiles %}
+                                <span class="copy-btn" data-copy="{{ detail.smiles }}" role="button" aria-label="Copy SMILES to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                         <div>
                             <p class="mb-3"><strong class="section-title">Boiling Point:</strong> {{ detail.boiling_point or "N/A" }} {{ detail.boiling_point_unit }}</p>
@@ -652,24 +888,64 @@
                     </div>
 
                     <!-- Identifiers -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-id-card section-icon"></i>Identifiers</h3>
                     <div class="grid-section">
                         <div>
-                            <p class="mb-3"><strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">CAS ID:</strong> {{ detail.cas_id or "N/A" }}
+                                {% if detail.cas_id %}
+                                <span class="copy-btn" data-copy="{{ detail.cas_id }}" role="button" aria-label="Copy CAS ID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">RXCUI:</strong> {{ detail.rxcui or "N/A" }}
+                                {% if detail.rxcui %}
+                                <span class="copy-btn" data-copy="{{ detail.rxcui }}" role="button" aria-label="Copy RXCUI to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">PubChem CID:</strong> {{ detail.pubchem_cid or "N/A" }}
+                                {% if detail.pubchem_cid %}
+                                <span class="copy-btn" data-copy="{{ detail.pubchem_cid }}" role="button" aria-label="Copy PubChem CID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">PubChem SID:</strong> {{ detail.pubchem_sid or "N/A" }}
+                                {% if detail.pubchem_sid %}
+                                <span class="copy-btn" data-copy="{{ detail.pubchem_sid }}" role="button" aria-label="Copy PubChem SID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                         <div>
-                            <p class="mb-3"><strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}</p>
-                            <p class="mb-3"><strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}</p>
+                            <p class="mb-3">
+                                <strong class="section-title">InChIKey:</strong> {{ detail.inchikey or "N/A" }}
+                                {% if detail.inchikey %}
+                                <span class="copy-btn" data-copy="{{ detail.inchikey }}" role="button" aria-label="Copy InChIKey to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">EC Number:</strong> {{ detail.ec_number or "N/A" }}
+                                {% if detail.ec_number %}
+                                <span class="copy-btn" data-copy="{{ detail.ec_number }}" role="button" aria-label="Copy EC Number to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">NCI Code:</strong> {{ detail.nci_code or "N/A" }}
+                                {% if detail.nci_code %}
+                                <span class="copy-btn" data-copy="{{ detail.nci_code }}" role="button" aria-label="Copy NCI Code to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong class="section-title">SNOMED ID:</strong> {{ detail.snomed_id or "N/A" }}
+                                {% if detail.snomed_id %}
+                                <span class="copy-btn" data-copy="{{ detail.snomed_id }}" role="button" aria-label="Copy SNOMED ID to clipboard">Copy</span>
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
 
                     <!-- Pharmacology -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-heartbeat section-icon"></i>Pharmacology</h3>
                     <div class="grid-section">
                         <div>
                             <p class="mb-3"><strong class="section-title">Pharmacodynamics:</strong> {{ detail.pharmacodynamics | safe or "N/A" }}</p>
@@ -722,15 +998,15 @@
                     </div>
 
                     <!-- Routes of Administration -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-route section-icon"></i>Routes of Administration</h3>
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-route section-icon"></i>Routes of Administration</h3>
                     {% if detail.routes %}
                     <ul class="space-y-6">
                         {% for route in detail.routes %}
-                        <li class="border-l-4 border-indigo-500 pl-4">
-                            <div class="collapsible-header">
+                        <li class="border-l-4 border-indigo-500 pl-4 slide-in">
+                            <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="route-salt-{{ detail.salt_id }}-{{ loop.index }}">
                                 <i class="fas fa-route section-icon"></i>{{ route.name }}
                             </div>
-                            <div class="collapsible-content">
+                            <div id="route-salt-{{ detail.salt_id }}-{{ loop.index }}" class="collapsible-content">
                                 <p class="mb-2"><strong class="section-title">Pharmacodynamics:</strong> {{ route.pharmacodynamics or "N/A" }}</p>
                                 <p class="mb-2"><strong class="section-title">Pharmacokinetics:</strong> {{ route.pharmacokinetics or "N/A" }}</p>
                                 <p class="mb-2">
@@ -752,15 +1028,42 @@
                                 </p>
                                 <p class="mb-2"><strong class="section-title">Pharmacokinetic Parameters:</strong></p>
                                 <ul class="list-disc pl-5 space-y-1">
-                                    <li><strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}</li>
-                                    <li><strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}</li>
-                                    <li><strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}</li>
-                                    <li><strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}</li>
-                                    <li><strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}</li>
-                                    <li><strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}</li>
-                                    <li><strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}</li>
-                                    <li><strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}</li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Absorption Rate:</strong> {{ route.absorption_rate.min | default("N/A") }} - {{ route.absorption_rate.max | default("N/A") }} {{ route.absorption_rate.unit }}
+                                        <span class="tooltip-text">Rate at which the drug is absorbed into the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Volume of Distribution:</strong> {{ route.volume_of_distribution.min | default("N/A") }} - {{ route.volume_of_distribution.max | default("N/A") }} {{ route.volume_of_distribution.unit }}
+                                        <span class="tooltip-text">Extent to which the drug is distributed in body tissues.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Protein Binding:</strong> {% if route.protein_binding.min is not none and route.protein_binding.max is not none %}{{ (route.protein_binding.min * 100) | round(2) }} - {{ (route.protein_binding.max * 100) | round(2) }} %{% else %}N/A{% endif %}
+                                        <span class="tooltip-text">Percentage of drug bound to plasma proteins.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Half-Life:</strong> {{ route.half_life.min | default("N/A") }} - {{ route.half_life.max | default("N/A") }} {{ route.half_life.unit }}
+                                        <span class="tooltip-text">Time taken for half the drug to be eliminated from the body.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Clearance Rate:</strong> {{ route.clearance_rate.min | default("N/A") }} - {{ route.clearance_rate.max | default("N/A") }} {{ route.clearance_rate.unit }}
+                                        <span class="tooltip-text">Rate at which the drug is removed from the body.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Bioavailability:</strong> {% if route.bioavailability.min is not none and route.bioavailability.max is not none %}{{ (route.bioavailability.min * 100) | round(2) }} - {{ (route.bioavailability.max * 100) | round(2) }} %{% else %}N/A{% endif %}
+                                        <span class="tooltip-text">Fraction of the drug that reaches systemic circulation.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Tmax:</strong> {{ route.tmax.min | default("N/A") }} - {{ route.tmax.max | default("N/A") }} {{ route.tmax.unit }}
+                                        <span class="tooltip-text">Time to reach maximum concentration in the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Cmax:</strong> {{ route.cmax.min | default("N/A") }} - {{ route.cmax.max | default("N/A") }} {{ route.cmax.unit }}
+                                        <span class="tooltip-text">Maximum concentration of the drug in the bloodstream.</span>
+                                    </li>
+                                    <li class="tooltip">
+                                        <strong class="section-title">Therapeutic Range:</strong> {{ route.therapeutic_range.min | default("N/A") }} - {{ route.therapeutic_range.max | default("N/A") }} {{ route.therapeutic_range.unit }}
+                                        <span class="tooltip-text">Concentration range where the drug is effective and safe.</span>
+                                    </li>
                                     <li>
                                         <strong class="section-title">Metabolism Organs:</strong>
                                         {% if route.metabolism_organs %}
@@ -782,13 +1085,13 @@
                                         {% if route.metabolites %}
                                         <div class="metabolite-tree">
                                             <ul>
-                                                <li class="metabolite-node">
+                                                <li class="metabolite-node" tabindex="0">
                                                     <i class="fas fa-circle icon"></i>
                                                     <span class="name">{{ drug.name_en }} with {{ detail.salt_name }}</span>
                                                     <ul>
                                                         {% macro render_metabolites(metabolites, parent_id=None) %}
                                                             {% for met in metabolites if met.parent_id == parent_id %}
-                                                                <li class="metabolite-node" data-met-id="{{ met.id }}">
+                                                                <li class="metabolite-node" data-met-id="{{ met.id }}" tabindex="0">
                                                                     <i class="fas fa-chevron-right toggle"></i>
                                                                     <i class="fas fa-circle-notch icon"></i>
                                                                     <span class="name">{{ met.name }}</span>
@@ -817,47 +1120,62 @@
                     {% endif %}
 
                     <!-- References -->
-                    <h3 id="salt-references-{{ detail.salt_id }}" class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-book section-icon"></i>References</h3>
+                    <h3 id="salt-references-{{ detail.salt_id }}" class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-book section-icon"></i>References</h3>
                     <p class="mb-3 rich-text">{{ detail.references | safe if detail.references else "Not Given" }}</p>
 
                     <!-- Actions -->
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4 mt-6"><i class="fas fa-cog section-icon"></i>Actions</h3>
-                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600">
+                    <h3 class="text-xl font-semibold mb-4 mt-6"><i class="fas fa-cog section-icon"></i>Actions</h3>
+                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600" aria-label="Update details for {{ drug.name_en }} with {{ detail.salt_name }}">
                         <i class="fas fa-edit mr-1"></i>Update Details
                     </a>
                 </div>
             </section>
             {% endfor %}
 
-            <!-- Back Button and QR Code -->
+            <!-- Back Button and Share Options -->
             <div class="text-center mt-10 fade-in">
-                <a href="/backend" class="btn-primary inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition">
+                <a href="/backend" class="btn-primary inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition" aria-label="Return to homepage">
                     <i class="fas fa-arrow-left mr-2"></i>Back to Home
                 </a>
+                <div class="relative inline-block ml-4">
+                    <button id="shareBtn" class="btn-primary bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700" aria-label="Share this page">
+                        <i class="fas fa-share-alt mr-2"></i>Share
+                    </button>
+                    <div id="shareDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-10">
+                        <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-indigo-100" data-share="twitter" aria-label="Share on Twitter"><i class="fab fa-twitter mr-2"></i>Twitter</a>
+                        <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-indigo-100" data-share="linkedin" aria-label="Share on LinkedIn"><i class="fab fa-linkedin mr-2"></i>LinkedIn</a>
+                        <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-indigo-100" data-share="email" aria-label="Share via Email"><i class="fas fa-envelope mr-2"></i>Email</a>
+                    </div>
+                </div>
             </div>
             <div class="text-center mt-6 fade-in">
-                <h4 class="text-xl font-semibold text-gray-700 mb-4">
-                    <i class="fas fa-qrcode section-icon"></i>Share this page
+                <h4 class="text-xl font-semibold mb-4">
+                    <i class="fas fa-qrcode section-icon"></i>Share this page via QR Code
                 </h4>
-                <img src="{{ url_for('generate_qr', drug_id=drug.id) }}" alt="QR Code for this page" class="mx-auto max-w-[150px] rounded-lg">
+                <img src="{{ url_for('generate_qr', drug_id=drug.id) }}" alt="QR Code for {{ drug.name_en }} details page" class="mx-auto max-w-[150px] rounded-lg lazy-img" loading="lazy">
             </div>
         </main>
     </div>
 
     <!-- 3D Structure Modal -->
-    <div id="structureModal" class="modal">
+    <div id="structureModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
         <div class="modal-content">
-            <span class="modal-close">×</span>
-            <h2 id="modalTitle" class="text-2xl font-bold text-gray-800 mb-4"></h2>
+            <span class="modal-close" role="button" aria-label="Close 3D structure modal">×</span>
+            <h2 id="modalTitle" class="text-2xl font-bold mb-4"></h2>
             <div id="viewer"></div>
             <div id="loading" class="hidden"><div class="spinner"></div></div>
-            <div class="mt-4 flex justify-between">
-                <a id="downloadLink" href="#" class="text-indigo-600 hover:underline">Download PDB</a>
-                <div>
-                    <button id="rotateBtn" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 mr-2">
+            <div class="mt-4 flex justify-between items-center">
+                <a id="downloadLink" href="#" class="text-indigo-600 hover:underline" aria-label="Download PDB file">Download PDB</a>
+                <div class="flex gap-2">
+                    <select id="styleSelect" class="border rounded-lg px-2 py-1" aria-label="Select 3D structure style">
+                        <option value="stick">Stick</option>
+                        <option value="sphere">Sphere</option>
+                        <option value="cartoon">Cartoon</option>
+                    </select>
+                    <button id="rotateBtn" class="btn-primary bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700" aria-label="Toggle rotation of 3D structure">
                         <i class="fas fa-sync-alt mr-1"></i>Rotate
                     </button>
-                    <button id="resetBtn" class="btn-primary bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                    <button id="resetBtn" class="btn-primary bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700" aria-label="Reset 3D structure view">
                         <i class="fas fa-undo mr-1"></i>Reset
                     </button>
                 </div>
@@ -867,11 +1185,34 @@
 
     <script>
         $(document).ready(function () {
+            // Initialize theme from localStorage
+            if (localStorage.getItem('theme') === 'dark') {
+                $('html').attr('data-theme', 'dark');
+                $('#themeToggle span').text('Light Mode');
+                $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
+            }
+
+            // Theme Toggle
+            $('#themeToggle').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const html = $('html');
+                    const isDark = html.attr('data-theme') === 'dark';
+                    html.attr('data-theme', isDark ? 'light' : 'dark');
+                    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+                    $('#themeToggle span').text(isDark ? 'Dark Mode' : 'Light Mode');
+                    $('#themeToggle i').toggleClass('fa-moon fa-sun');
+                }
+            });
+
             // Collapsible Sections
-            $('.collapsible-header').on('click', function () {
-                const $content = $(this).next('.collapsible-content');
-                $content.slideToggle(300);
-                $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
+            $('.collapsible-header').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const $content = $(this).next('.collapsible-content');
+                    const isExpanded = $content.is(':visible');
+                    $content.slideToggle(300);
+                    $(this).find('i').toggleClass('fa-chevron-down fa-chevron-up');
+                    $(this).attr('aria-expanded', !isExpanded);
+                }
             });
 
             // 3D Modal Handling
@@ -883,84 +1224,190 @@
             let viewer = null;
             let isRotating = false;
 
-            $('.view-3d-btn').on('click', function () {
-                const structureUrl = $(this).data('structure');
-                const drugName = $(this).data('drug');
+            $('.view-3d-btn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const structureUrl = $(this).data('structure');
+                    const drugName = $(this).data('drug');
 
-                modalTitle.text(`3D Structure of ${drugName}`);
-                viewerDiv.empty();
-                loadingDiv.removeClass('hidden');
-                downloadLink.attr('href', structureUrl).attr('download', '');
+                    modalTitle.text(`3D Structure of ${drugName}`);
+                    viewerDiv.empty();
+                    loadingDiv.removeClass('hidden');
+                    downloadLink.attr('href', structureUrl).attr('download', '');
 
-                viewer = $3Dmol.createViewer('viewer', { backgroundColor: 'white' });
+                    viewer = $3Dmol.createViewer('viewer', { backgroundColor: $('html').attr('data-theme') === 'dark' ? '#1e293b' : 'white' });
 
-                $.get(structureUrl, function (data) {
-                    viewer.addModel(data, 'pdb');
-                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
-                    viewer.zoomTo();
+                    $.get(structureUrl, function (data) {
+                        viewer.addModel(data, 'pdb');
+                        const style = $('#styleSelect').val();
+                        apply3DStyle(style);
+                        viewer.zoomTo();
+                        viewer.render();
+                        loadingDiv.addClass('hidden');
+                    }, 'text').fail(function () {
+                        viewerDiv.html('<p class="text-red-500 text-center">Unable to load 3D structure. The file may be missing or invalid.</p>');
+                        loadingDiv.addClass('hidden');
+                    });
+
+                    modal.css('display', 'flex').attr('aria-hidden', 'false');
+                }
+            });
+
+            function apply3DStyle(style) {
+                if (viewer) {
+                    if (style === 'stick') {
+                        viewer.setStyle({}, { stick: {} });
+                    } else if (style === 'sphere') {
+                        viewer.setStyle({}, { sphere: { radius: 0.5 } });
+                    } else if (style === 'cartoon') {
+                        viewer.setStyle({}, { cartoon: {} });
+                    }
                     viewer.render();
-                    loadingDiv.addClass('hidden');
-                }, 'text').fail(function () {
-                    viewerDiv.html('<p class="text-red-500 text-center">Unable to load 3D structure. The file may be missing or invalid.</p>');
-                    loadingDiv.addClass('hidden');
-                });
+                }
+            }
 
-                modal.css('display', 'flex');
+            $('#styleSelect').on('change', function () {
+                apply3DStyle($(this).val());
             });
 
-            $('.modal-close').on('click', function () {
-                modal.css('display', 'none');
-                viewerDiv.empty();
-                loadingDiv.addClass('hidden');
-                isRotating = false;
-            });
-
-            modal.on('click', function (e) {
-                if (e.target === modal[0]) {
-                    modal.css('display', 'none');
+            $('.modal-close').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    modal.css('display', 'none').attr('aria-hidden', 'true');
                     viewerDiv.empty();
                     loadingDiv.addClass('hidden');
                     isRotating = false;
+                    $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
                 }
             });
 
-            // Rotate and Reset Controls
-            $('#rotateBtn').on('click', function () {
-                isRotating = !isRotating;
-                if (isRotating) {
-                    viewer.spin(true);
-                } else {
-                    viewer.spin(false);
-                }
-                $(this).find('i').toggleClass('fa-sync-alt fa-pause');
-            });
-
-            $('#resetBtn').on('click', function () {
-                if (viewer) {
-                    viewer.zoomTo();
-                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
-                    viewer.spin(false);
+            modal.on('click keypress', function (e) {
+                if ((e.type === 'click' && e.target === modal[0]) || (e.type === 'keypress' && e.key === 'Escape')) {
+                    modal.css('display', 'none').attr('aria-hidden', 'true');
+                    viewerDiv.empty();
+                    loadingDiv.addClass('hidden');
                     isRotating = false;
                     $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
-                    viewer.render();
+                }
+            });
+
+            $('#rotateBtn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    isRotating = !isRotating;
+                    if (viewer) {
+                        viewer.spin(isRotating);
+                        $(this).find('i').toggleClass('fa-sync-alt fa-pause');
+                    }
+                }
+            });
+
+            $('#resetBtn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    if (viewer) {
+                        viewer.zoomTo();
+                        apply3DStyle($('#styleSelect').val());
+                        viewer.spin(false);
+                        isRotating = false;
+                        $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
+                        viewer.render();
+                    }
+                }
+            });
+
+            // Copy to Clipboard
+            $('.copy-btn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const text = $(this).data('copy');
+                    navigator.clipboard.writeText(text).then(() => {
+                        $(this).text('Copied!').css('background', '#10b981');
+                        setTimeout(() => {
+                            $(this).text('Copy').css('background', '#4f46e5');
+                        }, 2000);
+                    }).catch(() => {
+                        alert('Failed to copy to clipboard.');
+                    });
                 }
             });
 
             // Metabolite Tree Toggle
-            $('.metabolite-tree .toggle').on('click', function () {
-                const $node = $(this).closest('.metabolite-node');
-                const $children = $node.children('ul');
-                $children.toggleClass('hidden');
-                $(this).toggleClass('fa-chevron-right fa-chevron-down');
+            $('.metabolite-tree .toggle').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const $node = $(this).closest('.metabolite-node');
+                    const $children = $node.children('ul');
+                    $children.toggleClass('hidden');
+                    $(this).toggleClass('fa-chevron-right fa-chevron-down');
+                }
             });
 
             // Smooth Scroll for Sidebar
-            $('.sidebar a').on('click', function (e) {
-                e.preventDefault();
-                const target = $(this).attr('href');
-                $('html, body').animate({
-                    scrollTop: $(target).offset().top - 100
-                }, 500);
+            $('.sidebar a').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    e.preventDefault();
+                    const target = $(this).attr('href');
+                    $('html, body').animate({
+                        scrollTop: $(target).offset().top - 100
+                    }, 500);
+                }
+            });
+
+            // Search Functionality
+            $('#searchInput').on('input', function () {
+                const query = $(this).val().toLowerCase();
+                $('.collapsible-content, .collapsible-header, li').each(function () {
+                    const $element = $(this);
+                    const text = $element.text().toLowerCase();
+                    if (query === '' || text.includes(query)) {
+                        $element.show();
+                        if ($element.hasClass('collapsible-content')) {
+                            $element.prev('.collapsible-header').show();
+                        }
+                    } else {
+                        $element.hide();
+                        if ($element.hasClass('collapsible-header')) {
+                            $element.next('.collapsible-content').hide();
+                        }
+                    }
+                });
+            });
+
+            // Print Button
+            $('#printBtn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    window.print();
+                }
+            });
+
+            // Share Dropdown
+            $('#shareBtn').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    $('#shareDropdown').toggleClass('hidden');
+                }
+            });
+
+            // Placeholder share links (replace with actual URLs in production)
+            $('[data-share]').on('click keypress', function (e) {
+                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                    const platform = $(this).data('share');
+                    const url = window.location.href;
+                    const title = `Details for ${$('#modalTitle').text() || '{{ drug.name_en }}'}`;
+                    let shareUrl;
+
+                    if (platform === 'twitter') {
+                        shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
+                    } else if (platform === 'linkedin') {
+                        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+                    } else if (platform === 'email') {
+                        shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=Check out the details for this drug: ${encodeURIComponent(url)}`;
+                    }
+
+                    window.open(shareUrl, '_blank');
+                    $('#shareDropdown').addClass('hidden');
+                }
+            });
+
+            // Close dropdown when clicking outside
+            $(document).on('click keypress', function (e) {
+                if (!$(e.target).closest('#shareBtn, #shareDropdown').length) {
+                    $('#shareDropdown').addClass('hidden');
+                }
             });
         });
     </script>
