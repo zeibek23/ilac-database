@@ -3,105 +3,473 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharmacokinetics Module</title>
+    <title>Pharmacokinetics Module - Drugly.ai</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.0/dist/chartjs-plugin-annotation.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #7c3aed;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --info-color: #06b6d4;
+            --bg-light: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+        }
+
         body {
-            background-color: #f8f9fa;
-            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 20px 0;
         }
-        .container {
-            max-width: 1200px;
+
+        .main-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            padding: 30px;
+            margin: 20px auto;
+            max-width: 1400px;
         }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .page-header h1 {
+            color: var(--primary-color);
+            font-weight: 700;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .page-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
         }
-        .select2-container {
-            width: 100% !important;
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
         }
-        .select2-container--bootstrap-5 .select2-selection {
-            border-radius: 0.375rem;
-            border: 1px solid #ced4da;
-            height: 38px;
-            padding: 0.375rem 0.75rem;
-        }
-        .chart-container {
-            max-width: 100%;
+
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
             padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-        }
-        .chart-title {
-            font-size: 1.25rem;
             font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .search-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .search-card label {
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
             margin-bottom: 15px;
         }
-        .therapeutic-range {
-            background-color: rgba(0, 255, 0, 0.1);
+
+        .select2-container--bootstrap-5 .select2-selection {
+            border-radius: 10px;
+            border: 2px solid white;
+            height: 50px;
+            padding: 10px 15px;
+            font-size: 1rem;
         }
-        .btn-primary {
-            background-color: #007bff;
-            border: none;
-            transition: background-color 0.2s;
+
+        .chart-container {
+            position: relative;
+            padding: 25px;
+            background: white;
+            border-radius: 15px;
+            min-height: 400px;
         }
-        .btn-primary:hover {
-            background-color: #0056b3;
+
+        .controls-panel {
+            background: var(--bg-light);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border: 2px solid var(--border-color);
         }
-        .btn-secondary {
-            background-color: #6c757d;
-            border: none;
+
+        .controls-panel h5 {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .btn-secondary:hover {
-            background-color: #5a6268;
+
+        .controls-panel h5::before {
+            content: "⚙️";
+            font-size: 1.3rem;
         }
-        .table {
-            font-size: 0.9rem;
+
+        .control-group {
+            margin-bottom: 20px;
         }
-        .table th, .table td {
-            vertical-align: middle;
+
+        .control-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 0.95rem;
         }
-        .alert {
+
+        .control-group input,
+        .control-group select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
         }
-        .dose-controls {
+
+        .control-group input:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-group-custom {
             display: flex;
             gap: 10px;
-            align-items: center;
-            justify-content: center;
             flex-wrap: wrap;
         }
-        .metabolite-list {
-            font-size: 0.85rem;
-            color: #495057;
+
+        .btn-custom {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 150px;
         }
+
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-secondary-custom {
+            background: var(--text-secondary);
+            color: white;
+        }
+
+        .btn-secondary-custom:hover {
+            background: var(--text-primary);
+            transform: translateY(-2px);
+        }
+
+        .btn-success-custom {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success-custom:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .recommendation-box {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+            animation: slideIn 0.5s ease;
+        }
+
+        .recommendation-box.show {
+            display: block;
+        }
+
+        .recommendation-box h6 {
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .recommendation-box ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .recommendation-box li {
+            margin: 8px 0;
+            font-size: 0.95rem;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .table {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .table thead {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .table thead th {
+            padding: 15px 10px;
+            font-weight: 600;
+            border: none;
+            white-space: nowrap;
+        }
+
+        .table tbody td {
+            padding: 12px 10px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(37, 99, 235, 0.05);
+        }
+
+        .badge-custom {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .badge-iv {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .badge-oral {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .badge-other {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .metabolite-tree {
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+
+        .metabolite-tree ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .metabolite-tree li::before {
+            content: "└─";
+            margin-right: 5px;
+            color: var(--text-secondary);
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: var(--info-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            margin: 2px;
+        }
+
+        .checkbox-custom {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-custom:hover {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .checkbox-custom input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .checkbox-custom label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .pk-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(124, 58, 237, 0.1));
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid rgba(37, 99, 235, 0.2);
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .alert-custom {
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert-info-custom {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+        }
+
+        .alert-danger-custom {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
         @media (max-width: 768px) {
-            .chart-container {
-                padding: 15px;
+            .main-container {
+                padding: 20px;
+                margin: 10px;
             }
-            .table {
-                font-size: 0.8rem;
+
+            .page-header h1 {
+                font-size: 2rem;
             }
+
+            .btn-group-custom {
+                flex-direction: column;
+            }
+
+            .btn-custom {
+                width: 100%;
+            }
+
+            .pk-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading-spinner.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container my-5">
-        <h1 class="text-center mb-4">Pharmacokinetics Module</h1>
+    <div class="main-container">
+        <div class="page-header">
+            <h1>💊 Pharmacokinetics Module</h1>
+            <p>Advanced drug concentration modeling and dosing optimization</p>
+        </div>
 
         <!-- Drug Search Card -->
-        <div class="card p-4 mb-4">
+        <div class="card search-card">
             <div class="row">
-                <div class="col-md-6 mx-auto">
-                    <label for="drug_search" class="form-label fw-semibold">Search Drug</label>
+                <div class="col-md-8 mx-auto">
+                    <label for="drug_search">Search Active Ingredient</label>
                     <select id="drug_search" name="drug_id" class="form-select">
                         {% if selected_drug %}
                         <option value="{{ selected_drug.id }}" selected>
@@ -115,206 +483,319 @@
 
         <!-- Error Message -->
         {% if error %}
-        <div class="alert alert-danger text-center">{{ error }}</div>
+        <div class="alert alert-danger-custom text-center">
+            <strong>⚠️ Error:</strong> {{ error }}
+        </div>
         {% endif %}
 
-        <!-- Visualizations and Data -->
+        <!-- Main Content -->
         {% if pk_data %}
-        <div class="row g-4">
-            <!-- Radar Chart -->
-            <div class="col-lg-6">
-                <div class="chart-container card p-4">
-                    <h3 class="chart-title text-center">PK Profile</h3>
-                    <canvas id="radarChart"></canvas>
+        <!-- Controls Panel -->
+        <div class="controls-panel">
+            <h5>Simulation Controls</h5>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="control-group">
+                        <label for="dose">Dose (mg)</label>
+                        <input type="number" id="dose" value="{{ dose or 100 }}" min="1" step="10">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="control-group">
+                        <label for="interval">Dosing Interval (hours)</label>
+                        <input type="number" id="interval" value="{{ dosing_interval or 24 }}" min="1" step="1">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="control-group">
+                        <label for="num_doses">Number of Doses</label>
+                        <input type="number" id="num_doses" value="{{ num_doses or 1 }}" min="1" max="20" step="1">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="control-group">
+                        <label for="routeSelect">Route of Administration</label>
+                        <select id="routeSelect" class="form-select">
+                            <option value="-1">All Routes</option>
+                            {% for entry in pk_data %}
+                            <option value="{{ loop.index0 }}">{{ entry.route_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="btn-group-custom mt-3">
+                <button id="updateSimulation" class="btn-custom btn-primary-custom">🔄 Update Simulation</button>
+                <button id="optimizeDose" class="btn-custom btn-success-custom">🎯 Optimize Dosing</button>
+                <button id="resetDose" class="btn-custom btn-secondary-custom">↺ Reset</button>
+            </div>
+            <div id="dosingRecommendation" class="recommendation-box"></div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
+            <p class="mt-3 text-muted">Calculating optimal dosing regimen...</p>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row g-4 mb-4">
+            <!-- Concentration-Time Chart -->
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        📈 Plasma Concentration vs Time Profile
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="concentrationChart"></canvas>
+                        </div>
+                        <!-- PK Stats -->
+                        <div class="pk-stats" id="pkStats"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Concentration Chart -->
+            <!-- Radar Chart -->
             <div class="col-lg-6">
-                <div class="chart-container card p-4">
-                    <h3 class="chart-title text-center">Concentration Over Time</h3>
-                    <canvas id="concentrationChart"></canvas>
-                    <div class="dose-controls mt-3">
-                        <div class="input-group w-auto">
-                            <span class="input-group-text">Dose (mg)</span>
-                            <input type="number" id="dose" value="{{ request.args.get('dose', 100) }}" min="1" class="form-control" style="width: 100px;">
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="steadyState" class="form-check-input">
-                            <label for="steadyState" class="form-check-label">Steady State</label>
-                        </div>
-                        <div class="input-group w-auto">
-                            <span class="input-group-text">Interval (h)</span>
-                            <input type="number" id="interval" value="8" min="1" class="form-control" style="width: 100px;">
-                        </div>
-                        <div class="input-group w-auto">
-                            <span class="input-group-text">Route</span>
-                            <select id="routeSelect" class="form-select" style="width: 150px;">
-                                <option value="-1">All</option>
-                                {% for entry in pk_data %}
-                                <option value="{{ loop.index0 }}">{{ entry.route_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <button id="optimizeDose" class="btn btn-primary">Optimize Dosing</button>
-                        <button id="resetDose" class="btn btn-secondary">Reset Dose</button>
+                <div class="card">
+                    <div class="card-header">
+                        🎯 Multi-Parameter PK Profile
                     </div>
-                    <div id="dosingRecommendation" class="mt-3 text-center text-muted"></div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Bioavailability Chart -->
             <div class="col-lg-6">
-                <div class="chart-container card p-4">
-                    <h3 class="chart-title text-center">Bioavailability by Route</h3>
-                    <canvas id="bioavailabilityChart"></canvas>
+                <div class="card">
+                    <div class="card-header">
+                        📊 Bioavailability by Route
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="bioavailabilityChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- AUC Chart -->
+            <!-- AUC Comparison -->
             <div class="col-lg-6">
-                <div class="chart-container card p-4">
-                    <h3 class="chart-title text-center">AUC by Route</h3>
-                    <canvas id="aucChart"></canvas>
+                <div class="card">
+                    <div class="card-header">
+                        📉 Area Under Curve (AUC) Comparison
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="aucChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Half-Life Comparison -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        ⏱️ Elimination Half-Life by Route
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="halfLifeChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- PK Data Table -->
-        <div class="card p-4 mt-4">
-            <h3 class="chart-title">Pharmacokinetic Parameters</h3>
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Route</th>
-                            <th>Absorption (%/h)</th>
-                            <th>Vd (L)</th>
-                            <th>Protein Binding (%)</th>
-                            <th>Half-Life (h)</th>
-                            <th>Clearance (mL/min)</th>
-                            <th>Bioavailability (%)</th>
-                            <th>Tmax (h)</th>
-                            <th>Cmax (mg/L)</th>
-                            <th>Therapeutic Range</th>
-                            <th>AUC (mg/L·h)</th>
-                            <th>Metabolites</th>
-                            <th>Metabolism Organs</th>
-                            <th>Metabolism Enzymes</th>
-                            <th>Pharmacodynamics</th>
-                            <th>Pharmacokinetics</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for entry in pk_data %}
-                        <tr>
-                            <td>{{ entry.route_name }}</td>
-                            <td>
-                                {% if entry.absorption_rate_min == entry.absorption_rate_max %}
-                                {{ entry.absorption_rate_min }}
-                                {% else %}
-                                {{ entry.absorption_rate_min }} - {{ entry.absorption_rate_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.vod_rate_min == entry.vod_rate_max %}
-                                {{ entry.vod_rate_min }}
-                                {% else %}
-                                {{ entry.vod_rate_min }} - {{ entry.vod_rate_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.protein_binding_min == entry.protein_binding_max %}
-                                {{ entry.protein_binding_min }}
-                                {% else %}
-                                {{ entry.protein_binding_min }} - {{ entry.protein_binding_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.half_life_min == entry.half_life_max %}
-                                {{ entry.half_life_min }}
-                                {% else %}
-                                {{ entry.half_life_min }} - {{ entry.half_life_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.clearance_rate_min == entry.clearance_rate_max %}
-                                {{ entry.clearance_rate_min }}
-                                {% else %}
-                                {{ entry.clearance_rate_min }} - {{ entry.clearance_rate_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.bioavailability_min == entry.bioavailability_max %}
-                                {{ entry.bioavailability_min }}
-                                {% else %}
-                                {{ entry.bioavailability_min }} - {{ entry.bioavailability_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.tmax_min == entry.tmax_max %}
-                                {{ entry.tmax_min }}
-                                {% else %}
-                                {{ entry.tmax_min }} - {{ entry.tmax_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.cmax_min == entry.cmax_max %}
-                                {{ entry.cmax_min }}
-                                {% else %}
-                                {{ entry.cmax_min }} - {{ entry.cmax_max }}
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if entry.therapeutic_min == 0 and entry.therapeutic_max == 0 %}
-                                N/A
-                                {% elif entry.therapeutic_min == entry.therapeutic_max %}
-                                {{ entry.therapeutic_min }} {{ entry.therapeutic_unit }}
-                                {% else %}
-                                {{ entry.therapeutic_min }} - {{ entry.therapeutic_max }} {{ entry.therapeutic_unit }}
-                                {% endif %}
-                            </td>
-                            <td>{{ entry.auc }}</td>
-                            <td>
-                                {% macro render_metabolites(metabolites, parent_id=None, level=0) %}
-                                <ul class="metabolite-list mb-0">
-                                    {% for met in metabolites | selectattr('parent_id', 'equalto', parent_id) %}
-                                    <li>{{ '  ' * level }}{{ met.name }}</li>
-                                    {{ render_metabolites(metabolites, met.id, level + 1) }}
-                                    {% endfor %}
-                                </ul>
-                                {% endmacro %}
-                                {% if entry.metabolites %}
-                                {{ render_metabolites(entry.metabolites, None) }}
-                                {% else %}
-                                N/A
-                                {% endif %}
-                            </td>
-                            <td>{{ entry.metabolism_organs | join(', ') or 'N/A' }}</td>
-                            <td>{{ entry.metabolism_enzymes | join(', ') or 'N/A' }}</td>
-                            <td>{{ entry.pharmacodynamics }}</td>
-                            <td>{{ entry.pharmacokinetics }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- PK Parameters Table -->
+        <div class="card">
+            <div class="card-header">
+                📋 Detailed Pharmacokinetic Parameters
             </div>
-            <div class="text-center mt-3">
-                <a href="/drug/{{ selected_drug_id }}" class="btn btn-outline-primary">View Metabolism Pathway</a>
+            <div class="card-body p-0">
+                <div class="table-container">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Route</th>
+                                <th>Type</th>
+                                <th>F (%)</th>
+                                <th>Vd (L)</th>
+                                <th>t½ (h)</th>
+                                <th>Ke (h⁻¹)</th>
+                                <th>Ka (h⁻¹)</th>
+                                <th>CL (mL/min)</th>
+                                <th>PB (%)</th>
+                                <th>Tmax (h)</th>
+                                <th>Cmax (mg/L)</th>
+                                <th>Therapeutic Range</th>
+                                <th>AUC (mg·h/L)</th>
+                                <th>Css (mg/L)</th>
+                                <th>Metabolites</th>
+                                <th>Metabolism</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in pk_data %}
+                            <tr>
+                                <td><strong>{{ entry.route_name }}</strong></td>
+                                <td>
+                                    {% if entry.is_iv %}
+                                    <span class="badge-custom badge-iv">IV</span>
+                                    {% elif 'oral' in entry.route_name.lower() %}
+                                    <span class="badge-custom badge-oral">Oral</span>
+                                    {% else %}
+                                    <span class="badge-custom badge-other">Other</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ "%.1f"|format(entry.bioavailability_avg) }}%</td>
+                                <td>{{ "%.2f"|format(entry.vod_avg) }}</td>
+                                <td>{{ "%.2f"|format(entry.half_life_avg) }}</td>
+                                <td>{{ "%.4f"|format(entry.ke) }}</td>
+                                <td>{{ "%.4f"|format(entry.ka) if entry.ka else "N/A" }}</td>
+                                <td>
+                                    {% if entry.clearance_rate_min == entry.clearance_rate_max %}
+                                    {{ "%.1f"|format(entry.clearance_rate_min) }}
+                                    {% else %}
+                                    {{ "%.1f"|format(entry.clearance_rate_min) }}-{{ "%.1f"|format(entry.clearance_rate_max) }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.protein_binding_min == entry.protein_binding_max %}
+                                    {{ "%.1f"|format(entry.protein_binding_min) }}
+                                    {% else %}
+                                    {{ "%.1f"|format(entry.protein_binding_min) }}-{{ "%.1f"|format(entry.protein_binding_max) }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ "%.2f"|format(entry.tmax_simulated) }}</div>
+                                    {% if entry.tmax_avg %}
+                                    <small class="text-muted">(Lit: {{ "%.2f"|format(entry.tmax_avg) }})</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ "%.2f"|format(entry.cmax_simulated) }}</div>
+                                    {% if entry.cmax_avg %}
+                                    <small class="text-muted">(Lit: {{ "%.2f"|format(entry.cmax_avg) }})</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.therapeutic_min > 0 and entry.therapeutic_max > 0 %}
+                                    {{ "%.2f"|format(entry.therapeutic_min) }}-{{ "%.2f"|format(entry.therapeutic_max) }} {{ entry.therapeutic_unit }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ "%.2f"|format(entry.auc_numerical) }}</td>
+                                <td>
+                                    {% if entry.css_avg %}
+                                    <div><strong>Avg:</strong> {{ "%.2f"|format(entry.css_avg) }}</div>
+                                    <div><small>Max: {{ "%.2f"|format(entry.css_max) }}</small></div>
+                                    <div><small>Min: {{ "%.2f"|format(entry.css_min) }}</small></div>
+                                    {% else %}
+                                    <span class="text-muted">Single dose</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if entry.metabolites %}
+                                    <div class="metabolite-tree">
+                                        <ul class="mb-0">
+                                            {% for met in entry.metabolites %}
+                                            <li>{{ met.name }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="mb-2">
+                                        {% if entry.metabolism_organs %}
+                                        <strong>Organs:</strong><br>
+                                        {% for organ in entry.metabolism_organs %}
+                                        <span class="info-badge">{{ organ }}</span>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        {% if entry.metabolism_enzymes %}
+                                        <strong>Enzymes:</strong><br>
+                                        {% for enzyme in entry.metabolism_enzymes %}
+                                        <span class="info-badge">{{ enzyme }}</span>
+                                        {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
+
+        <!-- Additional Information -->
+        <div class="row g-4 mt-4">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        📖 Pharmacodynamics Information
+                    </div>
+                    <div class="card-body">
+                        {% for entry in pk_data %}
+                        <div class="mb-3">
+                            <h6 class="text-primary">{{ entry.route_name }}</h6>
+                            <p class="mb-0">{{ entry.pharmacodynamics|safe }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        🔬 Pharmacokinetics Information
+                    </div>
+                    <div class="card-body">
+                        {% for entry in pk_data %}
+                        <div class="mb-3">
+                            <h6 class="text-primary">{{ entry.route_name }}</h6>
+                            <p class="mb-0">{{ entry.pharmacokinetics|safe }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="/drug/{{ selected_drug_id }}" class="btn-custom btn-primary-custom" style="display: inline-block; text-decoration: none;">
+                🔍 View Full Drug Profile
+            </a>
+        </div>
+
         {% elif selected_drug_id %}
-        <div class="alert alert-info text-center">No pharmacokinetic data available for this drug.</div>
+        <div class="alert alert-info-custom text-center">
+            <strong>ℹ️ No Data Available</strong><br>
+            No pharmacokinetic data is currently available for this drug.
+        </div>
         {% endif %}
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
 $(document).ready(function () {
-    // Initialize Select2 for drug search (unchanged)
+    // Initialize Select2
     $('#drug_search').select2({
         theme: 'bootstrap-5',
-        placeholder: "Search for a drug...",
+        placeholder: "Type to search for a drug...",
         ajax: {
             url: "/api/active_ingredients",
             dataType: 'json',
@@ -327,409 +808,401 @@ $(document).ready(function () {
         },
         minimumInputLength: 1,
         allowClear: true,
-        width: '100%',
-        templateResult: data => data.text,
-        templateSelection: data => data.text || "Search for a drug..."
+        width: '100%'
     }).on('select2:select', e => {
-        window.location.href = `/pharmacokinetics?drug_id=${e.params.data.id}&dose=${$('#dose').val()}`;
-    }).on('select2:clear', () => {
-        window.location.href = '/pharmacokinetics';
+        const dose = $('#dose').val();
+        const interval = $('#interval').val();
+        const numDoses = $('#num_doses').val();
+        window.location.href = `/pharmacokinetics?drug_id=${e.params.data.id}&dose=${dose}&interval=${interval}&num_doses=${numDoses}`;
     });
 
     {% if pk_data %}
     const pkData = {{ pk_data | tojson }};
-    const chartData = {{ chart_data | tojson | safe }};
     const COLORS = [
-        'rgba(54, 162, 235, 0.6)', 'rgba(255, 99, 132, 0.6)', 
-        'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)',
-        'rgba(255, 159, 64, 0.6)', 'rgba(201, 203, 207, 0.6)',
-        'rgba(255, 205, 86, 0.6)', 'rgba(54, 162, 235, 0.6)'
+        'rgba(37, 99, 235, 0.8)',   // Blue
+        'rgba(239, 68, 68, 0.8)',   // Red
+        'rgba(16, 185, 129, 0.8)',  // Green
+        'rgba(124, 58, 237, 0.8)',  // Purple
+        'rgba(245, 158, 11, 0.8)',  // Orange
+        'rgba(6, 182, 212, 0.8)',   // Cyan
+        'rgba(236, 72, 153, 0.8)',  // Pink
+        'rgba(132, 204, 22, 0.8)'   // Lime
     ];
 
-    // Radar Chart (unchanged)
-    const radarCtx = document.getElementById('radarChart').getContext('2d');
-    const radarChart = new Chart(radarCtx, {
-        type: 'radar',
-        data: {
-            labels: ['Absorption Rate', 'Volume of Dist.', 'Protein Binding', 'Half-Life', 'Clearance Rate'],
-            datasets: pkData.map((entry, idx) => ({
-                label: entry.route_name,
-                data: [
-                    (entry.absorption_rate_min + entry.absorption_rate_max) / 2,
-                    (entry.vod_rate_min + entry.vod_rate_max) / 2,
-                    (entry.protein_binding_min + entry.protein_binding_max) / 2,
-                    (entry.half_life_min + entry.half_life_max) / 2,
-                    (entry.clearance_rate_min + entry.clearance_rate_max) / 2
-                ],
-                backgroundColor: COLORS[idx % COLORS.length].replace('0.6', '0.2'),
-                borderColor: COLORS[idx % COLORS.length].replace('0.6', '1'),
-                borderWidth: 2
-            }))
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { position: 'top' } },
-            scales: {
-                r: { 
-                    beginAtZero: true, 
-                    ticks: { stepSize: 10 },
-                    grid: { color: '#e9ecef' }
-                }
-            }
-        }
-    });
+    // Initialize Charts
+    let concentrationChart, radarChart, bioavailabilityChart, aucChart, halfLifeChart;
 
-    // Concentration Chart (updated to use backend chart_data)
+    // Concentration Chart
     const concentrationCtx = document.getElementById('concentrationChart').getContext('2d');
-    const concentrationChart = new Chart(concentrationCtx, {
+    concentrationChart = new Chart(concentrationCtx, {
         type: 'line',
-        data: chartData ? chartData.data : {
-            labels: pkData[0].concentrations.map(pair => pair[0]),
+        data: {
+            labels: [],
             datasets: []
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
-                legend: { position: 'top' },
-                annotation: {
-                    annotations: []
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 15,
+                        font: { size: 12 }
+                    }
                 },
-                title: {
-                    display: true,
-                    text: chartData ? chartData.options.plugins.title.text : 'Concentration vs Time'
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: { size: 14 },
+                    bodyFont: { size: 13 },
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y.toFixed(3) + ' mg/L';
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: {}
                 }
             },
             scales: {
-                x: { 
-                    title: { display: true, text: 'Time (hours)' },
-                    grid: { color: '#e9ecef' }
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time (hours)',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 },
-                y: { 
-                    title: { display: true, text: 'Concentration (mg/L)' },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Plasma Concentration (mg/L)',
+                        font: { size: 14, weight: 'bold' }
+                    },
                     beginAtZero: true,
-                    suggestedMax: 0,
-                    grid: { color: '#e9ecef' }
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 }
             }
         }
     });
 
-    // Bioavailability Chart (unchanged)
+    // Radar Chart
+    const radarCtx = document.getElementById('radarChart').getContext('2d');
+    radarChart = new Chart(radarCtx, {
+        type: 'radar',
+        data: {
+            labels: ['Bioavailability', 'Volume Dist.', 'Protein Binding', 'Half-Life', 'Clearance'],
+            datasets: pkData.map((entry, idx) => ({
+                label: entry.route_name,
+                data: [
+                    entry.bioavailability_avg || 0,
+                    entry.vod_avg || 0,
+                    (entry.protein_binding_min + entry.protein_binding_max) / 2 || 0,
+                    entry.half_life_avg || 0,
+                    (entry.clearance_rate_min + entry.clearance_rate_max) / 2 || 0
+                ],
+                backgroundColor: COLORS[idx % COLORS.length].replace('0.8', '0.2'),
+                borderColor: COLORS[idx % COLORS.length],
+                borderWidth: 2,
+                pointBackgroundColor: COLORS[idx % COLORS.length],
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: COLORS[idx % COLORS.length]
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { font: { size: 12 } }
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 20,
+                        font: { size: 11 }
+                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                    pointLabels: { font: { size: 12 } }
+                }
+            }
+        }
+    });
+
+    // Bioavailability Chart
     const bioCtx = document.getElementById('bioavailabilityChart').getContext('2d');
-    const bioavailabilityChart = new Chart(bioCtx, {
+    bioavailabilityChart = new Chart(bioCtx, {
         type: 'bar',
         data: {
             labels: pkData.map(entry => entry.route_name),
             datasets: [{
                 label: 'Bioavailability (%)',
-                data: pkData.map(entry => (entry.bioavailability_min + entry.bioavailability_max) / 2),
+                data: pkData.map(entry => entry.bioavailability_avg || 0),
                 backgroundColor: pkData.map((_, idx) => COLORS[idx % COLORS.length]),
-                borderColor: pkData.map((_, idx) => COLORS[idx % COLORS.length].replace('0.6', '1')),
-                borderWidth: 1
+                borderColor: pkData.map((_, idx) => COLORS[idx % COLORS.length].replace('0.8', '1')),
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: false } },
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'F = ' + context.parsed.y.toFixed(1) + '%';
+                        }
+                    }
+                }
+            },
             scales: {
-                y: { 
-                    beginAtZero: true, 
-                    max: 100, 
-                    title: { display: true, text: 'Bioavailability (%)' },
-                    grid: { color: '#e9ecef' }
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Bioavailability (%)',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 },
-                x: { 
-                    title: { display: true, text: 'Route' },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Route of Administration',
+                        font: { size: 14, weight: 'bold' }
+                    },
                     grid: { display: false }
                 }
             }
         }
     });
 
-    // AUC Chart (updated to use backend AUC values)
+    // AUC Chart
     const aucCtx = document.getElementById('aucChart').getContext('2d');
-    const aucChart = new Chart(aucCtx, {
+    aucChart = new Chart(aucCtx, {
         type: 'bar',
         data: {
             labels: pkData.map(entry => entry.route_name),
             datasets: [{
-                label: 'AUC (mg/L·h)',
-                data: pkData.map(entry => entry.auc),
+                label: 'AUC (mg·h/L)',
+                data: pkData.map(entry => entry.auc_numerical || 0),
                 backgroundColor: pkData.map((_, idx) => COLORS[idx % COLORS.length]),
-                borderColor: pkData.map((_, idx) => COLORS[idx % COLORS.length].replace('0.6', '1')),
-                borderWidth: 1
+                borderColor: pkData.map((_, idx) => COLORS[idx % COLORS.length].replace('0.8', '1')),
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
-                datalabels: {
-                    anchor: 'end',
-                    align: 'top',
-                    formatter: value => value.toFixed(2),
-                    color: '#000',
-                    font: { weight: 'bold' }
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'AUC = ' + context.parsed.y.toFixed(2) + ' mg·h/L';
+                        }
+                    }
                 }
             },
             scales: {
-                y: { 
+                y: {
                     beginAtZero: true,
-                    title: { display: true, text: 'AUC (mg/L·h)' },
-                    grid: { color: '#e9ecef' }
+                    title: {
+                        display: true,
+                        text: 'AUC (mg·h/L)',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 },
-                x: { 
-                    title: { display: true, text: 'Route' },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Route of Administration',
+                        font: { size: 14, weight: 'bold' }
+                    },
                     grid: { display: false }
                 }
             }
         }
     });
 
-    function calculateConcentration(dose, entry, time, steadyState = false, interval = 0) {
-        const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
-        const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
-        const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
-        const ke = Math.log(2) / halfLife;
-        let concentrations = Array(time.length).fill(0);
-
-        if (steadyState && interval > 0) {
-            const doses = Math.ceil(time[time.length - 1] / interval);
-            const R = 1 / (1 - Math.exp(-ke * interval)); // Accumulation ratio
-            for (let d = 0; d < doses; d++) {
-                const doseTime = d * interval;
-                const c0 = (dose * bio) / vod;
-                time.forEach((t, i) => {
-                    if (t >= doseTime) {
-                        concentrations[i] += c0 * Math.exp(-ke * (t - doseTime)) * R;
+    // Half-Life Chart
+    const halfLifeCtx = document.getElementById('halfLifeChart').getContext('2d');
+    halfLifeChart = new Chart(halfLifeCtx, {
+        type: 'bar',
+        data: {
+            labels: pkData.map(entry => entry.route_name),
+            datasets: [{
+                label: 'Half-Life (hours)',
+                data: pkData.map(entry => entry.half_life_avg || 0),
+                backgroundColor: pkData.map((_, idx) => COLORS[idx % COLORS.length]),
+                borderColor: pkData.map((_, idx) => COLORS[idx % COLORS.length].replace('0.8', '1')),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 't½ = ' + context.parsed.y.toFixed(2) + ' hours';
+                        }
                     }
-                });
-            }
-        } else {
-            // Use backend concentrations if available, scaled by dose
-            const initialDose = {{ request.args.get('dose', 100) }};
-            const scale = dose / initialDose;
-            concentrations = entry.concentrations.map(pair => pair[1] * scale);
-        }
-        return concentrations;
-    }
-
-    function calculateAUC(concentrations, time) {
-        let auc = 0;
-        for (let i = 0; i < concentrations.length - 1; i++) {
-            auc += (concentrations[i] + concentrations[i + 1]) * (time[i + 1] - time[i]) / 2;
-        }
-        return auc;
-    }
-
-    function optimizeDosing(entry) {
-        const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
-        const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
-        const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
-        const ke = Math.log(2) / halfLife;
-        const clearance = ((entry.clearance_rate_min + entry.clearance_rate_max) / 2) * 0.06; // Convert mL/min to L/h
-        let therapeuticMin = entry.therapeutic_min || 0;
-        let therapeuticMax = entry.therapeutic_max || 0;
-        const unit = entry.therapeutic_unit || 'mg/L';
-
-        // Convert therapeutic range to mg/L
-        if (unit === 'ng/mL') {
-            therapeuticMin /= 1000;
-            therapeuticMax /= 1000;
-        }
-
-        const targetCss = (therapeuticMin + therapeuticMax) / 2;
-        let interval = Math.round(halfLife); // Round to nearest hour
-        let dose = (targetCss * clearance * interval) / bio;
-        const time = concentrationChart.data.labels;
-        let CssMin, CssMax, maxIterations = 100, iteration = 0;
-
-        do {
-            const concentrations = calculateConcentration(dose, entry, time, true, interval);
-            CssMin = Math.min(...concentrations.slice(-48)); // Last 24 hours
-            CssMax = Math.max(...concentrations.slice(-48));
-            if (CssMax > therapeuticMax) dose *= 0.9;
-            if (CssMin < therapeuticMin) dose *= 1.1;
-            iteration++;
-        } while ((CssMin < therapeuticMin || CssMax > therapeuticMax) && iteration < maxIterations);
-
-        return { dose: dose.toFixed(2), interval: interval.toFixed(1), concentrations: calculateConcentration(dose, entry, time, true, interval) };
-    }
-
-    function updateConcentrationChart(dose, steadyState, interval, routeIdx = -1) {
-        const datasets = [];
-        const annotations = [];
-        const time = chartData ? chartData.data.labels : pkData[0].concentrations.map(pair => pair[0]);
-        let maxConcentration = 0;
-        const initialDose = {{ request.args.get('dose', 100) }};
-
-        const entries = routeIdx === -1 ? pkData : [pkData[routeIdx]];
-
-        entries.forEach((entry, idx) => {
-            const halfLife = (entry.half_life_min + entry.half_life_max) / 2 || 1;
-            const vod = (entry.vod_rate_min + entry.vod_rate_max) / 2 || 1;
-            const bio = (entry.bioavailability_min + entry.bioavailability_max) / 2 / 100;
-            const ke = Math.log(2) / halfLife;
-            const tmax = (entry.tmax_min + entry.tmax_max) / 2 || 1;
-            let cmax = (entry.cmax_min + entry.cmax_max) / 2 || ((dose * bio) / vod);
-            const unit = entry.therapeutic_unit || 'mg/L';
-            let therapeuticMin = entry.therapeutic_min || 0;
-            let therapeuticMax = entry.therapeutic_max || 0;
-
-            // Convert to mg/L for chart
-            if (unit === 'ng/mL') {
-                cmax /= 1000;
-                therapeuticMin /= 1000;
-                therapeuticMax /= 1000;
-            }
-
-            // Therapeutic range annotation
-            if (therapeuticMin > 0 && therapeuticMax > 0) {
-                annotations.push({
-                    type: 'box',
-                    yMin: therapeuticMin,
-                    yMax: therapeuticMax,
-                    backgroundColor: 'rgba(0, 255, 0, 0.1)',
-                    borderColor: 'rgba(0, 255, 0, 0.5)',
-                    label: { 
-                        content: `Therapeutic Range (${entry.route_name})`, 
-                        enabled: true 
-                    }
-                });
-            }
-
-            // Parent drug concentrations
-            let parentConcentrations = calculateConcentration(dose, entry, time, steadyState, interval);
-            datasets.push({
-                label: `${entry.route_name} (Parent)`,
-                data: parentConcentrations,
-                borderColor: COLORS[idx % COLORS.length].replace('0.6', '1'),
-                backgroundColor: COLORS[idx % COLORS.length].replace('0.6', '0.2'),
-                fill: {
-                    target: 'origin',
-                    above: COLORS[idx % COLORS.length].replace('0.6', '0.2') // Shaded AUC
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Elimination Half-Life (hours)',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
                 },
-                tension: 0.1
-            });
-
-            // Tmax and Cmax annotation
-            const peakIndex = Math.round(tmax / (time[1] - time[0]));
-            const peakConcentration = parentConcentrations[peakIndex] || cmax;
-            annotations.push({
-                type: 'point',
-                xValue: tmax,
-                yValue: peakConcentration,
-                backgroundColor: COLORS[idx % COLORS.length].replace('0.6', '1'),
-                radius: 5,
-                label: { 
-                    content: `${entry.route_name}: Tmax=${tmax.toFixed(1)}h, Cmax=${peakConcentration.toFixed(2)} ${unit}`, 
-                    enabled: true 
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Route of Administration',
+                        font: { size: 14, weight: 'bold' }
+                    },
+                    grid: { display: false }
                 }
-            });
+            }
+        }
+    });
 
-            // Metabolite concentrations (with warning for assumptions)
-            entry.metabolites.forEach((met, mIdx) => {
-                const metKe = ke * 0.8; // Assumption: adjust if backend provides data
-                const metDelay = tmax + 1;
-                const metFormationFraction = 0.5; // Assumption
-                let metConcentrations;
-                if (steadyState && interval > 0) {
-                    metConcentrations = Array(time.length).fill(0);
-                    const doses = Math.ceil(time[time.length - 1] / interval);
-                    const R = 1 / (1 - Math.exp(-metKe * interval));
-                    for (let d = 0; d < doses; d++) {
-                        const doseTime = d * interval;
-                        const metC0 = (dose * bio) / vod * metFormationFraction;
-                        time.forEach((t, i) => {
-                            if (t >= doseTime + metDelay) {
-                                metConcentrations[i] += metC0 * Math.exp(-metKe * (t - doseTime - metDelay)) * R;
-                            }
-                        });
-                    }
-                } else {
-                    metConcentrations = time.map(t => t < metDelay ? 0 : (parentConcentrations[0] * metFormationFraction) * Math.exp(-metKe * (t - metDelay)));
-                }
-                datasets.push({
-                    label: `${met.name} (via ${entry.route_name})`,
-                    data: metConcentrations,
-                    borderColor: COLORS[(idx + mIdx + 1) % COLORS.length].replace('0.6', '1'),
-                    borderDash: [5, 5],
-                    fill: false,
-                    tension: 0.1
-                });
-            });
+    // Update concentration chart with current data
+    function updateConcentrationChart() {
+        const dose = parseFloat($('#dose').val()) || 100;
+        const interval = parseFloat($('#interval').val()) || 24;
+        const numDoses = parseInt($('#num_doses').val()) || 1;
+        const routeIdx = parseInt($('#routeSelect').val());
 
-            maxConcentration = Math.max(maxConcentration, cmax, therapeuticMax, ...parentConcentrations);
+        // Redirect to backend for recalculation
+        const drugId = {{ selected_drug_id }};
+        window.location.href = `/pharmacokinetics?drug_id=${drugId}&dose=${dose}&interval=${interval}&num_doses=${numDoses}`;
+    }
+
+    // Display PK stats
+    function displayPKStats() {
+        const routeIdx = parseInt($('#routeSelect').val());
+        const entries = routeIdx === -1 ? pkData : [pkData[routeIdx]];
+        
+        let statsHtml = '';
+        entries.forEach(entry => {
+            if (entry.css_avg) {
+                statsHtml += `
+                    <div class="stat-card">
+                        <div class="label">${entry.route_name} - Css,avg</div>
+                        <div class="value">${entry.css_avg.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">${entry.route_name} - Css,max</div>
+                        <div class="value">${entry.css_max.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">${entry.route_name} - Css,min</div>
+                        <div class="value">${entry.css_min.toFixed(2)}</div>
+                    </div>
+                `;
+            }
+            statsHtml += `
+                <div class="stat-card">
+                    <div class="label">${entry.route_name} - AUC</div>
+                    <div class="value">${entry.auc_numerical.toFixed(2)}</div>
+                </div>
+            `;
         });
+        
+        $('#pkStats').html(statsHtml);
+    }
 
-        // Update concentration chart
-        concentrationChart.data.datasets = datasets;
-        concentrationChart.options.plugins.annotation.annotations = annotations;
-        concentrationChart.options.scales.y.suggestedMax = maxConcentration * 1.2 || 10;
-        concentrationChart.update();
-
-        // Update AUC chart (using backend AUC values)
-        aucChart.data.labels = entries.map(entry => entry.route_name);
-        aucChart.data.datasets[0].data = entries.map(entry => entry.auc);
-        aucChart.data.datasets[0].backgroundColor = entries.map((_, idx) => COLORS[idx % COLORS.length]);
-        aucChart.data.datasets[0].borderColor = entries.map((_, idx) => COLORS[idx % COLORS.length].replace('0.6', '1'));
-        aucChart.update();
+    // Optimize dosing
+    function optimizeDosing() {
+        $('#loadingSpinner').addClass('show');
+        
+        setTimeout(() => {
+            const routeIdx = parseInt($('#routeSelect').val());
+            const entries = routeIdx === -1 ? pkData : [pkData[routeIdx]];
+            
+            let recommendations = '<h6>💡 Optimized Dosing Recommendations</h6><ul>';
+            
+            entries.forEach(entry => {
+                const therapeuticMin = entry.therapeutic_min || 0;
+                const therapeuticMax = entry.therapeutic_max || 0;
+                
+                if (therapeuticMin > 0 && therapeuticMax > 0) {
+                    const targetCss = (therapeuticMin + therapeuticMax) / 2;
+                    const halfLife = entry.half_life_avg;
+                    const vod = entry.vod_avg;
+                    const bio = entry.bioavailability_avg / 100;
+                    const clearance = ((entry.clearance_rate_min + entry.clearance_rate_max) / 2) * 0.06; // mL/min to L/h
+                    
+                    // Optimal interval: typically 1-2 half-lives
+                    const optimalInterval = Math.round(halfLife);
+                    
+                    // Calculate dose for target Css
+                    const optimalDose = (targetCss * clearance * optimalInterval) / bio;
+                    
+                    recommendations += `
+                        <li><strong>${entry.route_name}:</strong> 
+                            ${optimalDose.toFixed(1)} mg every ${optimalInterval} hours
+                            <br><small>(Target Css: ${targetCss.toFixed(2)} ${entry.therapeutic_unit})</small>
+                        </li>
+                    `;
+                } else {
+                    recommendations += `
+                        <li><strong>${entry.route_name}:</strong> 
+                            Therapeutic range not defined - optimization not available
+                        </li>
+                    `;
+                }
+            });
+            
+            recommendations += '</ul>';
+            
+            $('#dosingRecommendation').html(recommendations).addClass('show');
+            $('#loadingSpinner').removeClass('show');
+        }, 1000);
     }
 
     // Event listeners
-    const doseInput = document.getElementById('dose');
-    const steadyStateCheck = document.getElementById('steadyState');
-    const intervalInput = document.getElementById('interval');
-    const routeSelect = document.getElementById('routeSelect');
-    const optimizeButton = document.getElementById('optimizeDose');
-    const resetButton = document.getElementById('resetDose');
+    $('#updateSimulation').on('click', updateConcentrationChart);
+    
+    $('#optimizeDose').on('click', optimizeDosing);
+    
+    $('#resetDose').on('click', function() {
+        $('#dose').val({{ dose or 100 }});
+        $('#interval').val({{ dosing_interval or 24 }});
+        $('#num_doses').val({{ num_doses or 1 }});
+        $('#routeSelect').val(-1);
+        $('#dosingRecommendation').removeClass('show').html('');
+        updateConcentrationChart();
+    });
 
-    if (doseInput && optimizeButton && resetButton && steadyStateCheck && intervalInput && routeSelect) {
-        function update() {
-            const dose = parseFloat(doseInput.value) || 100;
-            const steadyState = steadyStateCheck.checked;
-            const interval = parseFloat(intervalInput.value) || 8;
-            const routeIdx = parseInt(routeSelect.value);
-            updateConcentrationChart(dose, steadyState, interval, routeIdx);
-        }
+    $('#routeSelect').on('change', function() {
+        displayPKStats();
+    });
 
-        doseInput.addEventListener('input', update);
-        steadyStateCheck.addEventListener('change', update);
-        intervalInput.addEventListener('input', update);
-        routeSelect.addEventListener('change', update);
-
-        optimizeButton.addEventListener('click', () => {
-            const routeIdx = parseInt(routeSelect.value);
-            let entries = routeIdx === -1 ? pkData : [pkData[routeIdx]];
-            let recommendations = [];
-            entries.forEach((entry) => {
-                const { dose: optDose, interval: optInterval } = optimizeDosing(entry);
-                recommendations.push(`Optimal for ${entry.route_name}: ${optDose} mg every ${optInterval} hours`);
-            });
-            document.getElementById('dosingRecommendation').innerHTML = recommendations.join('<br>');
-
-            if (routeIdx !== -1) {
-                const { dose: optDose, interval: optInterval } = optimizeDosing(pkData[routeIdx]);
-                doseInput.value = optDose;
-                steadyStateCheck.checked = true;
-                intervalInput.value = optInterval;
-                update();
-            }
-        });
-
-        resetButton.addEventListener('click', () => {
-            doseInput.value = {{ request.args.get('dose', 100) }};
-            steadyStateCheck.checked = false;
-            intervalInput.value = 8;
-            routeSelect.value = -1;
-            document.getElementById('dosingRecommendation').innerHTML = '';
-            update();
-        });
-
-        update();
-    }
+    // Initial display
+    displayPKStats();
+    
     {% endif %}
 });
     </script>
-</body>
-</html>

@@ -34,3 +34,7 @@ receptors_and_iuphar_id.csv
 side_effects.csv
 targets.csv
 targets_and_families.csv
+
+#Şifreler
+.env
+.env.*
