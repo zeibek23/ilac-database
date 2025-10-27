@@ -85,7 +85,7 @@ from typing import List, Optional
 from http import HTTPStatus
 from Bio.PDB import PDBParser, PDBIO
 from werkzeug.utils import secure_filename
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from scipy.integrate import odeint
 from functools import wraps, lru_cache
 from markupsafe import Markup
@@ -98,16 +98,36 @@ import platform
 from pathlib import Path
 
 
-load_dotenv()
-app = Flask(__name__)
+# Get the directory where app.py is located
+BASE_DIR = Path(__file__).resolve().parent
+
+# Load .env file from the same directory as app.py
+dotenv_path = BASE_DIR / '.env'
+load_dotenv(dotenv_path=dotenv_path)
+
+# Verify it loaded
+if not dotenv_path.exists():
+    raise FileNotFoundError(f".env file not found at {dotenv_path}")
+
+print(f"✓ Loaded .env from: {dotenv_path}")
+
+
 # Flask uygulamasını oluştur
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'postgresql://postgres.enrowjcfkauuutemluhd:Alnesuse200824_@aws-0-eu-central-1.pooler.supabase.com:5432/postgres')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'super-secret-key-123')
+# Load and validate environment variables
+DATABASE_URL = os.environ.get('DATABASE_URL')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
-# Debug: Kullanılan DATABASE_URI’yi yazdır
-print("DATABASE_URI:", app.config['SQLALCHEMY_DATABASE_URI'])
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable not set! Check your .env file.")
+
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable not set! Check your .env file.")
+
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = SECRET_KEY
 
 # SQLAlchemy nesnesini oluştur ve uygulamaya bağla
 db = SQLAlchemy(app)
@@ -115,18 +135,19 @@ bcrypt = Bcrypt(app)
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
 
 # Logging setup
-logging.basicConfig(level=logging.INFO)
 logging.basicConfig(
-    level=logging.DEBUG,  # DEBUG seviyesini aktif et
+    level=logging.DEBUG,  # Use DEBUG for development, INFO for production
     format='%(asctime)s %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
-UPLOAD_FOLDER = "uploaded_files"
+# Set up upload folder
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploaded_files")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
+logger.info(f"Upload folder set to: {UPLOAD_FOLDER}")
 
 
 # Define junction tables globally
@@ -630,7 +651,7 @@ class Variant(db.Model):
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
     pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True)
-    name = db.Column(db.String(200), unique=True, nullable=False)
+    name = db.Column(db.String(800), unique=True, nullable=False)
     clinical_annotations = db.relationship('ClinicalAnnotationVariant', back_populates='variant')
     variant_annotations = db.relationship('VariantAnnotationVariant', back_populates='variant')
     drug_labels = db.relationship('DrugLabelVariant', back_populates='variant')
@@ -1035,12 +1056,20 @@ class User(db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     is_verified = db.Column(db.Boolean, default=False)  # New field
     verification_code = db.Column(db.String(6), nullable=True)  # Store 6-digit code
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)  # Add this
+
 
     def set_password(self, password):
         self.password = bcrypt.generate_password_hash(password).decode('utf-8')
 
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password, password)
+    
+    def is_online(self):
+        if self.last_seen is None:
+            return False
+        return datetime.utcnow() - self.last_seen < timedelta(minutes=5)
+
 
 class Occupation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1049,17 +1078,20 @@ class Occupation(db.Model):
 
 class DoseResponseSimulation(db.Model):
     __tablename__ = 'dose_response_simulation'
-    id = Column(String(36), primary_key=True)  # UUID as string
-    emax = Column(Float, nullable=False)
-    ec50 = Column(Float, nullable=False)
-    n = Column(Float, nullable=False)
-    e0 = Column(Float, nullable=False, default=0.0)  # Baseline effect
-    concentrations = Column(JSON, nullable=False)  # Store as JSON
-    dosing_regimen = Column(String(50), nullable=False, default='single')  # single or multiple
-    created_at = Column(DateTime, default=datetime.utcnow)
-    user_id = Column(Integer, nullable=True)  # Optional, link to User if logged in
-    concentration_unit = Column(String(20), default='µM')
-    effect_unit = Column(String(20), default='%')
+    id = db.Column(db.String(36), primary_key=True)  # UUID as string
+    emax = db.Column(db.Float, nullable=False)
+    ec50 = db.Column(db.Float, nullable=False)
+    n = db.Column(db.Float, nullable=False)
+    e0 = db.Column(db.Float, nullable=False, default=0.0)  # Baseline effect
+    concentrations = db.Column(db.JSON, nullable=False)  # Store as JSON
+    dosing_regimen = db.Column(db.String(50), nullable=False, default='single')  # single or multiple
+    doses = db.Column(db.JSON, nullable=True)  # For multiple dosing
+    intervals = db.Column(db.JSON, nullable=True)  # For multiple dosing
+    elimination_rate = db.Column(db.Float, nullable=True, default=0.1)  # For multiple dosing
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, nullable=True)  # Optional, link to User if logged in
+    concentration_unit = db.Column(db.String(20), default='µM')
+    effect_unit = db.Column(db.String(20), default='%')
 
 with app.app_context():
     #print("Registered Models:")
@@ -1133,6 +1165,75 @@ def home():
         user_email=user_email,
         user=user
     )
+
+#Online Users
+# Add before_request handler
+@app.before_request
+def update_last_seen():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+
+# Add route for viewing online users
+@app.route('/online-users')
+def online_users():
+    if 'user_id' not in session:
+        flash('Please login first', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        flash('Access denied. Admin only.', 'danger')
+        return redirect(url_for('home'))
+    
+    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
+    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).order_by(User.last_seen.desc()).all()
+    all_users = User.query.order_by(User.last_seen.desc().nullslast()).all()
+    
+    return render_template('online_users.html', online_users=online_users_list, all_users=all_users, user=user)
+
+# API endpoint for real-time updates
+@app.route('/api/online-users')
+def api_online_users():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
+    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).all()
+    
+    return jsonify({
+        'online_count': len(online_users_list),
+        'users': [{
+            'id': u.id,
+            'name': f"{u.name} {u.surname}",
+            'email': u.email,
+            'last_seen': u.last_seen.isoformat() if u.last_seen else None,
+            'is_online': u.is_online()
+        } for u in online_users_list]
+    })
+
+# Add this route to update all existing users with last_seen value
+@app.route('/admin/init-last-seen')
+def init_last_seen():
+    if 'user_id' not in session:
+        return "Unauthorized", 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        return "Forbidden", 403
+    
+    users = User.query.filter(User.last_seen.is_(None)).all()
+    for u in users:
+        u.last_seen = datetime.utcnow()
+    db.session.commit()
+    
+    return f"Updated {len(users)} users with last_seen timestamp"
 
 # Backend rotası
 @app.route('/backend')
@@ -1676,40 +1777,33 @@ def generate_3d_structure(smiles, output_filename):
 ALLOWED_TAGS = ['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a']
 ALLOWED_STYLES = ['color', 'background-color']
 
-# Define allowed attributes with a custom function for 'style'
+# Replace the existing allow_style_attrs function and cleaner setup with:
 def allow_style_attrs(tag, name, value):
-    if name != 'style':
-        return name in ['href'] and tag == 'a'  # Allow 'href' only for 'a' tags
-    # Parse and filter style attribute
-    styles = [style.strip() for style in value.split(';') if style.strip()]
-    filtered_styles = []
-    for style in styles:
-        try:
-            prop, _ = style.split(':', 1)
-            prop = prop.strip().lower()
+    if name == 'style':
+        # Parse and filter style attribute
+        styles = [style.strip() for style in value.split(';') if style.strip()]
+        filtered_styles = []
+        for style in styles:
+            if ':' not in style:
+                continue
+            prop = style.split(':', 1)[0].strip().lower()
             if prop in ALLOWED_STYLES:
                 filtered_styles.append(style)
-        except ValueError:
-            continue
-    return '; '.join(filtered_styles) if filtered_styles else None
+        return bool(filtered_styles)  # Return True/False, not the value
+    elif name == 'href' and tag == 'a':
+        return True
+    return False
 
-# Define allowed attributes per tag
-ALLOWED_ATTRIBUTES = {
-    'a': ['href'],
-    'span': allow_style_attrs
-}
-
-# Create a custom cleaner
-cleaner = Cleaner(
-    tags=ALLOWED_TAGS,
-    attributes=ALLOWED_ATTRIBUTES,
-    strip=True
-)
-
-# Reusable sanitization function
+# Use bleach.clean consistently, not the cleaner object
 def sanitize_field(field_value):
-    return cleaner.clean(field_value) if field_value else None
-
+    if not field_value:
+        return None
+    return bleach.clean(
+        field_value,
+        tags=ALLOWED_TAGS,
+        attributes={'a': ['href'], 'span': allow_style_attrs, 'p': allow_style_attrs},
+        strip=True
+    )
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -4471,19 +4565,32 @@ ABSTRACT_CACHE = {}
 
 # Initialize zero-shot classifier with an improved model
 device = 0 if torch.cuda.is_available() else -1
-try:
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
-        device=device
-    )
-except Exception as e:
-    logger.error(f"Failed to load DeBERTa-v3: {e}. Falling back to BART.")
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="facebook/bart-large-mnli",
-        device=device
-    )
+classifier = None
+
+def get_classifier():
+    """Lazy load classifier to avoid startup delays."""
+    global classifier
+    if classifier is None:
+        try:
+            classifier = pipeline(
+                "zero-shot-classification",
+                model="MoritzLaurer/deberta-v3-base-zeroshot-v2.0",
+                device=device
+            )
+            logger.info("Successfully loaded DeBERTa-v3 classifier")
+        except Exception as e:
+            logger.error(f"Failed to load DeBERTa-v3: {e}. Falling back to BART.")
+            try:
+                classifier = pipeline(
+                    "zero-shot-classification",
+                    model="facebook/bart-large-mnli",
+                    device=device
+                )
+                logger.info("Successfully loaded BART classifier as fallback")
+            except Exception as fallback_error:
+                logger.error(f"Failed to load any classifier: {fallback_error}")
+                raise RuntimeError("Could not initialize severity classifier")
+    return classifier
 
 def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
     """Fetch relevant PubMed abstracts for drug interactions with improved filtering."""
@@ -4492,8 +4599,8 @@ def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
         logger.info(f"Using cached PubMed abstracts for {drug1} and {drug2}")
         return ABSTRACT_CACHE[cache_key]
 
-    Entrez.email = "eczeneszeybek@gmail.com"
-    Entrez.api_key = "51921ae5597d83823b3ce5499a5e7676d808"
+    Entrez.email = os.environ.get('PUBMED_EMAIL')
+    Entrez.api_key = os.environ.get('PUBMED_API_KEY')
     term = f'("{drug1}" AND "{drug2}" AND (drug interaction OR contraindication OR adverse effect OR pharmacodynamic OR pharmacokinetic))'
     logger.info(f"Fetching PubMed abstracts for term: {term}")
 
@@ -4530,104 +4637,156 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
     """Classify interaction severity using description and PubMed abstracts with enhanced rules."""
     labels = ["Mild", "Moderate", "Severe", "Critical"]
     label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Hayati Risk İçeren"}
-
-    # Expanded critical terms for better detection
+    
+    # Expanded critical terms with better categorization
     critical_terms = [
         "contraindicated", "life-threatening", "severe hypotension", "organ failure",
         "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest",
-        "severe adverse", "critical interaction", "prohibited", "fatal", "toxic", "overdose risk", "hospitalization"
+        "severe adverse", "critical interaction", "prohibited", "fatal", "toxic", 
+        "overdose risk", "hospitalization", "death", "coma", "seizure", "stroke",
+        "myocardial infarction", "renal failure", "hepatotoxicity", "agranulocytosis"
     ]
+    
+    severe_terms = [
+        "significant risk", "serious adverse", "requires monitoring", "dose adjustment",
+        "increased toxicity", "enhanced effect", "decreased efficacy", "clinical significance"
+    ]
+    
     description_lower = description.lower()
     is_critical_in_description = any(term in description_lower for term in critical_terms)
-
-    # Fetch and preprocess PubMed abstracts
-    abstracts = fetch_pubmed_abstracts(drug1_name, drug2_name)
+    is_severe_in_description = any(term in description_lower for term in severe_terms)
+    
+    # Fetch and preprocess PubMed abstracts with error handling
+    try:
+        abstracts = fetch_pubmed_abstracts(drug1_name, drug2_name)
+    except Exception as e:
+        logger.error(f"Error fetching PubMed abstracts: {e}")
+        abstracts = []
+    
     if abstracts:
         combined_abstracts = " ".join(abstracts)
         sentences = re.split(r'[.!?]+', combined_abstracts)
         relevant_sentences = [
             s.strip() for s in sentences
-            if any(term in s.lower() for term in ["interaction", "adverse", "contraindication", "risk", "effect", "severe", "critical"])
+            if len(s.strip()) > 20 and any(term in s.lower() for term in ["interaction", "adverse", "contraindication", "risk", "effect", "severe", "critical"])
         ]
         evidence = " ".join(relevant_sentences[:5])[:1000]
         is_critical_in_evidence = any(term in evidence.lower() for term in critical_terms)
+        is_severe_in_evidence = any(term in evidence.lower() for term in severe_terms)
     else:
-        evidence = "No relevant PubMed abstracts found."
+        evidence = ""
         is_critical_in_evidence = False
-
+        is_severe_in_evidence = False
+    
     # Preprocess description
     desc_sentences = re.split(r'[.!?]+', description)
     relevant_desc = [
         s.strip() for s in desc_sentences
-        if any(term in s.lower() for term in ["interaction", "adverse", "contraindication", "risk", "effect", "severe", "critical"])
+        if len(s.strip()) > 10 and any(term in s.lower() for term in ["interaction", "adverse", "contraindication", "risk", "effect", "severe", "critical"])
     ]
     processed_description = " ".join(relevant_desc[:5]) or description[:500]
-
-    # Improved prompt for better classification accuracy
+    
+    # Enhanced prompt for better classification accuracy
     prompt = (
-        f"Analyze the drug interaction severity between {drug1_name} and {drug2_name}.\n"
-        f"Description: {processed_description}.\n"
-        f"Supporting evidence from PubMed: {evidence[:500]}.\n"
-        f"Classify strictly into one category:\n"
-        f"- Mild: Minimal clinical impact, no significant risks or interventions needed.\n"
-        f"- Moderate: Noticeable effects requiring monitoring or minor adjustments.\n"
-        f"- Severe: High risk of harm, requires careful management or avoidance.\n"
-        f"- Critical: Life-threatening, contraindicated, or potentially fatal; must avoid combination."
+        f"Analyze the drug interaction severity between {drug1_name} and {drug2_name}.\n\n"
+        f"Interaction Description: {processed_description}\n\n"
+        f"Scientific Evidence: {evidence[:500] if evidence else 'No additional evidence available.'}\n\n"
+        f"Classification Guidelines:\n"
+        f"- Mild: Minimal clinical significance, no intervention needed, minor or theoretical risk.\n"
+        f"- Moderate: Clinically relevant, requires monitoring, possible dose adjustment, manageable risk.\n"
+        f"- Severe: High risk of significant harm, requires careful management, alternative therapy often recommended.\n"
+        f"- Critical: Life-threatening, contraindicated combination, must be avoided, immediate danger to patient.\n\n"
+        f"Classify this interaction strictly into ONE category based on the worst-case clinical outcome."
     )
-    logger.debug(f"Classification prompt: {prompt[:200]}...")
-
+    
+    logger.debug(f"Classification prompt for {drug1_name} + {drug2_name}: {prompt[:300]}...")
+    
     try:
+        # Get classifier instance
+        clf = get_classifier()
+        
         # AI classification
-        result = classifier(prompt, labels, multi_label=False)
+        result = clf(prompt, labels, multi_label=False)
         predicted_label = label_map[result["labels"][0]]
         confidence = result["scores"][0]
-
+        
         # Rule-based overrides for reliability
         if is_critical_in_description or is_critical_in_evidence:
-            logger.info(f"Critical terms detected for {drug1_name} and {drug2_name} in description or evidence")
+            logger.info(f"Critical terms detected for {drug1_name} + {drug2_name}")
             predicted_label = "Hayati Risk İçeren"
             confidence = max(confidence, 0.95)
-        elif confidence < 0.80:  # Raised threshold for more conservative predictions
-            logger.warning(f"Low confidence ({confidence}) for {drug1_name} and {drug2_name}. Predicted: {predicted_label}")
-            predicted_label = "Şiddetli" if predicted_label != "Hayati Risk İçeren" else predicted_label
-            confidence = 0.80
-
+        elif is_severe_in_description or is_severe_in_evidence:
+            if predicted_label in ["Hafif", "Orta"]:
+                logger.info(f"Severe terms detected, upgrading severity for {drug1_name} + {drug2_name}")
+                predicted_label = "Şiddetli"
+                confidence = max(confidence, 0.85)
+        
+        # Conservative approach for low confidence
+        if confidence < 0.75:
+            logger.warning(f"Low confidence ({confidence:.2f}) for {drug1_name} + {drug2_name}. Predicted: {predicted_label}")
+            # Upgrade to next severity level if confidence is low
+            severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"]
+            current_index = severity_order.index(predicted_label)
+            if current_index < len(severity_order) - 1:
+                predicted_label = severity_order[current_index + 1]
+            confidence = 0.75
+        
         # Trust manual severity if Hayati Risk İçeren
         if manual_severity == "Hayati Risk İçeren":
-            logger.info(f"Manual severity is Hayati Risk İçeren for {drug1_name} and {drug2_name}, overriding prediction")
+            logger.info(f"Manual severity is Critical for {drug1_name} + {drug2_name}, maintaining classification")
             predicted_label = "Hayati Risk İçeren"
             confidence = 0.99
-
-        # Log mismatches
+        
+        # Log significant mismatches
         if manual_severity and predicted_label != manual_severity:
-            logger.warning(
-                f"Severity mismatch for {drug1_name} and {drug2_name}: "
-                f"Manual={manual_severity}, Predicted={predicted_label} (Confidence={confidence:.2f})"
-            )
-
+            severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"]
+            manual_idx = severity_order.index(manual_severity) if manual_severity in severity_order else -1
+            predicted_idx = severity_order.index(predicted_label) if predicted_label in severity_order else -1
+            
+            if abs(manual_idx - predicted_idx) > 1:  # More than 1 level difference
+                logger.warning(
+                    f"Significant severity mismatch for {drug1_name} + {drug2_name}: "
+                    f"Manual={manual_severity}, Predicted={predicted_label} (Confidence={confidence:.2f})"
+                )
+        
     except Exception as e:
-        logger.error(f"Error classifying severity for {drug1_name} and {drug2_name}: {e}")
+        logger.error(f"Error classifying severity for {drug1_name} + {drug2_name}: {e}")
+        # Default to Severe when classification fails to be safe
         predicted_label = "Şiddetli"
         confidence = 0.0
-
+    
     return predicted_label, confidence
+
 
 @app.route('/interactions/manage', methods=['GET', 'POST'])
 @login_required
 def manage_interactions():
-    drugs = Drug.query.all()
-    routes = RouteOfAdministration.query.all()
-    severities = Severity.query.all()
+    drugs = Drug.query.order_by(Drug.name_en).all()
+    routes = RouteOfAdministration.query.order_by(RouteOfAdministration.name).all()
+    severities = Severity.query.order_by(Severity.id).all()
+    
     page = request.args.get('page', 1, type=int)
     per_page = 10
     order_by_column = request.args.get('order_by', 'id')
     order_direction = request.args.get('direction', 'desc')
-
-    interactions_query = DrugInteraction.query.order_by(
+    
+    # Validate column name to prevent SQL injection
+    valid_columns = ['id', 'drug1_id', 'drug2_id', 'interaction_type', 'severity_id']
+    if order_by_column not in valid_columns:
+        order_by_column = 'id'
+    
+    # Eager load relationships for better performance
+    interactions_query = DrugInteraction.query.options(
+        db.joinedload(DrugInteraction.drug1),
+        db.joinedload(DrugInteraction.drug2),
+        db.joinedload(DrugInteraction.severity_level),
+        db.joinedload(DrugInteraction.routes)
+    ).order_by(
         getattr(getattr(DrugInteraction, order_by_column), order_direction)()
     )
-    interactions = interactions_query.paginate(page=page, per_page=per_page)
-
+    
+    interactions = interactions_query.paginate(page=page, per_page=per_page, error_out=False)
+    
     if request.method == 'POST':
         try:
             drug1_id = request.form.get('drug1_id')
@@ -4636,35 +4795,66 @@ def manage_interactions():
             interaction_type = request.form.get('interaction_type')
             interaction_description = request.form.get('interaction_description')
             severity_id = request.form.get('severity_id')
-            reference = request.form.get('reference')
-            mechanism = request.form.get('mechanism')
-            monitoring = request.form.get('monitoring')
+            reference = request.form.get('reference', '')
+            mechanism = request.form.get('mechanism', '')
+            monitoring = request.form.get('monitoring', '')
             alternatives = request.form.getlist('alternatives')
-
+            
+            logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}, route_ids={route_ids}")
+            
             # Validate inputs
-            if not all([drug1_id, drug2_id, interaction_type, interaction_description, severity_id]) or drug1_id == drug2_id:
-                raise ValueError("Required fields are missing or drugs are identical")
-
+            if not drug1_id or not drug2_id or not interaction_type or not interaction_description or not severity_id:
+                raise ValueError("Required fields are missing")
+            
+            drug1_id = int(drug1_id)
+            drug2_id = int(drug2_id)
+            
+            if drug1_id == drug2_id:
+                raise ValueError("Cannot create interaction between the same drug")
+            
+            route_ids = [int(route_id) for route_id in route_ids if route_id]
+            
+            # Check for duplicate interaction
+            existing = DrugInteraction.query.filter(
+                or_(
+                    and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                    and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+                )
+            ).first()
+            
+            if existing:
+                raise ValueError("An interaction between these drugs already exists")
+            
+            # Fetch drugs
+            drug1 = db.session.get(Drug, drug1_id)
+            drug2 = db.session.get(Drug, drug2_id)
+            
+            if not drug1 or not drug2:
+                raise ValueError("Invalid drug IDs")
+            
+            # Get manual severity
+            severity = db.session.get(Severity, severity_id)
+            if not severity:
+                raise ValueError("Invalid severity ID")
+            
+            manual_severity = severity.name
+            
             # Convert alternatives to comma-separated string
             alternatives_str = ''
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
                 alternatives_str = ', '.join([drug.name_en for drug in alternative_drugs])
-
-            # Fetch drugs
-            drug1 = db.session.get(Drug, drug1_id)
-            drug2 = db.session.get(Drug, drug2_id)
-            if not drug1 or not drug2:
-                raise ValueError("Invalid drug IDs")
-
-            # Get manual severity
-            manual_severity = db.session.get(Severity, severity_id).name
-
+            
             # Predict severity
-            predicted_severity, prediction_confidence = classify_severity(
-                interaction_description, drug1.name_en, drug2.name_en, manual_severity
-            )
-
+            try:
+                predicted_severity, prediction_confidence = classify_severity(
+                    interaction_description, drug1.name_en, drug2.name_en, manual_severity
+                )
+            except Exception as e:
+                logger.error(f"Error in severity classification: {e}")
+                predicted_severity = "Şiddetli"  # Safe default
+                prediction_confidence = 0.0
+            
             # Create new interaction
             new_interaction = DrugInteraction(
                 drug1_id=drug1_id,
@@ -4680,29 +4870,47 @@ def manage_interactions():
                 prediction_confidence=prediction_confidence,
                 processed=True
             )
-
-            # Assign routes
+            
+            # Assign routes with validation
             if route_ids:
-                routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
-                new_interaction.routes = routes
-
+                valid_routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
+                if len(valid_routes) != len(route_ids):
+                    logger.warning(f"Some route IDs were invalid: requested={route_ids}, found={[r.id for r in valid_routes]}")
+                new_interaction.routes = valid_routes
+            
             db.session.add(new_interaction)
             db.session.commit()
-
-            logger.info(f"Interaction created (ID: {new_interaction.id}), Predicted Severity: {predicted_severity} (Confidence: {prediction_confidence:.2f})")
+            
+            logger.info(
+                f"Interaction created (ID: {new_interaction.id}) between {drug1.name_en} and {drug2.name_en}, "
+                f"Manual Severity: {manual_severity}, Predicted: {predicted_severity} (Confidence: {prediction_confidence:.2f})"
+            )
+            
             return redirect(url_for('manage_interactions'))
-        except Exception as e:
+            
+        except ValueError as ve:
             db.session.rollback()
-            logger.error(f"Error creating interaction: {str(e)}")
+            logger.error(f"Validation error: {str(ve)}")
             return render_template(
                 'manage_interactions.html',
                 drugs=drugs,
                 routes=routes,
                 severities=severities,
                 interactions=interactions,
-                error=str(e)
+                error=str(ve)
             )
-
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating interaction: {str(e)}", exc_info=True)
+            return render_template(
+                'manage_interactions.html',
+                drugs=drugs,
+                routes=routes,
+                severities=severities,
+                interactions=interactions,
+                error="An unexpected error occurred. Please try again."
+            )
+    
     return render_template(
         'manage_interactions.html',
         drugs=drugs,
@@ -4714,79 +4922,161 @@ def manage_interactions():
 @app.route('/interactions/update/<int:interaction_id>', methods=['GET', 'POST'])
 @login_required
 def update_interaction(interaction_id):
-    interaction = DrugInteraction.query.get_or_404(interaction_id)
-    drugs = Drug.query.all()
-    routes = RouteOfAdministration.query.all()
-    severities = Severity.query.all()
-
+    interaction = DrugInteraction.query.options(
+        db.joinedload(DrugInteraction.drug1),
+        db.joinedload(DrugInteraction.drug2),
+        db.joinedload(DrugInteraction.severity_level),
+        db.joinedload(DrugInteraction.routes)
+    ).get_or_404(interaction_id)
+    
+    drugs = Drug.query.order_by(Drug.name_en).all()
+    routes = RouteOfAdministration.query.order_by(RouteOfAdministration.name).all()
+    severities = Severity.query.order_by(Severity.id).all()
+    
     if request.method == 'POST':
         try:
-            interaction.drug1_id = request.form.get('drug1_id')
-            interaction.drug2_id = request.form.get('drug2_id')
+            drug1_id = request.form.get('drug1_id')
+            drug2_id = request.form.get('drug2_id')
             route_ids = request.form.getlist('route_ids')
-            interaction.interaction_type = request.form.get('interaction_type')
-            interaction.interaction_description = request.form.get('interaction_description')
-            interaction.severity_id = request.form.get('severity_id')
-            interaction.reference = request.form.get('reference')
-            interaction.mechanism = request.form.get('mechanism')
-            interaction.monitoring = request.form.get('monitoring')
+            interaction_type = request.form.get('interaction_type')
+            interaction_description = request.form.get('interaction_description')
+            severity_id = request.form.get('severity_id')
+            reference = request.form.get('reference', '')
+            mechanism = request.form.get('mechanism', '')
+            monitoring = request.form.get('monitoring', '')
             alternatives = request.form.getlist('alternatives')
-
-            if not all([interaction.drug1_id, interaction.drug2_id, interaction.interaction_type, 
-                       interaction.interaction_description, interaction.severity_id]) or interaction.drug1_id == interaction.drug2_id:
-                raise ValueError("Required fields are missing or drugs are identical")
-
+            
+            # Validate inputs
+            if not drug1_id or not drug2_id or not interaction_type or not interaction_description or not severity_id:
+                raise ValueError("Required fields are missing")
+            
+            drug1_id = int(drug1_id)
+            drug2_id = int(drug2_id)
+            
+            if drug1_id == drug2_id:
+                raise ValueError("Cannot create interaction between the same drug")
+            
+            route_ids = [int(route_id) for route_id in route_ids if route_id]
+            
+            # Check for duplicate interaction (excluding current)
+            existing = DrugInteraction.query.filter(
+                DrugInteraction.id != interaction_id,
+                or_(
+                    and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                    and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+                )
+            ).first()
+            
+            if existing:
+                raise ValueError("An interaction between these drugs already exists")
+            
+            # Fetch drugs
+            drug1 = db.session.get(Drug, drug1_id)
+            drug2 = db.session.get(Drug, drug2_id)
+            
+            if not drug1 or not drug2:
+                raise ValueError("Invalid drug IDs")
+            
+            # Get severity
+            severity = db.session.get(Severity, severity_id)
+            if not severity:
+                raise ValueError("Invalid severity ID")
+            
+            manual_severity = severity.name
+            
+            # Update interaction fields
+            interaction.drug1_id = drug1_id
+            interaction.drug2_id = drug2_id
+            interaction.interaction_type = interaction_type
+            interaction.interaction_description = interaction_description
+            interaction.severity_id = severity_id
+            interaction.reference = reference
+            interaction.mechanism = mechanism
+            interaction.monitoring = monitoring
+            
+            # Convert alternatives
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
                 interaction.alternatives = ', '.join([drug.name_en for drug in alternative_drugs])
             else:
                 interaction.alternatives = ''
-
-            drug1 = db.session.get(Drug, interaction.drug1_id)
-            drug2 = db.session.get(Drug, interaction.drug2_id)
-            if not drug1 or not drug2:
-                raise ValueError("Invalid drug IDs")
-
-            # Get manual severity
-            manual_severity = db.session.get(Severity, interaction.severity_id).name
-
-            # Validate manual severity (log warning if mismatch with critical terms)
-            critical_terms = ["contraindicated", "life-threatening", "severe hypotension", "organ failure", "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest"]
-            if any(term in interaction.interaction_description.lower() for term in critical_terms) and manual_severity != "Hayati Risk İçeren":
+            
+            # Validate manual severity against content
+            critical_terms = [
+                "contraindicated", "life-threatening", "severe hypotension", "organ failure",
+                "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest",
+                "fatal", "death", "coma"
+            ]
+            
+            if any(term in interaction_description.lower() for term in critical_terms) and manual_severity != "Hayati Risk İçeren":
                 logger.warning(
-                    f"Manual severity mismatch for {drug1.name_en} and {drug2.name_en}: "
+                    f"Manual severity may be too low for interaction {interaction_id}: "
                     f"Critical terms detected, expected=Hayati Risk İçeren, got={manual_severity}"
                 )
-
-            # Predict severity (let the function handle PubMed fetching internally)
-            interaction.predicted_severity, interaction.prediction_confidence = classify_severity(
-                interaction.interaction_description, drug1.name_en, drug2.name_en, manual_severity
-            )
-
+            
+            # Predict severity
+            try:
+                interaction.predicted_severity, interaction.prediction_confidence = classify_severity(
+                    interaction_description, drug1.name_en, drug2.name_en, manual_severity
+                )
+            except Exception as e:
+                logger.error(f"Error in severity classification: {e}")
+                interaction.predicted_severity = "Şiddetli"  # Safe default
+                interaction.prediction_confidence = 0.0
+            
+            # Update routes
             if route_ids:
-                routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
-                interaction.routes = routes
+                valid_routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
+                if len(valid_routes) != len(route_ids):
+                    logger.warning(f"Some route IDs were invalid for interaction {interaction_id}")
+                interaction.routes = valid_routes
             else:
                 interaction.routes = []
-
+            
             interaction.processed = True
+            
             db.session.commit()
-            logger.info(f"Interaction {interaction_id} updated successfully, Predicted Severity: {interaction.predicted_severity}")
+            
+            logger.info(
+                f"Interaction {interaction_id} updated: {drug1.name_en} + {drug2.name_en}, "
+                f"Manual: {manual_severity}, Predicted: {interaction.predicted_severity} "
+                f"(Confidence: {interaction.prediction_confidence:.2f})"
+            )
+            
             return redirect(url_for('manage_interactions'))
-        except Exception as e:
+            
+        except ValueError as ve:
             db.session.rollback()
-            logger.error(f"Error updating interaction {interaction_id}: {str(e)}")
+            logger.error(f"Validation error updating interaction {interaction_id}: {str(ve)}")
+            selected_alternatives = []
+            selected_route_ids = []
             return render_template(
                 'update_interaction.html',
                 interaction=interaction,
                 drugs=drugs,
                 routes=routes,
                 severities=severities,
-                selected_alternative_ids=[],
-                selected_route_ids=[],
-                error=str(e)
+                selected_alternatives=selected_alternatives,
+                selected_route_ids=selected_route_ids,
+                error=str(ve)
             )
-
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating interaction {interaction_id}: {str(e)}", exc_info=True)
+            selected_alternatives = []
+            selected_route_ids = []
+            return render_template(
+                'update_interaction.html',
+                interaction=interaction,
+                drugs=drugs,
+                routes=routes,
+                severities=severities,
+                selected_alternatives=selected_alternatives,
+                selected_route_ids=selected_route_ids,
+                error="An unexpected error occurred. Please try again."
+            )
+    
+    # Prepare selected alternatives
     selected_alternatives = []
     if interaction.alternatives:
         try:
@@ -4799,9 +5089,9 @@ def update_interaction(interaction_id):
             ]
         except Exception as e:
             logger.error(f"Error preparing selected_alternatives: {str(e)}")
-
+    
     selected_route_ids = [route.id for route in interaction.routes] if interaction.routes else []
-
+    
     return render_template(
         'update_interaction.html',
         interaction=interaction,
@@ -4816,43 +5106,92 @@ def update_interaction(interaction_id):
 @login_required
 def batch_process_interactions():
     try:
-        batch_size = 100
+        batch_size = 50  # Reduced for better memory management
         total_processed = 0
-        interactions = DrugInteraction.query.filter_by(processed=False).all()
+        total_errors = 0
+        
+        # Only process unprocessed interactions
+        interactions = DrugInteraction.query.filter_by(processed=False).options(
+            db.joinedload(DrugInteraction.drug1),
+            db.joinedload(DrugInteraction.drug2),
+            db.joinedload(DrugInteraction.severity_level)
+        ).all()
+        
+        logger.info(f"Starting batch processing of {len(interactions)} interactions")
         
         for i in range(0, len(interactions), batch_size):
             batch = interactions[i:i + batch_size]
-            for interaction in batch:
-                drug1 = db.session.get(Drug, interaction.drug1_id)
-                drug2 = db.session.get(Drug, interaction.drug2_id)
-                if not drug1 or not drug2:
-                    logger.error(f"Invalid drug IDs for interaction {interaction.id}")
-                    continue
-                
-                manual_severity = db.session.get(Severity, interaction.severity_id).name
-                predicted_severity, prediction_confidence = classify_severity(
-                    interaction.interaction_description, drug1.name_en, drug2.name_en, manual_severity
-                )
-                
-                if predicted_severity != manual_severity:
-                    logger.warning(
-                        f"Severity mismatch for {drug1.name_en} and {drug2.name_en}: "
-                        f"Manual={manual_severity}, Predicted={predicted_severity} "
-                        f"(Confidence={prediction_confidence})"
-                    )
-                
-                interaction.predicted_severity = predicted_severity
-                interaction.prediction_confidence = prediction_confidence
-                interaction.processed = True
+            batch_errors = 0
             
-            db.session.commit()
-            total_processed += len(batch)
-            logger.info(f"Processed batch of {len(batch)} interactions. Total: {total_processed}")
+            for interaction in batch:
+                try:
+                    drug1 = interaction.drug1
+                    drug2 = interaction.drug2
+                    
+                    if not drug1 or not drug2:
+                        logger.error(f"Invalid drug references for interaction {interaction.id}")
+                        batch_errors += 1
+                        continue
+                    
+                    manual_severity = interaction.severity_level.name if interaction.severity_level else "Orta"
+                    
+                    # Classify severity
+                    predicted_severity, prediction_confidence = classify_severity(
+                        interaction.interaction_description, 
+                        drug1.name_en, 
+                        drug2.name_en, 
+                        manual_severity
+                    )
+                    
+                    # Log significant mismatches
+                    if predicted_severity != manual_severity:
+                        severity_diff = abs(
+                            ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"].index(predicted_severity) -
+                            ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"].index(manual_severity)
+                        )
+                        
+                        if severity_diff > 1:
+                            logger.warning(
+                                f"Significant mismatch for interaction {interaction.id} ({drug1.name_en} + {drug2.name_en}): "
+                                f"Manual={manual_severity}, Predicted={predicted_severity} "
+                                f"(Confidence={prediction_confidence:.2f})"
+                            )
+                    
+                    interaction.predicted_severity = predicted_severity
+                    interaction.prediction_confidence = prediction_confidence
+                    interaction.processed = True
+                    
+                except Exception as e:
+                    logger.error(f"Error processing interaction {interaction.id}: {str(e)}")
+                    batch_errors += 1
+                    continue
+            
+            # Commit batch
+            try:
+                db.session.commit()
+                total_processed += len(batch) - batch_errors
+                total_errors += batch_errors
+                logger.info(f"Batch {i//batch_size + 1}: Processed {len(batch) - batch_errors}/{len(batch)} interactions")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error committing batch {i//batch_size + 1}: {str(e)}")
+                total_errors += len(batch)
+            
+            # Small delay to prevent overwhelming external APIs
+            time.sleep(1)
         
-        return jsonify({"message": f"Processed {total_processed} interactions successfully"}), 200
+        message = f"Batch processing completed: {total_processed} successful, {total_errors} errors"
+        logger.info(message)
+        
+        return jsonify({
+            "message": message,
+            "processed": total_processed,
+            "errors": total_errors
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error in batch processing: {str(e)}")
+        logger.error(f"Critical error in batch processing: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/interactions/delete/<int:interaction_id>', methods=['POST'])
@@ -9649,6 +9988,7 @@ class DoseResponseRequest(BaseModel):
     dosing_regimen: str = 'single'  # single or multiple
     doses: list[float] | None = None  # For multiple dosing
     intervals: list[float] | None = None  # Dosing intervals in hours
+    elimination_rate: float = 0.1  # Elimination rate for multiple dosing
     concentration_unit: str = 'µM'
     effect_unit: str = '%'
 
@@ -9674,6 +10014,12 @@ class DoseResponseRequest(BaseModel):
     def check_e0(cls, v):
         if not 0 <= v <= 1000:
             raise ValueError("Baseline effect (E0) must be between 0 and 1000")
+        return v
+
+    @field_validator('elimination_rate')
+    def check_elimination_rate(cls, v, values):
+        if values.get('dosing_regimen') == 'multiple' and not 0 < v <= 1:
+            raise ValueError("Elimination rate must be between 0 and 1 for multiple dosing")
         return v
 
     @field_validator('concentrations')
@@ -9719,6 +10065,8 @@ class DoseResponseRequest(BaseModel):
             raise ValueError("Intervals are required for multiple dosing")
         if v and any(i <= 0 for i in v):
             raise ValueError("Intervals must be positive")
+        if v and values.get('doses') and len(v) != len(values.get('doses')) - 1:
+            raise ValueError("Intervals length must be one less than doses length")
         return v
 
     @classmethod
@@ -9751,29 +10099,30 @@ def simulate_single_dose(emax: float, ec50: float, n: float, e0: float, concentr
     effects = [min(max(e, e0), emax + e0) for e in effects]
     return [(c, e) for c, e in zip(concentrations, effects)]
 
-def simulate_multiple_dose(emax: float, ec50: float, n: float, e0: float, concentrations: list, doses: list, intervals: list) -> list:
-    """Simulate multiple-dose response with accumulation."""
-    time_points = np.linspace(0, sum(intervals) + 24, 100)
+def simulate_multiple_dose(emax: float, ec50: float, n: float, e0: float, doses: list, intervals: list, elimination_rate: float) -> list:
+    """Simulate multiple-dose response with accumulation and elimination."""
+    dose_times = np.cumsum([0] + intervals)
+    total_time = dose_times[-1] + max(intervals or [24])  # Extend beyond last dose
+    time_points = np.linspace(0, total_time, 500)  # More points for smoother curve
     effects = []
-    current_concentration = 0
-    dose_times = [0] + [sum(intervals[:i+1]) for i in range(len(intervals))]
+    current_concentration = 0.0
+    dt = time_points[1] - time_points[0] if len(time_points) > 1 else 0
     
     for t in time_points:
         # Apply doses at specified times
         for i, dose_time in enumerate(dose_times):
-            if i < len(doses) and abs(t - dose_time) < 0.01:
+            if i < len(doses) and abs(t - dose_time) < dt / 2:
                 current_concentration += doses[i]
         
         # Calculate effect using Hill equation
-        effect = e0 + (emax * (current_concentration ** n)) / ((ec50 ** n) + (current_concentration ** n))
+        effect = e0 + (emax * (current_concentration ** n)) / ((ec50 ** n) + (current_concentration ** n)) if current_concentration > 0 else e0
         effect = min(max(effect, e0), emax + e0)
         
-        # Apply first-order elimination (simplified)
-        if t > 0:
-            elimination_rate = 0.1  # Assume a constant elimination rate (adjustable)
-            current_concentration *= np.exp(-elimination_rate * (time_points[1] - time_points[0]))
-        
         effects.append((current_concentration, effect, t))
+        
+        # Apply first-order elimination
+        current_concentration *= np.exp(-elimination_rate * dt)
+        current_concentration = max(current_concentration, 0)
     
     return effects
 
@@ -9789,7 +10138,7 @@ def simulate_dose_response():
         input_data = DoseResponseRequest.model_validate(request_data)
         logger.info(f"Received valid request: {input_data.dict()}")
 
-        # Generate concentrations
+        # Generate concentrations if log_range
         if input_data.log_range:
             concentrations = np.logspace(
                 np.log10(input_data.log_range['start']),
@@ -9797,7 +10146,7 @@ def simulate_dose_response():
                 int(input_data.log_range['num'])
             ).tolist()
         else:
-            concentrations = input_data.concentrations
+            concentrations = input_data.concentrations or []
 
         # Generate unique simulation ID
         simulation_id = str(uuid.uuid4())
@@ -9811,28 +10160,28 @@ def simulate_dose_response():
                 DoseResponsePoint(concentration=c, effect=e)
                 for c, e in result_pairs
             ]
-        else:  # multiple dosing
+        else:  # multiple
             result_triples = simulate_multiple_dose(
                 input_data.emax, input_data.ec50, input_data.n, input_data.e0,
-                concentrations, input_data.doses, input_data.intervals
+                input_data.doses, input_data.intervals, input_data.elimination_rate
             )
             results = [
                 DoseResponsePoint(concentration=c, effect=e, time=t)
                 for c, e, t in result_triples
             ]
 
-        # Compute pseudo-R² for single dosing
-        if input_data.dosing_regimen == 'single':
-            effects = [r.effect for r in results]
-            mean_effect = np.mean(effects)
-            ss_tot = sum((e - mean_effect) ** 2 for e in effects)
-            ss_res = sum(
-                (e - (input_data.e0 + input_data.emax / (1 + (input_data.ec50 / c) ** input_data.n))) ** 2
-                for c, e in zip(concentrations, effects) if c > 0
-            )
-            pseudo_r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
-        else:
-            pseudo_r2 = None  # Not applicable for multiple dosing
+        # Compute pseudo-R²
+        effects = [r.effect for r in results]
+        concentrations_used = [r.concentration for r in results]
+        mean_effect = np.mean(effects)
+        ss_tot = np.sum((np.array(effects) - mean_effect) ** 2)
+        predicted_effects = [
+            input_data.e0 + (input_data.emax * (c ** input_data.n)) / ((input_data.ec50 ** input_data.n) + (c ** input_data.n))
+            for c in concentrations_used if c > 0
+        ]
+        actual_effects = effects[:len(predicted_effects)]  # Align lengths
+        ss_res = np.sum((np.array(actual_effects) - np.array(predicted_effects)) ** 2)
+        pseudo_r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
 
         # Metadata
         metadata = {
@@ -9845,17 +10194,18 @@ def simulate_dose_response():
                 "E0": input_data.e0,
                 "Dosing_Regimen": input_data.dosing_regimen,
                 "Doses": input_data.doses,
-                "Intervals": input_data.intervals
+                "Intervals": input_data.intervals,
+                "Elimination_Rate": input_data.elimination_rate if input_data.dosing_regimen == 'multiple' else None
             },
             "units": {
                 "concentration": input_data.concentration_unit,
                 "effect": input_data.effect_unit
             },
             "concentration_range": {
-                "min": min(concentrations),
-                "max": max(concentrations)
+                "min": min(concentrations_used),
+                "max": max(concentrations_used)
             },
-            "pseudo_r2": round(pseudo_r2, 4) if pseudo_r2 is not None else None,
+            "pseudo_r2": round(pseudo_r2, 4),
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "point_count": len(results)
         }
@@ -9869,6 +10219,9 @@ def simulate_dose_response():
             e0=input_data.e0,
             concentrations=concentrations,
             dosing_regimen=input_data.dosing_regimen,
+            doses=input_data.doses,
+            intervals=input_data.intervals,
+            elimination_rate=input_data.elimination_rate,
             user_id=session.get('user_id'),
             concentration_unit=input_data.concentration_unit,
             effect_unit=input_data.effect_unit
@@ -9894,35 +10247,34 @@ def export_simulation(simulation_id):
         if not simulation:
             return jsonify({"error": "Simulation not found"}), HTTPStatus.NOT_FOUND
 
-        # Fetch results by re-running simulation
-        input_data = DoseResponseRequest(
-            emax=simulation.emax,
-            ec50=simulation.ec50,
-            n=simulation.n,
-            e0=simulation.e0,
-            concentrations=simulation.concentrations,
-            dosing_regimen=simulation.dosing_regimen,
-            concentration_unit=simulation.concentration_unit,
-            effect_unit=simulation.effect_unit
-        )
-        if input_data.dosing_regimen == 'single':
+        # Re-run simulation to get results
+        if simulation.dosing_regimen == 'single':
             result_pairs = simulate_single_dose(
-                input_data.emax, input_data.ec50, input_data.n, input_data.e0, tuple(input_data.concentrations)
+                simulation.emax, simulation.ec50, simulation.n, simulation.e0, tuple(simulation.concentrations)
             )
             results = [
                 {"Concentration": c, "Effect": e}
                 for c, e in result_pairs
             ]
+            fieldnames = ["Concentration", "Effect"]
         else:
-            # For multiple dosing, assume doses and intervals are stored elsewhere or provided
-            return jsonify({"error": "Export for multiple dosing not implemented"}), HTTPStatus.NOT_IMPLEMENTED
+            result_triples = simulate_multiple_dose(
+                simulation.emax, simulation.ec50, simulation.n, simulation.e0,
+                simulation.doses, simulation.intervals, simulation.elimination_rate
+            )
+            results = [
+                {"Time": t, "Concentration": c, "Effect": e}
+                for c, e, t in result_triples
+            ]
+            fieldnames = ["Time", "Concentration", "Effect"]
 
         # Generate CSV
         output = StringIO()
-        writer = csv.DictWriter(output, fieldnames=["Concentration", "Effect"])
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(results)
 
+        logger.info(f"Exported simulation: ID {simulation_id}")
         response = Response(
             output.getvalue(),
             mimetype='text/csv',
@@ -9931,7 +10283,7 @@ def export_simulation(simulation_id):
         return response
 
     except Exception as e:
-        logger.error(f"Export error: {str(e)}")
+        logger.exception(f"Export error: {str(e)}")
         return jsonify({"error": "Failed to export simulation", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @app.route('/simulate-dose-response', methods=['GET'])
@@ -10604,74 +10956,228 @@ def get_drug_routes():
 
 @app.route('/pharmacokinetics', methods=['GET'])
 def pharmacokinetics():
+    """
+    Enhanced pharmacokinetics module with proper PK modeling:
+    - One-compartment model with first-order absorption for oral/extravascular
+    - IV bolus model for intravenous routes
+    - Proper bioavailability handling
+    - Therapeutic window visualization
+    - Multiple dosing regimen simulation
+    - Metabolite tracking
+    """
     selected_drug_id = request.args.get('drug_id', type=int)
     dose = request.args.get('dose', 100, type=float)
+    dosing_interval = request.args.get('interval', 24, type=float)  # hours
+    num_doses = request.args.get('num_doses', 1, type=int)
+    
     pk_data = []
     selected_drug = None
     chart_data = []
-
+    
     if selected_drug_id:
         selected_drug = Drug.query.get(selected_drug_id)
         if not selected_drug:
-            return render_template('pharmacokinetics.html', error="Drug not found", pk_data=None, selected_drug_id=selected_drug_id, chart_data=None), 404
+            return render_template(
+                'pharmacokinetics.html', 
+                error="Drug not found", 
+                pk_data=None, 
+                selected_drug_id=selected_drug_id, 
+                chart_data=None
+            ), 404
         
-        details = DrugDetail.query.filter_by(drug_id=selected_drug_id).options(db.joinedload(DrugDetail.routes)).all()
+        details = DrugDetail.query.filter_by(drug_id=selected_drug_id).options(
+            db.joinedload(DrugDetail.routes)
+        ).all()
+        
+        # Color palette for multiple routes
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+        route_idx = 0
         
         for detail in details:
             for route in detail.routes:
-                # Validate pharmacokinetic parameters
+                # Extract and validate PK parameters
                 half_life_min = route.half_life_min or 0
                 half_life_max = route.half_life_max or 0
-                half_life_avg = (half_life_min + half_life_max) / 2
+                half_life_avg = (half_life_min + half_life_max) / 2 if half_life_max > 0 else half_life_min
+                
                 vod_min = route.vod_rate_min or 0
                 vod_max = route.vod_rate_max or 0
-                vod_avg = (vod_min + vod_max) / 2
+                vod_avg = (vod_min + vod_max) / 2 if vod_max > 0 else vod_min
+                
                 bio_min = route.bioavailability_min or 0
                 bio_max = route.bioavailability_max or 0
-                bio_avg = (bio_min + bio_max) / 2
-
-                # Skip invalid routes
-                if half_life_avg <= 0 or vod_avg <= 0 or bio_avg <= 0:
-                    logging.warning(f"Skipping route {route.route.name} for drug_id {selected_drug_id}: Invalid PK parameters (half_life_avg={half_life_avg}, vod_avg={vod_avg}, bio_avg={bio_avg})")
+                bio_avg = (bio_min + bio_max) / 2 if bio_max > 0 else bio_min
+                
+                tmax_min = route.tmax_min or 0
+                tmax_max = route.tmax_max or 0
+                tmax_avg = (tmax_min + tmax_max) / 2 if tmax_max > 0 else tmax_min
+                
+                cmax_min = route.cmax_min or 0
+                cmax_max = route.cmax_max or 0
+                cmax_avg = (cmax_min + cmax_max) / 2 if cmax_max > 0 else cmax_min
+                
+                # Skip if essential parameters are missing
+                if half_life_avg <= 0 or vod_avg <= 0:
+                    logging.warning(
+                        f"Skipping route {route.route.name} for drug_id {selected_drug_id}: "
+                        f"Invalid PK parameters (t½={half_life_avg}h, Vd={vod_avg}L)"
+                    )
                     continue
-
-                ke = math.log(2) / half_life_avg  # Elimination rate constant
-                time = np.arange(0, 24, 0.1)  # Higher resolution for smoother curve
-                c0 = (dose * bio_avg) / vod_avg  # Initial concentration
-                concentrations = c0 * np.exp(-ke * time)
-                auc = np.trapz(concentrations, time) if len(concentrations) > 1 else 0
-
-                # Prepare data for chart
+                
+                # Calculate elimination rate constant
+                ke = math.log(2) / half_life_avg
+                
+                # Determine route type and calculate accordingly
+                route_name = route.route.name.lower()
+                is_iv = 'intravenous' in route_name or 'iv' in route_name
+                
+                # Time array for simulation (0-72h for better visualization)
+                time_max = max(72, dosing_interval * num_doses * 1.5)
+                time = np.arange(0, time_max, 0.1)
+                
+                if is_iv:
+                    # IV Bolus: C(t) = C0 * e^(-ke*t)
+                    # For multiple doses: superposition principle
+                    c0 = dose / vod_avg
+                    concentrations = np.zeros_like(time)
+                    
+                    for dose_num in range(num_doses):
+                        dose_time = dose_num * dosing_interval
+                        time_after_dose = time - dose_time
+                        concentrations += np.where(
+                            time_after_dose >= 0,
+                            c0 * np.exp(-ke * time_after_dose),
+                            0
+                        )
+                    
+                    ka = None  # No absorption for IV
+                    
+                else:
+                    # Oral/Extravascular: One-compartment with first-order absorption
+                    # C(t) = (F*D*Ka)/(Vd*(Ka-Ke)) * (e^(-Ke*t) - e^(-Ka*t))
+                    
+                    # Estimate Ka from Tmax if available
+                    if tmax_avg > 0 and tmax_avg < half_life_avg:
+                        # At Tmax: dC/dt = 0, which gives Ka = Ke * ln(Ka/Ke) / (1 - Ke/Ka)
+                        # Simplified approximation: Ka ≈ Ke / (1 - Ke*Tmax/ln(Ka/Ke))
+                        # Better approach: Ka*Tmax - ln(Ka/Ke) = ln(Ka/Ke)
+                        # Solving: Ka = ln(Ka/Ke) / (Tmax - 1/Ke * ln(Ka/Ke))
+                        
+                        # Iterative solution for Ka from Tmax
+                        def tmax_equation(ka_val):
+                            if ka_val <= ke:
+                                return float('inf')
+                            return math.log(ka_val / ke) / (ka_val - ke) - tmax_avg
+                        
+                        try:
+                            # Initial guess: Ka = 3 * Ke (typical for oral absorption)
+                            ka_initial = max(3 * ke, 0.5)
+                            ka = optimize.fsolve(tmax_equation, ka_initial)[0]
+                            
+                            # Validate Ka
+                            if ka <= ke or ka <= 0 or ka > 10:
+                                ka = 3 * ke  # Fallback to typical value
+                        except:
+                            ka = 3 * ke  # Fallback
+                    else:
+                        # Default absorption rate (faster than elimination)
+                        ka = max(3 * ke, 0.5)
+                    
+                    # Calculate concentrations for multiple doses
+                    concentrations = np.zeros_like(time)
+                    effective_dose = dose * bio_avg
+                    
+                    for dose_num in range(num_doses):
+                        dose_time = dose_num * dosing_interval
+                        time_after_dose = time - dose_time
+                        
+                        # One-compartment oral model
+                        term = (effective_dose * ka) / (vod_avg * (ka - ke))
+                        concentrations += np.where(
+                            time_after_dose >= 0,
+                            term * (np.exp(-ke * time_after_dose) - np.exp(-ka * time_after_dose)),
+                            0
+                        )
+                
+                # Calculate AUC (0-∞) analytically for single dose
+                if num_doses == 1:
+                    if is_iv:
+                        auc_analytical = c0 / ke
+                    else:
+                        auc_analytical = (dose * bio_avg) / (vod_avg * ke)
+                else:
+                    # For multiple doses, use trapezoidal rule
+                    auc_analytical = np.trapz(concentrations, time)
+                
+                # Calculate AUC numerically for comparison
+                auc_numerical = np.trapz(concentrations, time)
+                
+                # Calculate steady-state parameters (for multiple dosing)
+                if num_doses > 1:
+                    if is_iv:
+                        css_max = (c0 / (1 - np.exp(-ke * dosing_interval)))
+                        css_min = css_max * np.exp(-ke * dosing_interval)
+                    else:
+                        css_max = ((dose * bio_avg * ka) / (vod_avg * (ka - ke))) * \
+                                  (1 / (1 - np.exp(-ke * dosing_interval)) - 1 / (1 - np.exp(-ka * dosing_interval)))
+                        css_min = css_max * np.exp(-ke * dosing_interval)
+                    
+                    css_avg = css_max * (1 - np.exp(-ke * dosing_interval)) / (ke * dosing_interval)
+                else:
+                    css_max = css_min = css_avg = None
+                
+                # Calculate actual Cmax and Tmax from simulation
+                sim_cmax = np.max(concentrations)
+                sim_tmax = time[np.argmax(concentrations)]
+                
+                # Prepare chart data
                 chart_dataset = {
-                    'label': f"{route.route.name} (AUC: {round(auc, 2)} mg/L·h)",
+                    'label': f"{route.route.name} (AUC: {round(auc_numerical, 2)} mg·h/L)",
                     'data': concentrations.tolist(),
-                    'borderColor': '#1f77b4' if route.route.name.lower() == 'oral' else '#ff7f0e',  # Distinct colors
-                    'fill': False
+                    'borderColor': colors[route_idx % len(colors)],
+                    'backgroundColor': colors[route_idx % len(colors)] + '20',  # 20% opacity
+                    'fill': False,
+                    'tension': 0.4,
+                    'pointRadius': 0
                 }
                 chart_data.append(chart_dataset)
-
+                
+                # Add therapeutic window if available
+                therapeutic_min = route.therapeutic_min or 0
+                therapeutic_max = route.therapeutic_max or 0
+                
+                # Prepare PK data entry
                 pk_entry = {
                     'route_name': route.route.name,
                     'absorption_rate_min': route.absorption_rate_min or 0,
                     'absorption_rate_max': route.absorption_rate_max or 0,
+                    'ka': round(ka, 4) if ka else None,
                     'vod_rate_min': vod_min,
                     'vod_rate_max': vod_max,
+                    'vod_avg': round(vod_avg, 2),
                     'protein_binding_min': (route.protein_binding_min or 0) * 100,
                     'protein_binding_max': (route.protein_binding_max or 0) * 100,
                     'half_life_min': half_life_min,
                     'half_life_max': half_life_max,
+                    'half_life_avg': round(half_life_avg, 2),
+                    'ke': round(ke, 4),
                     'clearance_rate_min': route.clearance_rate_min or 0,
                     'clearance_rate_max': route.clearance_rate_max or 0,
                     'bioavailability_min': bio_min * 100,
                     'bioavailability_max': bio_max * 100,
-                    'tmax_min': route.tmax_min or 0,
-                    'tmax_max': route.tmax_max or 0,
-                    'cmax_min': route.cmax_min or 0,
-                    'cmax_max': route.cmax_max or 0,
+                    'bioavailability_avg': round(bio_avg * 100, 1),
+                    'tmax_min': tmax_min,
+                    'tmax_max': tmax_max,
+                    'tmax_avg': round(tmax_avg, 2) if tmax_avg > 0 else None,
+                    'tmax_simulated': round(sim_tmax, 2),
+                    'cmax_min': cmax_min,
+                    'cmax_max': cmax_max,
+                    'cmax_avg': round(cmax_avg, 2) if cmax_avg > 0 else None,
+                    'cmax_simulated': round(sim_cmax, 2),
                     'pharmacodynamics': route.pharmacodynamics or "N/A",
                     'pharmacokinetics': route.pharmacokinetics or "N/A",
-                    'therapeutic_min': route.therapeutic_min or 0,
-                    'therapeutic_max': route.therapeutic_max or 0,
+                    'therapeutic_min': therapeutic_min,
+                    'therapeutic_max': therapeutic_max,
                     'therapeutic_unit': route.therapeutic_unit.name if route.therapeutic_unit else "mg/L",
                     'metabolites': [
                         {'id': met.id, 'name': met.name, 'parent_id': met.parent_id}
@@ -10679,49 +11185,110 @@ def pharmacokinetics():
                     ] if route.metabolites else [],
                     'metabolism_organs': [organ.name for organ in route.metabolism_organs],
                     'metabolism_enzymes': [enzyme.name for enzyme in route.metabolism_enzymes],
-                    'auc': round(auc, 2),
-                    'concentrations': list(zip(time.tolist(), concentrations.tolist()))
+                    'auc_analytical': round(auc_analytical, 2),
+                    'auc_numerical': round(auc_numerical, 2),
+                    'css_max': round(css_max, 2) if css_max else None,
+                    'css_min': round(css_min, 2) if css_min else None,
+                    'css_avg': round(css_avg, 2) if css_avg else None,
+                    'concentrations': list(zip(time.tolist(), concentrations.tolist())),
+                    'is_iv': is_iv
                 }
                 pk_data.append(pk_entry)
+                route_idx += 1
+        
+        # Add therapeutic window bands to chart if any route has them
+        therapeutic_datasets = []
+        for pk_entry in pk_data:
+            if pk_entry['therapeutic_min'] > 0 and pk_entry['therapeutic_max'] > 0:
+                # Add therapeutic max line
+                therapeutic_datasets.append({
+                    'label': f"Therapeutic Maximum ({pk_entry['route_name']})",
+                    'data': [pk_entry['therapeutic_max']] * len(time),
+                    'borderColor': 'rgba(255, 0, 0, 0.5)',
+                    'borderDash': [5, 5],
+                    'fill': False,
+                    'pointRadius': 0,
+                    'borderWidth': 2
+                })
+                # Add therapeutic min line
+                therapeutic_datasets.append({
+                    'label': f"Therapeutic Minimum ({pk_entry['route_name']})",
+                    'data': [pk_entry['therapeutic_min']] * len(time),
+                    'borderColor': 'rgba(0, 255, 0, 0.5)',
+                    'borderDash': [5, 5],
+                    'fill': False,
+                    'pointRadius': 0,
+                    'borderWidth': 2
+                })
+                break  # Only add once
+        
+        chart_data.extend(therapeutic_datasets)
     
     # Generate Chart.js configuration
     chart = {
         'type': 'line',
         'data': {
-            'labels': time.tolist(),
+            'labels': time.tolist() if 'time' in locals() else [],
             'datasets': chart_data
         },
         'options': {
             'responsive': True,
+            'maintainAspectRatio': False,
+            'interaction': {
+                'mode': 'index',
+                'intersect': False
+            },
             'plugins': {
                 'title': {
                     'display': True,
-                    'text': f'Concentration vs Time for {selected_drug.name_en if selected_drug else "Selected Drug"} (Dose: {dose} mg)'
+                    'text': f'Plasma Concentration vs Time - {selected_drug.name_en if selected_drug else "Selected Drug"} ' +
+                            f'(Dose: {dose} mg' + (f', q{dosing_interval}h × {num_doses}' if num_doses > 1 else '') + ')',
+                    'font': {'size': 16}
                 },
                 'legend': {
-                    'display': True
+                    'display': True,
+                    'position': 'top'
+                },
+                'tooltip': {
+                    'callbacks': {
+                        'label': 'function(context) { return context.dataset.label + ": " + context.parsed.y.toFixed(2) + " mg/L"; }'
+                    }
                 }
             },
             'scales': {
                 'x': {
                     'title': {
                         'display': True,
-                        'text': 'Time (hours)'
+                        'text': 'Time (hours)',
+                        'font': {'size': 14}
+                    },
+                    'ticks': {
+                        'maxTicksLimit': 20
                     }
                 },
                 'y': {
                     'title': {
                         'display': True,
-                        'text': 'Concentration (mg/L)'
+                        'text': 'Plasma Concentration (mg/L)',
+                        'font': {'size': 14}
                     },
                     'beginAtZero': True
                 }
             }
         }
     } if chart_data else None
-
-    return render_template('pharmacokinetics.html', pk_data=pk_data, selected_drug_id=selected_drug_id, selected_drug=selected_drug, chart_data=chart)
-# PK modülü son...
+    
+    return render_template(
+        'pharmacokinetics.html', 
+        pk_data=pk_data, 
+        selected_drug_id=selected_drug_id, 
+        selected_drug=selected_drug,
+        dose=dose,
+        dosing_interval=dosing_interval,
+        num_doses=num_doses,
+        chart_data=chart
+    )
+#Pharmacokinetics END...
 
 
 if __name__ == "__main__":
