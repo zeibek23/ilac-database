@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Drug-Food Interaction - Drugly</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background-color: #007bff;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .select2-container {
+            width: 100% !important;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Drugly.ai</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/backend">Backend</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/foods/manage">Foods</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/drug-food-interactions/manage">Drug-Food Interactions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h2 class="mb-0">Update Drug-Food Interaction</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Drug *</label>
+                            <select name="drug_id" class="form-control select2" required>
+                                {% for drug in drugs %}
+                                <option value="{{ drug.id }}" {% if drug.id == interaction.drug_id %}selected{% endif %}>
+                                    {{ drug.name_en }} ({{ drug.name_tr }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Food *</label>
+                            <select name="food_id" class="form-control select2" required>
+                                {% for food in foods %}
+                                <option value="{{ food.id }}" {% if food.id == interaction.food_id %}selected{% endif %}>
+                                    {{ food.name_en }} ({{ food.category or 'N/A' }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Interaction Type *</label>
+                            <select name="interaction_type" class="form-control" required>
+                                <option value="Absorption Decrease" {% if interaction.interaction_type == "Absorption Decrease" %}selected{% endif %}>Absorption Decrease</option>
+                                <option value="Absorption Increase" {% if interaction.interaction_type == "Absorption Increase" %}selected{% endif %}>Absorption Increase</option>
+                                <option value="Metabolism Inhibition" {% if interaction.interaction_type == "Metabolism Inhibition" %}selected{% endif %}>Metabolism Inhibition</option>
+                                <option value="Metabolism Induction" {% if interaction.interaction_type == "Metabolism Induction" %}selected{% endif %}>Metabolism Induction</option>
+                                <option value="Additive Effect" {% if interaction.interaction_type == "Additive Effect" %}selected{% endif %}>Additive Effect</option>
+                                <option value="Antagonistic Effect" {% if interaction.interaction_type == "Antagonistic Effect" %}selected{% endif %}>Antagonistic Effect</option>
+                                <option value="Toxicity Risk" {% if interaction.interaction_type == "Toxicity Risk" %}selected{% endif %}>Toxicity Risk</option>
+                                <option value="Efficacy Reduction" {% if interaction.interaction_type == "Efficacy Reduction" %}selected{% endif %}>Efficacy Reduction</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Severity *</label>
+                            <select name="severity_id" class="form-control" required>
+                                {% for severity in severities %}
+                                <option value="{{ severity.id }}" {% if severity.id == interaction.severity_id %}selected{% endif %}>
+                                    {{ severity.name_en }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description *</label>
+                        <textarea name="description" class="form-control" rows="4" required>{{ interaction.description }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Timing Instruction</label>
+                        <textarea name="timing_instruction" class="form-control" rows="2">{{ interaction.timing_instruction or '' }}</textarea>
+                        <small class="form-text text-muted">Example: Take 1 hour before or 2 hours after food</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Recommendation</label>
+                        <textarea name="recommendation" class="form-control" rows="2">{{ interaction.recommendation or '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reference</label>
+                        <textarea name="reference" class="form-control" rows="2">{{ interaction.reference or '' }}</textarea>
+                    </div>
+                    
+                    {% if interaction.predicted_severity %}
+                    <div class="alert alert-info">
+                        <strong>AI Prediction:</strong> {{ interaction.predicted_severity }}
+                        {% if interaction.prediction_confidence %}
+                        (Confidence: {{ (interaction.prediction_confidence * 100)|round(1) }}%)
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Update Interaction</button>
+                        <a href="{{ url_for('manage_drug_food_interactions') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('.select2').select2({
+                width: '100%',
+                placeholder: 'Select an option'
+            });
+        });
+    </script>
+</body>
+</html>

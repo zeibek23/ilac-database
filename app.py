@@ -387,12 +387,46 @@ class Target(db.Model):
     name_tr = db.Column(db.String(255), nullable=False)  # Increased to 255
     name_en = db.Column(db.String(255), nullable=False)  # Increased to 255
 
+# Food Model
+class Food(db.Model):
+    __tablename__ = 'food'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name_en = db.Column(db.String(255), nullable=False)
+    name_tr = db.Column(db.String(255), nullable=True)
+    category = db.Column(db.String(100), nullable=True)  # e.g., "Dairy", "Citrus", "Leafy Greens"
+    description = db.Column(db.Text, nullable=True)
+    
+    def __repr__(self):
+        return f'<Food {self.name_en}>'
+
+# DrugFoodInteraction Model
+class DrugFoodInteraction(db.Model):
+    __tablename__ = 'drug_food_interaction'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    food_id = db.Column(db.Integer, db.ForeignKey('public.food.id'), nullable=False)
+    interaction_type = db.Column(db.String(100), nullable=False)  # e.g., "Absorption Decrease", "Toxicity Risk"
+    description = db.Column(db.Text, nullable=False)
+    severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)
+    timing_instruction = db.Column(db.Text, nullable=True)  # e.g., "Take 1 hour before meals"
+    recommendation = db.Column(db.Text, nullable=True)
+    reference = db.Column(db.Text, nullable=True)
+    predicted_severity = db.Column(db.String(50), nullable=True)
+    prediction_confidence = db.Column(db.Float, nullable=True)
+    
+    drug = db.relationship('Drug', backref='food_interactions')
+    food = db.relationship('Food', backref='drug_interactions')
+    severity = db.relationship('Severity', backref='drug_food_interactions')
 
 class Severity(db.Model):
     __tablename__ = 'severity'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(20), nullable=False, unique=True)
+    name = db.Column(db.String(20), nullable=True, unique=True)
     description = db.Column(db.Text, nullable=True)
     interactions = db.relationship('DrugInteraction', backref='severity_level', lazy='dynamic')
 
@@ -1563,13 +1597,11 @@ def clear_database():
     if 'user_id' not in session:
         flash('Bu sayfaya erişmek için giriş yapmalısınız.', 'danger')
         return redirect(url_for('login'))
-
     # Admin kontrolü
     user = db.session.get(User, session['user_id'])
     if not user or not user.is_admin:
         flash('Bu işlem için yetkiniz yok.', 'danger')
         return redirect(url_for('home'))
-
     if request.method == 'POST':
         try:
             # Önce bağımlı tabloları sil (foreign key bağımlılıkları dikkate alınarak)
@@ -1595,7 +1627,6 @@ def clear_database():
             db.session.execute(ClinicalVariantDrug.__table__.delete())
             db.session.execute(ClinicalVariantPhenotype.__table__.delete())
             db.session.execute(ClinicalVariantVariant.__table__.delete())
-
             # Bağımlı ana tablolar
             db.session.execute(RouteIndication.__table__.delete())
             db.session.execute(DrugRoute.__table__.delete())
@@ -1612,20 +1643,23 @@ def clear_database():
             db.session.execute(Indication.__table__.delete())
             db.session.execute(Target.__table__.delete())
             db.session.execute(Severity.__table__.delete())
-            db.session.execute(RouteOfAdministration.__table__.delete())
+            #db.session.execute(RouteOfAdministration.__table__.delete())
             db.session.execute(Receptor.__table__.delete())
-            db.session.execute(LabTest.__table__.delete())
-            db.session.execute(Unit.__table__.delete())
+            #db.session.execute(LabTest.__table__.delete())
+            #db.session.execute(Unit.__table__.delete())
             db.session.execute(MetabolismOrgan.__table__.delete())
             db.session.execute(MetabolismEnzyme.__table__.delete())
             db.session.execute(Gene.__table__.delete())
             db.session.execute(Phenotype.__table__.delete())
             db.session.execute(Variant.__table__.delete())
             db.session.execute(Publication.__table__.delete())
-            db.session.execute(ClinicalAnnotation.__table__.delete())
-            db.session.execute(ClinicalAnnAllele.__table__.delete())
-            db.session.execute(ClinicalAnnHistory.__table__.delete())
-            db.session.execute(ClinicalAnnEvidence.__table__.delete())
+            
+            # FIXED: Delete child tables before parent tables
+            db.session.execute(ClinicalAnnAllele.__table__.delete())  # Moved before ClinicalAnnotation
+            db.session.execute(ClinicalAnnHistory.__table__.delete())  # Moved before ClinicalAnnotation
+            db.session.execute(ClinicalAnnEvidence.__table__.delete())  # Moved before ClinicalAnnotation
+            db.session.execute(ClinicalAnnotation.__table__.delete())  # Now safe to delete
+            
             db.session.execute(VariantAnnotation.__table__.delete())
             db.session.execute(StudyParameters.__table__.delete())
             db.session.execute(VariantFAAnn.__table__.delete())
@@ -1636,21 +1670,40 @@ def clear_database():
             db.session.execute(ClinicalVariant.__table__.delete())
             db.session.execute(AutomatedAnnotation.__table__.delete())
             db.session.execute(News.__table__.delete())
-            db.session.execute(User.__table__.delete())
-            db.session.execute(Occupation.__table__.delete())
+            #db.session.execute(User.__table__.delete())
+            #db.session.execute(Occupation.__table__.delete())
             db.session.execute(DoseResponseSimulation.__table__.delete())
-
+            
             db.session.commit()
-            flash('Veritabanı başarıyla temizlendi.', 'success')
+            
+            # Reset all auto-increment sequences to start from 1
+            logger.info("Resetting all database sequences...")
+            result = db.session.execute(db.text("""
+                SELECT sequence_name 
+                FROM information_schema.sequences 
+                WHERE sequence_schema = 'public'
+            """))
+            
+            sequences = [row[0] for row in result]
+            
+            for seq in sequences:
+                try:
+                    db.session.execute(db.text(f"ALTER SEQUENCE {seq} RESTART WITH 1"))
+                    logger.info(f"Reset sequence: {seq}")
+                except Exception as seq_error:
+                    logger.warning(f"Could not reset sequence {seq}: {seq_error}")
+            
+            db.session.commit()
+            logger.info("All sequences reset successfully")
+            
+            flash('Veritabanı başarıyla temizlendi ve ID\'ler sıfırlandı.', 'success')
         except SQLAlchemyError as e:
             db.session.rollback()
             flash(f'Veritabanı temizlenirken hata oluştu: {str(e)}', 'error')
             logging.error(f"Database clear error: {str(e)}")
         return redirect(url_for('clear_database'))
-
     return render_template('clear_database.html')
 #THE END OF CLEARING THE WHOLEDATABASE
-
 
 #ICD -11 tree view
 @app.route('/icd11')
@@ -5310,6 +5363,1000 @@ def get_interactions():
     })
 
 
+# Add this route for bulk upload
+@app.route('/interactions/bulk_upload', methods=['GET', 'POST'])
+@login_required
+def bulk_upload_interactions():
+    if request.method == 'POST':
+        try:
+            if 'file' not in request.files:
+                return jsonify({"error": "No file uploaded"}), 400
+            
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({"error": "No file selected"}), 400
+            
+            if not file.filename.endswith(('.xlsx', '.xls')):
+                return jsonify({"error": "Invalid file format. Please upload Excel file"}), 400
+            
+            import pandas as pd
+            import io
+            
+            df = pd.read_excel(io.BytesIO(file.read()))
+            
+            required_columns = ['drug1_id', 'drug2_id', 'interaction_description']
+            if not all(col in df.columns for col in required_columns):
+                return jsonify({"error": "Excel file must contain: drug1_id, drug2_id, interaction_description"}), 400
+            
+            total_rows = len(df)
+            success_count = 0
+            error_count = 0
+            duplicate_count = 0
+            errors = []
+            
+            # Get default severity (Moderate)
+            default_severity = Severity.query.filter_by(name='Moderate').first()
+            if not default_severity:
+                return jsonify({"error": "Severity 'Moderate' not found in database"}), 500
+            
+            for index, row in df.iterrows():
+                try:
+                    drug1_id = int(row['drug1_id'])
+                    drug2_id = int(row['drug2_id'])
+                    interaction_description = str(row['interaction_description']).strip()
+                    
+                    if drug1_id == drug2_id:
+                        error_count += 1
+                        errors.append(f"Row {index + 2}: Cannot create interaction between same drug (ID: {drug1_id})")
+                        continue
+                    
+                    drug1 = db.session.get(Drug, drug1_id)
+                    drug2 = db.session.get(Drug, drug2_id)
+                    
+                    if not drug1:
+                        error_count += 1
+                        errors.append(f"Row {index + 2}: Drug1 ID {drug1_id} not found")
+                        continue
+                    
+                    if not drug2:
+                        error_count += 1
+                        errors.append(f"Row {index + 2}: Drug2 ID {drug2_id} not found")
+                        continue
+                    
+                    existing = DrugInteraction.query.filter(
+                        or_(
+                            and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
+                            and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
+                        )
+                    ).first()
+                    
+                    if existing:
+                        duplicate_count += 1
+                        continue
+                    
+                    try:
+                        predicted_severity, prediction_confidence = classify_severity(
+                            interaction_description, drug1.name_en, drug2.name_en, default_severity.name
+                        )
+                    except Exception as e:
+                        logger.error(f"Row {index + 2}: Severity classification error: {str(e)}")
+                        predicted_severity = "Moderate"
+                        prediction_confidence = 0.0
+                    
+                    new_interaction = DrugInteraction(
+                        drug1_id=drug1_id,
+                        drug2_id=drug2_id,
+                        interaction_type='Pharmacodynamic',
+                        interaction_description=interaction_description,
+                        severity_id=default_severity.id,
+                        predicted_severity=predicted_severity,
+                        prediction_confidence=prediction_confidence,
+                        processed=True
+                    )
+                    
+                    db.session.add(new_interaction)
+                    success_count += 1
+                    
+                    if success_count % 50 == 0:
+                        db.session.commit()
+                        logger.info(f"Committed batch: {success_count} interactions")
+                    
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"Row {index + 2}: {str(e)}")
+                    continue
+            
+            db.session.commit()
+            
+            result = {
+                "message": "Upload completed",
+                "total": total_rows,
+                "success": success_count,
+                "duplicates": duplicate_count,
+                "errors": error_count,
+                "error_details": errors[:20]
+            }
+            
+            logger.info(f"Bulk upload completed: {success_count}/{total_rows} successful, {duplicate_count} duplicates, {error_count} errors")
+            
+            return jsonify(result), 200
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Bulk upload error: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+    
+    return render_template('bulk_upload_interactions.html')
+#The END for interactions    
+
+#Drug Food Interaction Section
+# Manage Foods
+@app.route('/foods/manage', methods=['GET', 'POST'])
+@login_required
+def manage_foods():
+    if request.method == 'POST':
+        name_en = request.form.get('name_en')
+        name_tr = request.form.get('name_tr')
+        category = request.form.get('category')
+        description = request.form.get('description')
+        
+        new_food = Food(
+            name_en=name_en,
+            name_tr=name_tr,
+            category=category,
+            description=description
+        )
+        db.session.add(new_food)
+        db.session.commit()
+        flash('Food added successfully!', 'success')
+        return redirect(url_for('manage_foods'))
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    foods = Food.query.paginate(page=page, per_page=per_page)
+    return render_template('manage_foods.html', foods=foods)
+
+@app.route('/foods/delete/<int:food_id>', methods=['POST'])
+@login_required
+def delete_food(food_id):
+    food = Food.query.get_or_404(food_id)
+    db.session.delete(food)
+    db.session.commit()
+    flash('Food deleted successfully!', 'success')
+    return redirect(url_for('manage_foods'))
+
+# Manage Drug-Food Interactions
+@app.route('/drug-food-interactions/manage', methods=['GET', 'POST'])
+@login_required
+def manage_drug_food_interactions():
+    drugs = Drug.query.order_by(Drug.name_en).all()
+    foods = Food.query.order_by(Food.name_en).all()
+    severities = Severity.query.order_by(Severity.id).all()
+    
+    if request.method == 'POST':
+        try:
+            drug_id = int(request.form.get('drug_id'))
+            food_id = int(request.form.get('food_id'))
+            interaction_type = request.form.get('interaction_type')
+            description = request.form.get('description')
+            severity_id = int(request.form.get('severity_id'))
+            timing_instruction = request.form.get('timing_instruction')
+            recommendation = request.form.get('recommendation')
+            reference = request.form.get('reference')
+            
+            drug = Drug.query.get(drug_id)
+            food = Food.query.get(food_id)
+            severity = Severity.query.get(severity_id)
+            
+            if not drug or not food or not severity:
+                raise ValueError("Invalid drug, food, or severity")
+            
+            # Check for duplicate
+            existing = DrugFoodInteraction.query.filter_by(
+                drug_id=drug_id, food_id=food_id
+            ).first()
+            
+            if existing:
+                flash('This drug-food interaction already exists!', 'warning')
+                return redirect(url_for('manage_drug_food_interactions'))
+            
+            # Predict severity
+            predicted_severity, confidence = classify_food_interaction_severity(
+                description, drug.name_en, food.name_en, severity.name
+            )
+            
+            new_interaction = DrugFoodInteraction(
+                drug_id=drug_id,
+                food_id=food_id,
+                interaction_type=interaction_type,
+                description=description,
+                severity_id=severity_id,
+                timing_instruction=timing_instruction,
+                recommendation=recommendation,
+                reference=reference,
+                predicted_severity=predicted_severity,
+                prediction_confidence=confidence
+            )
+            
+            db.session.add(new_interaction)
+            db.session.commit()
+            flash('Drug-food interaction added successfully!', 'success')
+            return redirect(url_for('manage_drug_food_interactions'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding drug-food interaction: {str(e)}")
+            flash(f'Error: {str(e)}', 'error')
+    
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    interactions = DrugFoodInteraction.query.options(
+        db.joinedload(DrugFoodInteraction.drug),
+        db.joinedload(DrugFoodInteraction.food),
+        db.joinedload(DrugFoodInteraction.severity)
+    ).paginate(page=page, per_page=per_page)
+    
+    return render_template('manage_drug_food_interactions.html',
+                         drugs=drugs, foods=foods, severities=severities,
+                         interactions=interactions)
+
+@app.route('/drug-food-interactions/update/<int:interaction_id>', methods=['GET', 'POST'])
+@login_required
+def update_drug_food_interaction(interaction_id):
+    interaction = DrugFoodInteraction.query.get_or_404(interaction_id)
+    drugs = Drug.query.order_by(Drug.name_en).all()
+    foods = Food.query.order_by(Food.name_en).all()
+    severities = Severity.query.order_by(Severity.id).all()
+    
+    if request.method == 'POST':
+        try:
+            interaction.drug_id = int(request.form.get('drug_id'))
+            interaction.food_id = int(request.form.get('food_id'))
+            interaction.interaction_type = request.form.get('interaction_type')
+            interaction.description = request.form.get('description')
+            interaction.severity_id = int(request.form.get('severity_id'))
+            interaction.timing_instruction = request.form.get('timing_instruction')
+            interaction.recommendation = request.form.get('recommendation')
+            interaction.reference = request.form.get('reference')
+            
+            drug = Drug.query.get(interaction.drug_id)
+            food = Food.query.get(interaction.food_id)
+            severity = Severity.query.get(interaction.severity_id)
+            
+            # Predict severity
+            predicted_severity, confidence = classify_food_interaction_severity(
+                interaction.description, drug.name_en, food.name_en, severity.name
+            )
+            
+            interaction.predicted_severity = predicted_severity
+            interaction.prediction_confidence = confidence
+            
+            db.session.commit()
+            flash('Drug-food interaction updated successfully!', 'success')
+            return redirect(url_for('manage_drug_food_interactions'))
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating drug-food interaction: {str(e)}")
+            flash(f'Error: {str(e)}', 'error')
+    
+    return render_template('update_drug_food_interaction.html',
+                         interaction=interaction, drugs=drugs, foods=foods,
+                         severities=severities)
+
+@app.route('/drug-food-interactions/delete/<int:interaction_id>', methods=['POST'])
+@login_required
+def delete_drug_food_interaction(interaction_id):
+    interaction = DrugFoodInteraction.query.get_or_404(interaction_id)
+    db.session.delete(interaction)
+    db.session.commit()
+    flash('Drug-food interaction deleted successfully!', 'success')
+    return redirect(url_for('manage_drug_food_interactions'))
+
+# Check Drug-Food Interactions
+@app.route('/drug-food-interactions/check', methods=['GET', 'POST'])
+@login_required
+def check_drug_food_interactions():
+    drugs = Drug.query.all()
+    foods = Food.query.all()
+    results = []
+    
+    if request.method == 'POST':
+        drug_ids = request.form.getlist('drug_ids')
+        food_ids = request.form.getlist('food_ids')
+        
+        for drug_id in drug_ids:
+            for food_id in food_ids:
+                interaction = DrugFoodInteraction.query.filter_by(
+                    drug_id=int(drug_id), food_id=int(food_id)
+                ).first()
+                
+                if interaction:
+                    results.append({
+                        'drug': interaction.drug.name_en,
+                        'food': interaction.food.name_en,
+                        'interaction_type': interaction.interaction_type,
+                        'description': interaction.description,
+                        'severity': interaction.severity.name,
+                        'predicted_severity': interaction.predicted_severity,
+                        'timing_instruction': interaction.timing_instruction,
+                        'recommendation': interaction.recommendation,
+                        'reference': interaction.reference
+                    })
+    
+    return render_template('check_drug_food_interactions.html',
+                         drugs=drugs, foods=foods, results=results)
+
+# API endpoint for foods
+# 1. Get all foods (with pagination and search)
+@app.route('/api/foods', methods=['GET'])
+def api_get_foods():
+    try:
+        search = request.args.get('q', '').strip()
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        category = request.args.get('category', '').strip()
+        
+        query = Food.query
+        
+        if search:
+            query = query.filter(
+                or_(
+                    Food.name_en.ilike(f'%{search}%'),
+                    Food.name_tr.ilike(f'%{search}%'),
+                    Food.description.ilike(f'%{search}%')
+                )
+            )
+        
+        if category:
+            query = query.filter(Food.category == category)
+        
+        paginated = query.paginate(page=page, per_page=limit, error_out=False)
+        
+        foods = [{
+            'id': food.id,
+            'name_en': food.name_en,
+            'name_tr': food.name_tr,
+            'category': food.category,
+            'description': food.description
+        } for food in paginated.items]
+        
+        return jsonify({
+            'success': True,
+            'data': foods,
+            'pagination': {
+                'page': page,
+                'per_page': limit,
+                'total': paginated.total,
+                'pages': paginated.pages,
+                'has_next': paginated.has_next,
+                'has_prev': paginated.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_foods: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 2. Get single food by ID
+@app.route('/api/foods/<int:food_id>', methods=['GET'])
+def api_get_food(food_id):
+    try:
+        food = Food.query.get_or_404(food_id)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': food.id,
+                'name_en': food.name_en,
+                'name_tr': food.name_tr,
+                'category': food.category,
+                'description': food.description
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_food: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404
+    
+# 3. Create new food (requires authentication)
+@app.route('/api/foods', methods=['POST'])
+@login_required
+def api_create_food():
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('name_en'):
+            return jsonify({
+                'success': False,
+                'error': 'name_en is required'
+            }), 400
+        
+        new_food = Food(
+            name_en=data.get('name_en'),
+            name_tr=data.get('name_tr'),
+            category=data.get('category'),
+            description=data.get('description')
+        )
+        
+        db.session.add(new_food)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Food created successfully',
+            'data': {
+                'id': new_food.id,
+                'name_en': new_food.name_en,
+                'name_tr': new_food.name_tr,
+                'category': new_food.category,
+                'description': new_food.description
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_create_food: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 4. Update food
+@app.route('/api/foods/<int:food_id>', methods=['PUT'])
+@login_required
+def api_update_food(food_id):
+    try:
+        food = Food.query.get_or_404(food_id)
+        data = request.get_json()
+        
+        if 'name_en' in data:
+            food.name_en = data['name_en']
+        if 'name_tr' in data:
+            food.name_tr = data['name_tr']
+        if 'category' in data:
+            food.category = data['category']
+        if 'description' in data:
+            food.description = data['description']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Food updated successfully',
+            'data': {
+                'id': food.id,
+                'name_en': food.name_en,
+                'name_tr': food.name_tr,
+                'category': food.category,
+                'description': food.description
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_update_food: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
+#5. Delete food
+@app.route('/api/foods/<int:food_id>', methods=['DELETE'])
+@login_required
+def api_delete_food(food_id):
+    try:
+        food = Food.query.get_or_404(food_id)
+        db.session.delete(food)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Food deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_delete_food: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 6. Get all drug-food interactions (with filters)
+@app.route('/api/drug-food-interactions', methods=['GET'])
+def api_get_drug_food_interactions():
+    try:
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        drug_id = request.args.get('drug_id', type=int)
+        food_id = request.args.get('food_id', type=int)
+        severity = request.args.get('severity', '').strip()
+        interaction_type = request.args.get('interaction_type', '').strip()
+        
+        query = DrugFoodInteraction.query.options(
+            db.joinedload(DrugFoodInteraction.drug),
+            db.joinedload(DrugFoodInteraction.food),
+            db.joinedload(DrugFoodInteraction.severity)
+        )
+        
+        if drug_id:
+            query = query.filter(DrugFoodInteraction.drug_id == drug_id)
+        
+        if food_id:
+            query = query.filter(DrugFoodInteraction.food_id == food_id)
+        
+        if severity:
+            query = query.join(Severity).filter(Severity.name.ilike(f'%{severity}%'))
+        
+        if interaction_type:
+            query = query.filter(DrugFoodInteraction.interaction_type.ilike(f'%{interaction_type}%'))
+        
+        paginated = query.paginate(page=page, per_page=limit, error_out=False)
+        
+        interactions = [{
+            'id': interaction.id,
+            'drug': {
+                'id': interaction.drug.id,
+                'name_en': interaction.drug.name_en,
+                'name_tr': interaction.drug.name_tr
+            },
+            'food': {
+                'id': interaction.food.id,
+                'name_en': interaction.food.name_en,
+                'name_tr': interaction.food.name_tr,
+                'category': interaction.food.category
+            },
+            'interaction_type': interaction.interaction_type,
+            'description': interaction.description,
+            'severity': interaction.severity.name,
+            'predicted_severity': interaction.predicted_severity,
+            'prediction_confidence': interaction.prediction_confidence,
+            'timing_instruction': interaction.timing_instruction,
+            'recommendation': interaction.recommendation,
+            'reference': interaction.reference
+        } for interaction in paginated.items]
+        
+        return jsonify({
+            'success': True,
+            'data': interactions,
+            'pagination': {
+                'page': page,
+                'per_page': limit,
+                'total': paginated.total,
+                'pages': paginated.pages,
+                'has_next': paginated.has_next,
+                'has_prev': paginated.has_prev
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_drug_food_interactions: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 7. Get single drug-food interaction
+@app.route('/api/drug-food-interactions/<int:interaction_id>', methods=['GET'])
+def api_get_drug_food_interaction(interaction_id):
+    try:
+        interaction = DrugFoodInteraction.query.options(
+            db.joinedload(DrugFoodInteraction.drug),
+            db.joinedload(DrugFoodInteraction.food),
+            db.joinedload(DrugFoodInteraction.severity)
+        ).get_or_404(interaction_id)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': interaction.id,
+                'drug': {
+                    'id': interaction.drug.id,
+                    'name_en': interaction.drug.name_en,
+                    'name_tr': interaction.drug.name_tr
+                },
+                'food': {
+                    'id': interaction.food.id,
+                    'name_en': interaction.food.name_en,
+                    'name_tr': interaction.food.name_tr,
+                    'category': interaction.food.category
+                },
+                'interaction_type': interaction.interaction_type,
+                'description': interaction.description,
+                'severity': interaction.severity.name,
+                'predicted_severity': interaction.predicted_severity,
+                'prediction_confidence': interaction.prediction_confidence,
+                'timing_instruction': interaction.timing_instruction,
+                'recommendation': interaction.recommendation,
+                'reference': interaction.reference
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_drug_food_interaction: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404
+
+# 8. Create drug-food interaction
+@app.route('/api/drug-food-interactions', methods=['POST'])
+@login_required
+def api_create_drug_food_interaction():
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['drug_id', 'food_id', 'interaction_type', 'description', 'severity_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'success': False,
+                    'error': f'{field} is required'
+                }), 400
+        
+        drug_id = int(data['drug_id'])
+        food_id = int(data['food_id'])
+        severity_id = int(data['severity_id'])
+        
+        # Check if entities exist
+        drug = Drug.query.get(drug_id)
+        food = Food.query.get(food_id)
+        severity = Severity.query.get(severity_id)
+        
+        if not drug or not food or not severity:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid drug_id, food_id, or severity_id'
+            }), 400
+        
+        # Check for duplicate
+        existing = DrugFoodInteraction.query.filter_by(
+            drug_id=drug_id, food_id=food_id
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'success': False,
+                'error': 'This drug-food interaction already exists'
+            }), 409
+        
+        # Predict severity
+        predicted_severity, confidence = classify_food_interaction_severity(
+            data['description'], drug.name_en, food.name_en, severity.name
+        )
+        
+        new_interaction = DrugFoodInteraction(
+            drug_id=drug_id,
+            food_id=food_id,
+            interaction_type=data['interaction_type'],
+            description=data['description'],
+            severity_id=severity_id,
+            timing_instruction=data.get('timing_instruction'),
+            recommendation=data.get('recommendation'),
+            reference=data.get('reference'),
+            predicted_severity=predicted_severity,
+            prediction_confidence=confidence
+        )
+        
+        db.session.add(new_interaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Drug-food interaction created successfully',
+            'data': {
+                'id': new_interaction.id,
+                'drug_id': new_interaction.drug_id,
+                'food_id': new_interaction.food_id,
+                'interaction_type': new_interaction.interaction_type,
+                'severity': severity.name,
+                'predicted_severity': predicted_severity,
+                'prediction_confidence': confidence
+            }
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({'success': False, 'error': 'Invalid data format'}), 400
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_create_drug_food_interaction: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 9. Update drug-food interaction
+@app.route('/api/drug-food-interactions/<int:interaction_id>', methods=['PUT'])
+@login_required
+def api_update_drug_food_interaction(interaction_id):
+    try:
+        interaction = DrugFoodInteraction.query.get_or_404(interaction_id)
+        data = request.get_json()
+        
+        if 'drug_id' in data:
+            interaction.drug_id = int(data['drug_id'])
+        if 'food_id' in data:
+            interaction.food_id = int(data['food_id'])
+        if 'interaction_type' in data:
+            interaction.interaction_type = data['interaction_type']
+        if 'description' in data:
+            interaction.description = data['description']
+        if 'severity_id' in data:
+            interaction.severity_id = int(data['severity_id'])
+        if 'timing_instruction' in data:
+            interaction.timing_instruction = data['timing_instruction']
+        if 'recommendation' in data:
+            interaction.recommendation = data['recommendation']
+        if 'reference' in data:
+            interaction.reference = data['reference']
+        
+        # Re-predict severity if description changed
+        if 'description' in data:
+            drug = Drug.query.get(interaction.drug_id)
+            food = Food.query.get(interaction.food_id)
+            severity = Severity.query.get(interaction.severity_id)
+            
+            predicted_severity, confidence = classify_food_interaction_severity(
+                interaction.description, drug.name_en, food.name_en, severity.name
+            )
+            
+            interaction.predicted_severity = predicted_severity
+            interaction.prediction_confidence = confidence
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Drug-food interaction updated successfully',
+            'data': {
+                'id': interaction.id,
+                'predicted_severity': interaction.predicted_severity,
+                'prediction_confidence': interaction.prediction_confidence
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_update_drug_food_interaction: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 10. Delete drug-food interaction
+@app.route('/api/drug-food-interactions/<int:interaction_id>', methods=['DELETE'])
+@login_required
+def api_delete_drug_food_interaction(interaction_id):
+    try:
+        interaction = DrugFoodInteraction.query.get_or_404(interaction_id)
+        db.session.delete(interaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Drug-food interaction deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_delete_drug_food_interaction: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 11. Check interactions (POST with body)
+@app.route('/api/drug-food-interactions/check', methods=['POST'])
+def api_check_drug_food_interactions():
+    try:
+        data = request.get_json()
+        
+        drug_ids = data.get('drug_ids', [])
+        food_ids = data.get('food_ids', [])
+        
+        if not drug_ids or not food_ids:
+            return jsonify({
+                'success': False,
+                'error': 'drug_ids and food_ids are required'
+            }), 400
+        
+        results = []
+        
+        for drug_id in drug_ids:
+            for food_id in food_ids:
+                interaction = DrugFoodInteraction.query.filter_by(
+                    drug_id=int(drug_id), food_id=int(food_id)
+                ).options(
+                    db.joinedload(DrugFoodInteraction.drug),
+                    db.joinedload(DrugFoodInteraction.food),
+                    db.joinedload(DrugFoodInteraction.severity)
+                ).first()
+                
+                if interaction:
+                    results.append({
+                        'drug': {
+                            'id': interaction.drug.id,
+                            'name_en': interaction.drug.name_en,
+                            'name_tr': interaction.drug.name_tr
+                        },
+                        'food': {
+                            'id': interaction.food.id,
+                            'name_en': interaction.food.name_en,
+                            'name_tr': interaction.food.name_tr,
+                            'category': interaction.food.category
+                        },
+                        'interaction_type': interaction.interaction_type,
+                        'description': interaction.description,
+                        'severity': interaction.severity.name,
+                        'predicted_severity': interaction.predicted_severity,
+                        'timing_instruction': interaction.timing_instruction,
+                        'recommendation': interaction.recommendation,
+                        'reference': interaction.reference
+                    })
+        
+        return jsonify({
+            'success': True,
+            'interactions_found': len(results),
+            'data': results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_check_drug_food_interactions: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 12. Get food categories
+@app.route('/api/food-categories', methods=['GET'])
+def api_get_food_categories():
+    try:
+        categories = db.session.query(Food.category).distinct().filter(Food.category.isnot(None)).all()
+        category_list = [cat[0] for cat in categories]
+        
+        return jsonify({
+            'success': True,
+            'data': sorted(category_list)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_food_categories: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 13. Bulk create foods
+@app.route('/api/foods/bulk', methods=['POST'])
+@login_required
+def api_bulk_create_foods():
+    try:
+        data = request.get_json()
+        foods_data = data.get('foods', [])
+        
+        if not foods_data:
+            return jsonify({
+                'success': False,
+                'error': 'foods array is required'
+            }), 400
+        
+        created = []
+        errors = []
+        
+        for idx, food_data in enumerate(foods_data):
+            try:
+                if not food_data.get('name_en'):
+                    errors.append(f"Row {idx}: name_en is required")
+                    continue
+                
+                new_food = Food(
+                    name_en=food_data.get('name_en'),
+                    name_tr=food_data.get('name_tr'),
+                    category=food_data.get('category'),
+                    description=food_data.get('description')
+                )
+                
+                db.session.add(new_food)
+                db.session.flush()
+                created.append(new_food.id)
+                
+            except Exception as e:
+                errors.append(f"Row {idx}: {str(e)}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created {len(created)} foods',
+            'created_ids': created,
+            'errors': errors
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in api_bulk_create_foods: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 14. Get interactions by drug
+@app.route('/api/drugs/<int:drug_id>/food-interactions', methods=['GET'])
+def api_get_drug_food_interactions_by_drug(drug_id):
+    try:
+        drug = Drug.query.get_or_404(drug_id)
+        
+        interactions = DrugFoodInteraction.query.filter_by(drug_id=drug_id).options(
+            db.joinedload(DrugFoodInteraction.food),
+            db.joinedload(DrugFoodInteraction.severity)
+        ).all()
+        
+        results = [{
+            'id': interaction.id,
+            'food': {
+                'id': interaction.food.id,
+                'name_en': interaction.food.name_en,
+                'name_tr': interaction.food.name_tr,
+                'category': interaction.food.category
+            },
+            'interaction_type': interaction.interaction_type,
+            'description': interaction.description,
+            'severity': interaction.severity.name,
+            'predicted_severity': interaction.predicted_severity,
+            'timing_instruction': interaction.timing_instruction,
+            'recommendation': interaction.recommendation
+        } for interaction in interactions]
+        
+        return jsonify({
+            'success': True,
+            'drug': {
+                'id': drug.id,
+                'name_en': drug.name_en,
+                'name_tr': drug.name_tr
+            },
+            'interactions_count': len(results),
+            'data': results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in api_get_drug_food_interactions_by_drug: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 404            
+
+# Helper function for severity classification for FOOD - DRUG
+def classify_food_interaction_severity(description, drug_name, food_name, manual_severity):
+    """Classify drug-food interaction severity using AI model."""
+    labels = ["Mild", "Moderate", "Severe", "Critical"]
+    label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Hayati Risk İçeren"}
+    
+    critical_terms = [
+        "contraindicated", "avoid completely", "life-threatening", "severe toxicity",
+        "dangerous", "fatal", "toxic levels", "critical"
+    ]
+    
+    severe_terms = [
+        "significantly reduced", "major decrease", "increased toxicity",
+        "substantially affects", "serious risk", "avoid", "warning"
+    ]
+    
+    description_lower = description.lower()
+    is_critical = any(term in description_lower for term in critical_terms)
+    is_severe = any(term in description_lower for term in severe_terms)
+    
+    prompt = (
+        f"Analyze the drug-food interaction between {drug_name} and {food_name}.\n\n"
+        f"Description: {description}\n\n"
+        f"Classification Guidelines:\n"
+        f"- Mild: Minor effect, no specific timing needed\n"
+        f"- Moderate: Clinically relevant, timing recommendations apply\n"
+        f"- Severe: Significant impact on efficacy or safety, strict avoidance or timing required\n"
+        f"- Critical: Dangerous combination, must be completely avoided\n\n"
+        f"Classify this interaction into ONE category."
+    )
+    
+    try:
+        clf = get_classifier()
+        result = clf(prompt, labels, multi_label=False)
+        predicted_label = label_map[result["labels"][0]]
+        confidence = result["scores"][0]
+        
+        if is_critical:
+            predicted_label = "Hayati Risk İçeren"
+            confidence = max(confidence, 0.95)
+        elif is_severe and predicted_label in ["Hafif", "Orta"]:
+            predicted_label = "Şiddetli"
+            confidence = max(confidence, 0.85)
+        
+        if confidence < 0.75:
+            severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"]
+            current_index = severity_order.index(predicted_label)
+            if current_index < len(severity_order) - 1:
+                predicted_label = severity_order[current_index + 1]
+            confidence = 0.75
+        
+    except Exception as e:
+        logger.error(f"Error classifying food interaction severity: {e}")
+        predicted_label = "Orta"
+        confidence = 0.0
+    
+    return predicted_label, confidence
+
 
 # Updated /cdss/advanced Route
 @app.route('/cdss/advanced', methods=['GET', 'POST'])
@@ -5319,6 +6366,7 @@ def cdss_advanced():
     routes = RouteOfAdministration.query.all()
     indications = Indication.query.all()
     lab_tests = LabTest.query.all()
+    foods = Food.query.all()
     interaction_results = None
     error = None
     if request.method == 'POST':
@@ -5333,6 +6381,7 @@ def cdss_advanced():
             selected_drugs = request.form.getlist('drugs')
             selected_indications = request.form.getlist('indications')
             selected_lab_tests = request.form.getlist('lab_tests')
+            selected_foods = request.form.getlist('foods')  # Add this
             selected_route = request.form.get('route_id')
             route_id = int(selected_route) if selected_route else None
             logger.debug(f"Form data: drugs={selected_drugs}, indications={selected_indications}, "
@@ -5370,7 +6419,8 @@ def cdss_advanced():
                 conditions=[int(i) for i in selected_indications if i],
                 lab_tests=[int(t) for t in selected_lab_tests if t],
                 pregnancy=pregnancy == 'yes',
-                hepatic_impairment=hepatic_impairment
+                hepatic_impairment=hepatic_impairment,
+                selected_foods=selected_foods
             )
             logger.debug(f"Interaction results: {len(interaction_results)} found")
         except ValueError as e:
@@ -5382,7 +6432,7 @@ def cdss_advanced():
             logger.error(f"Error processing CDSS request: {str(e)}")
             error = "An error occurred while processing your request."
     return render_template('cdss_advanced.html', drugs=drugs, routes=routes,
-                         indications=indications, lab_tests=lab_tests,
+                         indications=indications, lab_tests=lab_tests, foods=foods,
                          interaction_results=interaction_results, error=error)
 # Helper Functions
 def calculate_crcl(age, weight, gender, serum_creatinine=1.0):
@@ -5511,10 +6561,12 @@ def suggest_alternatives(drug_id, top_k=3):
     top_alternatives = [name for name, sim in similarities[:top_k]]
     return top_alternatives
 
-def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions, lab_tests, pregnancy, hepatic_impairment):
+def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions, lab_tests, pregnancy, hepatic_impairment, selected_foods=None):
     """Analyze drug-drug, drug-disease, and drug-lab test interactions. Enhanced with new patient factors, polypharmacy check, and AI-suggested alternatives."""
     results = []
     drug_ids = [int(d) for d in selected_drugs if d]
+    food_ids = [int(f) for f in selected_foods if selected_foods and f] if selected_foods else []
+
     severity_map_db_to_func = {'Hafif': 'Hafif', 'Orta': 'Moderate', 'Şiddetli': 'Severe', 'Kritik': 'Critical', 'Hayati Risk İçeren': 'Critical'}
     severity_order = {"Critical": 4, "Severe": 3, "Moderate": 2, "Hafif": 1}
     # New: Polypharmacy alert if >5 drugs
@@ -5690,6 +6742,39 @@ def analyze_interactions(selected_drugs, route_id, age, weight, crcl, conditions
                     'evidence_level': "High"
                 }
                 results.append(result)
+
+    # Add Drug-Food Interactions
+    if food_ids:
+        for drug_id in drug_ids:
+            for food_id in food_ids:
+                interaction = DrugFoodInteraction.query.filter_by(
+                    drug_id=drug_id, food_id=food_id
+                ).first()
+                
+                if interaction:
+                    drug = Drug.query.get(drug_id)
+                    food = Food.query.get(food_id)
+                    base_severity = severity_map_db_to_func.get(interaction.severity.name, 'Moderate')
+                    
+                    result = {
+                        'type': 'Drug-Food Interaction',
+                        'drug1': drug.name_en,
+                        'drug2': food.name_en,
+                        'route': "N/A",
+                        'interaction_type': interaction.interaction_type,
+                        'description': interaction.description,
+                        'severity': base_severity,
+                        'predicted_severity': adjust_severity(base_severity, age, crcl, pregnancy, hepatic_impairment),
+                        'peak_risk': 0,
+                        'risk_profile': [(0, 2)],
+                        'mechanism': f"Food Interaction - {interaction.interaction_type}",
+                        'monitoring': interaction.timing_instruction or "Follow timing instructions",
+                        'alternatives': interaction.recommendation or "Not Provided",
+                        'reference': interaction.reference or "Database entry",
+                        'evidence_level': "High" if interaction.prediction_confidence and interaction.prediction_confidence > 0.9 else "Medium"
+                    }
+                    results.append(result)
+
     # New: Add summary at the beginning
     if results:
         total_interactions = len(results)
