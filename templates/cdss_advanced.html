@@ -99,6 +99,14 @@
                 <small class="form-text text-muted">Type to search and select multiple lab tests</small>
             </div>
             <div class="mb-3">
+                <label class="form-label">Select Foods/Beverages</label>
+                <select name="foods" class="form-control select2" multiple>
+                    {% for food in foods %}
+                    <option value="{{ food.id }}">{{ food.name_en }} ({{ food.category or 'N/A' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
                 <label for="drugs" class="form-label">Select Drugs</label>
                 <select class="form-control" id="drugs" name="drugs" multiple required>
                     {% if request.form.getlist('drugs') %}
