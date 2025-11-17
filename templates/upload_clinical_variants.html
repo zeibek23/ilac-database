@@ -1,31 +1,582 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Upload clinicalVariants.tsv</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Clinical Variants - PharmGKB ETL</title>
     <style>
-        .success { color: green; }
-        .danger { color: red; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .upload-area {
+            border: 3px dashed #11998e;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f0fdf7;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #38ef7d;
+            background: #e6fcf2;
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #11998e;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 12px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #856404;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(17, 153, 142, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.show {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #11998e;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Upload clinicalVariants.tsv</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <ul>
+    <div class="container">
+        <h1>🧬 Upload Clinical Variants</h1>
+        <p class="subtitle">Upload clinicalVariants.tsv file to import high-level variant-drug-phenotype associations</p>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
                 {% for category, msg in messages %}
-                    <li class="{{ category }}">{{ msg }}</li>
+                    <div class="alert alert-{{ category }}">
+                        {{ msg }}
+                    </div>
                 {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
-    <form method="POST" enctype="multipart/form-data">
-        <p>
-            <label>clinicalVariants.tsv:</label>
-            <input type="file" name="clinical_variants_file" accept=".tsv,.csv"/>
-        </p>
-        <input type="submit" value="Upload"/>
-    </form>
-    <p><a href="/">Go Home</a></p>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <strong>ℹ️ About Clinical Variants</strong>
+            This file contains high-level clinical findings about variant effects on drug response, 
+            including level of evidence ratings and phenotype associations.
+        </div>
+
+        <!-- Upload Form -->
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+            <!-- Drag & Drop Area -->
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📊</div>
+                <div class="upload-text">
+                    <strong>Click to browse</strong> or drag and drop
+                </div>
+                <div class="upload-hint">
+                    Accepts .tsv and .csv files (Max 500MB)
+                </div>
+                <input type="file" 
+                       name="clinical_variants_file" 
+                       id="fileInput" 
+                       accept=".tsv,.csv"
+                       required />
+            </div>
+
+            <!-- File Info -->
+            <div class="file-info" id="fileInfo">
+                <div class="file-name" id="fileName"></div>
+                <div class="file-size" id="fileSize"></div>
+            </div>
+
+            <!-- Upload Button -->
+            <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
+                <span id="btnText">Select a file to upload</span>
+            </button>
+        </form>
+
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+            <div class="progress-text" id="progressText">Preparing upload...</div>
+        </div>
+
+        <!-- Stats (shown after upload) -->
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-number" id="insertedCount">0</div>
+                <div class="stat-label">Inserted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="updatedCount">0</div>
+                <div class="stat-label">Updated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="skippedCount">0</div>
+                <div class="stat-label">Skipped</div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <button class="btn btn-secondary" onclick="window.location.href='/'">
+            ← Back to Home
+        </button>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const btnText = document.getElementById('btnText');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressText = document.getElementById('progressText');
+        const stats = document.getElementById('stats');
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect();
+            }
+        });
+
+        // File selection
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+
+            // Validate file type
+            const validTypes = ['.tsv', '.csv'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(fileExt)) {
+                alert('Please select a .tsv or .csv file');
+                fileInput.value = '';
+                return;
+            }
+
+            // Validate file size (500MB max)
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert('File size must be less than 500MB');
+                fileInput.value = '';
+                return;
+            }
+
+            // Display file info
+            fileName.textContent = `📄 ${file.name}`;
+            fileSize.textContent = `Size: ${formatFileSize(file.size)}`;
+            fileInfo.classList.add('show');
+
+            // Enable upload button
+            uploadBtn.disabled = false;
+            btnText.innerHTML = '🚀 Upload File';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Form submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Disable upload button
+            uploadBtn.disabled = true;
+            btnText.innerHTML = '<span class="spinner"></span> Uploading...';
+
+            // Show progress bar
+            progressContainer.classList.add('show');
+            progressText.textContent = 'Uploading file...';
+
+            const formData = new FormData(uploadForm);
+
+            try {
+                const response = await fetch(uploadForm.action, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Upload successful, show progress URL
+                    if (result.progress_url) {
+                        trackProgress(result.upload_id);
+                    } else {
+                        // Legacy: direct result
+                        showResults(result);
+                    }
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+            } catch (error) {
+                progressText.textContent = `❌ Error: ${error.message}`;
+                uploadBtn.disabled = false;
+                btnText.textContent = '🔄 Try Again';
+            }
+        });
+
+        async function trackProgress(uploadId) {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/upload_progress/${uploadId}`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        updateProgress(data);
+
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            showResults(data.results);
+                        } else if (data.status === 'failed') {
+                            clearInterval(pollInterval);
+                            progressText.textContent = `❌ Upload failed: ${data.error}`;
+                            uploadBtn.disabled = false;
+                            btnText.textContent = '🔄 Try Again';
+                        }
+                    }
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    progressText.textContent = `❌ Error tracking progress`;
+                }
+            }, 2000); // Poll every 2 seconds
+        }
+
+        function updateProgress(data) {
+            const progress = data.progress || 0;
+            progressFill.style.width = `${progress}%`;
+            progressPercent.textContent = `${progress}%`;
+            
+            if (data.current_file) {
+                progressText.textContent = `Processing: ${data.current_file}`;
+            } else {
+                progressText.textContent = `Processing...`;
+            }
+        }
+
+        function showResults(results) {
+            progressFill.style.width = '100%';
+            progressPercent.textContent = '100%';
+            progressText.textContent = '✅ Upload completed successfully!';
+
+            // Show stats (clinical_variants returns inserted, updated, skipped)
+            if (results.clinical_variants) {
+                document.getElementById('insertedCount').textContent = results.clinical_variants.inserted || 0;
+                document.getElementById('updatedCount').textContent = results.clinical_variants.updated || 0;
+                document.getElementById('skippedCount').textContent = results.clinical_variants.skipped || 0;
+            } else if (results.inserted !== undefined) {
+                document.getElementById('insertedCount').textContent = results.inserted || 0;
+                document.getElementById('updatedCount').textContent = results.updated || 0;
+                document.getElementById('skippedCount').textContent = results.skipped || 0;
+            }
+
+            stats.style.display = 'grid';
+
+            // Reset button
+            uploadBtn.disabled = false;
+            btnText.textContent = '✓ Upload Another File';
+        }
+    </script>
 </body>
 </html>

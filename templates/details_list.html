@@ -335,18 +335,53 @@
                                     <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
                                     {% endif %}
                                 </td>
-                                <!-- Pregnancy Safety Column -->
+                                <!-- Pregnancy Safety (Trimester-Specific) -->
                                 <td>
-                                    <span class="safety-{{ detail.pregnancy_safety|lower }}">{{ detail.pregnancy_safety }}</span>
-                                    {% if detail.pregnancy_details %}
-                                    <br><span class="rich-text text-gray-600">{{ detail.pregnancy_details|safe }}</span>
+                                    <div class="space-y-1">
+                                        <div>
+                                            <strong>T1:</strong>
+                                            <span class="safety-{{ detail.pregnancy_safety_trimester1|lower|default('unknown') }}">
+                                                {{ detail.pregnancy_safety_trimester1 or 'N/A' }}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <strong>T2:</strong>
+                                            <span class="safety-{{ detail.pregnancy_safety_trimester2|lower|default('unknown') }}">
+                                                {{ detail.pregnancy_safety_trimester2 or 'N/A' }}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <strong>T3:</strong>
+                                            <span class="safety-{{ detail.pregnancy_safety_trimester3|lower|default('unknown') }}">
+                                                {{ detail.pregnancy_safety_trimester3 or 'N/A' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% if detail.pregnancy_details_trimester1 or detail.pregnancy_details_trimester2 or detail.pregnancy_details_trimester3 %}
+                                    <div class="mt-2 text-sm text-gray-600 rich-text">
+                                        {% if detail.pregnancy_details_trimester1 %}
+                                        <div><strong>T1:</strong> {{ detail.pregnancy_details_trimester1|safe }}</div>
+                                        {% endif %}
+                                        {% if detail.pregnancy_details_trimester2 %}
+                                        <div><strong>T2:</strong> {{ detail.pregnancy_details_trimester2|safe }}</div>
+                                        {% endif %}
+                                        {% if detail.pregnancy_details_trimester3 %}
+                                        <div><strong>T3:</strong> {{ detail.pregnancy_details_trimester3|safe }}</div>
+                                        {% endif %}
+                                    </div>
                                     {% endif %}
                                 </td>
-                                <!-- Lactation Safety Column -->
+                                <!-- Lactation Safety -->
                                 <td>
-                                    <span class="safety-{{ detail.lactation_safety|lower }}">{{ detail.lactation_safety }}</span>
+                                    <div>
+                                        <span class="safety-{{ detail.lactation_safety|lower|default('unknown') }}">
+                                            {{ detail.lactation_safety or 'N/A' }}
+                                        </span>
+                                    </div>
                                     {% if detail.lactation_details %}
-                                    <br><span class="rich-text text-gray-600">{{ detail.lactation_details|safe }}</span>
+                                    <div class="mt-1 text-sm text-gray-600 rich-text">
+                                        {{ detail.lactation_details|safe }}
+                                    </div>
                                     {% endif %}
                                 </td>
                                 <td>

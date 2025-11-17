@@ -1,35 +1,715 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Upload Drug Labels</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Drug Labels - PharmGKB ETL</title>
     <style>
-        .success { color: green; }
-        .danger { color: red; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .upload-card {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .upload-card:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+            transform: translateY(-2px);
+        }
+
+        .upload-card.dragover {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .upload-card.has-file {
+            border-color: #28a745;
+            background: #e8f5e9;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 12px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-badge {
+            display: none;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .upload-card.has-file .file-badge {
+            display: block;
+        }
+
+        .file-info {
+            display: none;
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .upload-card.has-file .file-info {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: bold;
+            color: #333;
+            word-break: break-all;
+        }
+
+        .remove-file {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-card.has-file .remove-file {
+            display: inline-block;
+        }
+
+        .remove-file:hover {
+            background: #c82333;
+        }
+
+        .upload-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .upload-status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.show {
+            display: block;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .stat-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .stat-details {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .stat-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 5px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .upload-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Upload drugLabels.tsv & drugLabels.byGene.tsv</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <ul>
+    <div class="container">
+        <h1>💊 Upload Drug Labels</h1>
+        <p class="subtitle">Upload FDA/EMA/HCSC drug label files with pharmacogenomic information</p>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
                 {% for category, msg in messages %}
-                    <li class="{{ category }}">{{ msg }}</li>
+                    <div class="alert alert-{{ category }}">
+                        {{ msg }}
+                    </div>
                 {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
-    <form method="POST" enctype="multipart/form-data">
-        <p>
-            <label>drugLabels.tsv:</label>
-            <input type="file" name="drug_labels" accept=".tsv,.csv"/>
-        </p>
-        <p>
-            <label>drugLabels.byGene.tsv:</label>
-            <input type="file" name="drug_labels_byGene" accept=".tsv,.csv"/>
-        </p>
-        <input type="submit" value="Upload"/>
-    </form>
-    <p><a href="/">Go Home</a></p>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Upload Status -->
+        <div class="upload-status" id="uploadStatus">
+            📋 Select both files to begin upload
+        </div>
+
+        <!-- Upload Form -->
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+            <!-- Upload Cards Grid -->
+            <div class="upload-grid">
+                <!-- Drug Labels Card -->
+                <div class="upload-card" id="drugLabelsCard">
+                    <div class="file-badge">✓ Ready</div>
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-title">drugLabels.tsv</div>
+                    <div class="upload-hint">Main drug labels file<br>(Click or drag & drop)</div>
+                    <input type="file" 
+                           name="drug_labels" 
+                           id="drugLabelsInput" 
+                           accept=".tsv,.csv" />
+                    <div class="file-info">
+                        <div class="file-name" id="drugLabelsName"></div>
+                        <div id="drugLabelsSize"></div>
+                    </div>
+                    <button type="button" class="remove-file" onclick="removeFile('drugLabels')">
+                        ✕ Remove
+                    </button>
+                </div>
+
+                <!-- Drug Labels by Gene Card -->
+                <div class="upload-card" id="byGeneCard">
+                    <div class="file-badge">✓ Ready</div>
+                    <div class="upload-icon">🧬</div>
+                    <div class="upload-title">drugLabels.byGene.tsv</div>
+                    <div class="upload-hint">Gene mappings file<br>(Click or drag & drop)</div>
+                    <input type="file" 
+                           name="drug_labels_byGene" 
+                           id="byGeneInput" 
+                           accept=".tsv,.csv" />
+                    <div class="file-info">
+                        <div class="file-name" id="byGeneName"></div>
+                        <div id="byGeneSize"></div>
+                    </div>
+                    <button type="button" class="remove-file" onclick="removeFile('byGene')">
+                        ✕ Remove
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Button -->
+            <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
+                <span id="btnText">Select files to upload</span>
+            </button>
+        </form>
+
+        <!-- Progress Bar -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+            <div class="progress-text" id="progressText">Preparing upload...</div>
+        </div>
+
+        <!-- Stats (shown after upload) -->
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-title">📄 drugLabels.tsv</div>
+                <div class="stat-details">
+                    <div class="stat-number" id="drugLabelsInserted">0</div>
+                    <div>Inserted: <span id="drugLabelsInsertedNum">0</span></div>
+                    <div>Skipped: <span id="drugLabelsSkipped">0</span></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">🧬 drugLabels.byGene.tsv</div>
+                <div class="stat-details">
+                    <div class="stat-number" id="byGeneInserted">0</div>
+                    <div>Inserted: <span id="byGeneInsertedNum">0</span></div>
+                    <div>Skipped: <span id="byGeneSkipped">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <button class="btn btn-secondary" onclick="window.location.href='/'">
+            ← Back to Home
+        </button>
+    </div>
+
+    <script>
+        // File upload configuration
+        const fileConfigs = {
+            drugLabels: {
+                card: document.getElementById('drugLabelsCard'),
+                input: document.getElementById('drugLabelsInput'),
+                nameEl: document.getElementById('drugLabelsName'),
+                sizeEl: document.getElementById('drugLabelsSize')
+            },
+            byGene: {
+                card: document.getElementById('byGeneCard'),
+                input: document.getElementById('byGeneInput'),
+                nameEl: document.getElementById('byGeneName'),
+                sizeEl: document.getElementById('byGeneSize')
+            }
+        };
+
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const btnText = document.getElementById('btnText');
+        const uploadForm = document.getElementById('uploadForm');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressText = document.getElementById('progressText');
+        const stats = document.getElementById('stats');
+
+        let filesSelected = {
+            drugLabels: false,
+            byGene: false
+        };
+
+        // Setup drag & drop for each card
+        Object.keys(fileConfigs).forEach(key => {
+            const config = fileConfigs[key];
+            
+            // Click to upload
+            config.card.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('remove-file')) {
+                    config.input.click();
+                }
+            });
+
+            // Drag and drop
+            config.card.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                config.card.classList.add('dragover');
+            });
+
+            config.card.addEventListener('dragleave', () => {
+                config.card.classList.remove('dragover');
+            });
+
+            config.card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                config.card.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    config.input.files = files;
+                    handleFileSelect(key);
+                }
+            });
+
+            // File selection
+            config.input.addEventListener('change', () => handleFileSelect(key));
+        });
+
+        function handleFileSelect(fileType) {
+            const config = fileConfigs[fileType];
+            const file = config.input.files[0];
+            
+            if (!file) return;
+
+            // Validate file type
+            const validTypes = ['.tsv', '.csv'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(fileExt)) {
+                alert('Please select a .tsv or .csv file');
+                config.input.value = '';
+                return;
+            }
+
+            // Validate file size (500MB max)
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert('File size must be less than 500MB');
+                config.input.value = '';
+                return;
+            }
+
+            // Display file info
+            config.nameEl.textContent = file.name;
+            config.sizeEl.textContent = `Size: ${formatFileSize(file.size)}`;
+            config.card.classList.add('has-file');
+            
+            filesSelected[fileType] = true;
+            updateUploadStatus();
+        }
+
+        function removeFile(fileType) {
+            const config = fileConfigs[fileType];
+            config.input.value = '';
+            config.card.classList.remove('has-file');
+            filesSelected[fileType] = false;
+            updateUploadStatus();
+        }
+
+        function updateUploadStatus() {
+            const allSelected = filesSelected.drugLabels && filesSelected.byGene;
+            const someSelected = filesSelected.drugLabels || filesSelected.byGene;
+            
+            if (allSelected) {
+                uploadStatus.className = 'upload-status ready';
+                uploadStatus.textContent = '✅ Both files ready - Click upload to begin';
+                uploadBtn.disabled = false;
+                btnText.textContent = '🚀 Upload Files';
+            } else if (someSelected) {
+                uploadStatus.className = 'upload-status';
+                uploadStatus.textContent = '⚠️ Please select both files to continue';
+                uploadBtn.disabled = true;
+                btnText.textContent = 'Select both files to upload';
+            } else {
+                uploadStatus.className = 'upload-status';
+                uploadStatus.textContent = '📋 Select both files to begin upload';
+                uploadBtn.disabled = true;
+                btnText.textContent = 'Select files to upload';
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Form submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Disable upload button
+            uploadBtn.disabled = true;
+            btnText.innerHTML = '<span class="spinner"></span> Uploading...';
+
+            // Show progress bar
+            progressContainer.classList.add('show');
+            progressText.textContent = 'Uploading files...';
+
+            const formData = new FormData(uploadForm);
+
+            try {
+                const response = await fetch(uploadForm.action, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Upload successful
+                    if (result.progress_url) {
+                        trackProgress(result.upload_id);
+                    } else {
+                        // Legacy: direct result
+                        showResults(result);
+                    }
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+
+            } catch (error) {
+                progressText.textContent = `❌ Error: ${error.message}`;
+                uploadBtn.disabled = false;
+                btnText.textContent = '🔄 Try Again';
+            }
+        });
+
+        async function trackProgress(uploadId) {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/upload_progress/${uploadId}`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        updateProgress(data);
+
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            showResults(data.results);
+                        } else if (data.status === 'failed') {
+                            clearInterval(pollInterval);
+                            progressText.textContent = `❌ Upload failed: ${data.error}`;
+                            uploadBtn.disabled = false;
+                            btnText.textContent = '🔄 Try Again';
+                        }
+                    }
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    progressText.textContent = `❌ Error tracking progress`;
+                }
+            }, 2000);
+        }
+
+        function updateProgress(data) {
+            const progress = data.progress || 0;
+            progressFill.style.width = `${progress}%`;
+            progressPercent.textContent = `${progress}%`;
+            
+            if (data.current_file) {
+                progressText.textContent = `Processing: ${data.current_file}`;
+            } else {
+                progressText.textContent = `Processing... (${data.processed_files || 0}/${data.total_files || 0} files)`;
+            }
+        }
+
+        function showResults(results) {
+            progressFill.style.width = '100%';
+            progressPercent.textContent = '100%';
+            progressText.textContent = '✅ Upload completed successfully!';
+
+            // Show stats for each file
+            if (results.drug_labels) {
+                document.getElementById('drugLabelsInserted').textContent = results.drug_labels.inserted || 0;
+                document.getElementById('drugLabelsInsertedNum').textContent = results.drug_labels.inserted || 0;
+                document.getElementById('drugLabelsSkipped').textContent = results.drug_labels.skipped || 0;
+            }
+
+            if (results.drug_labels_byGene) {
+                document.getElementById('byGeneInserted').textContent = results.drug_labels_byGene.inserted || 0;
+                document.getElementById('byGeneInsertedNum').textContent = results.drug_labels_byGene.inserted || 0;
+                document.getElementById('byGeneSkipped').textContent = results.drug_labels_byGene.skipped || 0;
+            }
+
+            stats.style.display = 'grid';
+
+            // Reset button
+            uploadBtn.disabled = false;
+            btnText.textContent = '✓ Upload More Files';
+        }
+    </script>
 </body>
 </html>

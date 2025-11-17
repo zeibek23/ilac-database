@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app
+from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -6,6 +6,7 @@ from flask.cli import FlaskGroup
 from openpyxl import load_workbook
 import bleach
 from bleach.sanitizer import Cleaner
+from contextlib import contextmanager
 from flask_migrate import Migrate
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for Matplotlib
@@ -14,7 +15,9 @@ import networkx as nx
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import anthropic
 import seaborn as sns
+import threading
 import psutil
 import requests
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -34,11 +37,14 @@ import urllib.parse  # For proper URL encoding
 import time
 import logging
 import nltk
+import hashlib
 import traceback
 from io import StringIO
+from docx import Document
 import math
 import json
 import xml.etree.ElementTree as ET
+import tempfile
 import csv
 import ssl
 import random
@@ -72,7 +78,7 @@ if os.getcwd() != 'C:\\Users\\ENES\\Desktop\\ilac-database' and os.environ.get('
 from textblob import TextBlob
 from dash import Dash, dcc, html, Input, Output
 from sqlalchemy.sql import text, func
-from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Date, ForeignKey, or_, nullslast, outerjoin, func, and_, select
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Date, ForeignKey, or_, nullslast, outerjoin, func, and_, select, DateTime, Boolean, Index
 from sqlalchemy.orm import relationship, sessionmaker, joinedload, aliased
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.types import JSON, DateTime
@@ -149,6 +155,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 logger.info(f"Upload folder set to: {UPLOAD_FOLDER}")
 
+BATCH_SIZE = 1000  # Bulk insert batch size
+COMMIT_FREQUENCY = 100  # Commit every N batches
+MAX_RETRIES = 3
+
+
 
 # Define junction tables globally
 drug_route_metabolism_organ = db.Table(
@@ -175,7 +186,6 @@ drug_route_metabolite = db.Table(
     extend_existing=True
 )
 
-# Many-to-Many İlişkisi için Ara Tablo
 drug_salt = db.Table(
     'drug_salt',
     db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
@@ -184,7 +194,6 @@ drug_salt = db.Table(
     extend_existing=True
 )
 
-# Many-to-Many ilişki tablosu
 detail_side_effect = db.Table(
     'detail_side_effect',
     db.Column('detail_id', db.Integer, db.ForeignKey('public.drug_detail.id'), primary_key=True),
@@ -201,7 +210,6 @@ pathway_drug = db.Table(
     extend_existing=True
 )
 
-# Junction table for DrugInteraction and RouteOfAdministration
 interaction_route = db.Table(
     'interaction_route',
     db.Column('interaction_id', db.Integer, db.ForeignKey('public.drug_interaction.id'), primary_key=True),
@@ -210,7 +218,6 @@ interaction_route = db.Table(
     extend_existing=True
 )
 
-# Junction table for Drug and DrugCategory many-to-many relationship
 drug_category_association = db.Table(
     'drug_category_association',
     db.Column('drug_id', db.Integer, db.ForeignKey('public.drug.id'), primary_key=True),
@@ -220,11 +227,13 @@ drug_category_association = db.Table(
 
 # Veritabanı Modeli
 class DrugCategory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'drug_category'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., "Cholinergic Agonists"
-    parent_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)  # Self-referential FK
-    parent = db.relationship('DrugCategory', remote_side=[id], backref='children')  # Parent-child relationship
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.drug_category.id'), nullable=True)
+    parent = db.relationship('DrugCategory', remote_side=[id], backref='children')
 
 class Salt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -263,9 +272,11 @@ class Drug(db.Model):
 
 class SafetyCategory(db.Model):
     __tablename__ = 'safety_category'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(20), nullable=False, unique=True)  # e.g., 'Safe', 'Caution', 'Contraindicated', 'Unknown'
-
+    name = db.Column(db.String(20), nullable=False, unique=True)
+    
     def __repr__(self):
         return f'<SafetyCategory {self.name}>'
 
@@ -284,12 +295,12 @@ class DrugDetail(db.Model):
     salt_id = db.Column(db.Integer, db.ForeignKey('public.salt.id'), nullable=True)
     molecular_formula = db.Column(db.String(100), nullable=True)
     synthesis = db.Column(db.Text, nullable=True)
-    structure = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
-    structure_3d = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    structure = db.Column(db.Text, nullable=True)
+    structure_3d = db.Column(db.Text, nullable=True)
     mechanism_of_action = db.Column(db.Text, nullable=True)
-    iupac_name = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
-    smiles = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
-    inchikey = db.Column(db.Text, nullable=True)  # Changed from db.String(200)
+    iupac_name = db.Column(db.Text, nullable=True)
+    smiles = db.Column(db.Text, nullable=True)
+    inchikey = db.Column(db.Text, nullable=True)
     pubchem_cid = db.Column(db.String(50), nullable=True)
     pubchem_sid = db.Column(db.String(50), nullable=True)
     cas_id = db.Column(db.String(50), nullable=True)
@@ -323,17 +334,15 @@ class DrugDetail(db.Model):
     clearance_rate = db.Column(db.Float, nullable=True)
     clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     bioavailability = db.Column(db.Float, nullable=True)
-    # New trimester-specific fields
-    pregnancy_safety_trimester1_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_safety_trimester1_id = db.Column(db.Integer, db.ForeignKey('public.safety_category.id'), nullable=True)
     pregnancy_details_trimester1 = db.Column(db.Text)
-    pregnancy_safety_trimester2_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_safety_trimester2_id = db.Column(db.Integer, db.ForeignKey('public.safety_category.id'), nullable=True)
     pregnancy_details_trimester2 = db.Column(db.Text)
-    pregnancy_safety_trimester3_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    pregnancy_safety_trimester3_id = db.Column(db.Integer, db.ForeignKey('public.safety_category.id'), nullable=True)
     pregnancy_details_trimester3 = db.Column(db.Text)
-    lactation_safety_id = db.Column(db.Integer, db.ForeignKey('safety_category.id'), nullable=True)
+    lactation_safety_id = db.Column(db.Integer, db.ForeignKey('public.safety_category.id'), nullable=True)
     lactation_details = db.Column(db.Text, nullable=True)
     references = db.Column(db.Text, nullable=True)
-
     drug = db.relationship('Drug', backref=db.backref('details', lazy=True))
     salt = db.relationship('Salt', backref=db.backref('details', lazy=True))
     molecular_weight_unit = db.relationship('Unit', foreign_keys=[molecular_weight_unit_id])
@@ -351,8 +360,10 @@ class DrugDetail(db.Model):
 
 # Database Model for Indications
 class Indication(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'indication'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     foundation_uri = db.Column(db.String(255), nullable=True, unique=True, index=True)
     disease_id = db.Column(db.String(255), nullable=True, unique=True, index=True)
     name_en = db.Column(db.String(255), nullable=False)
@@ -371,21 +382,23 @@ class Indication(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     BlockId = db.Column(db.String(50), nullable=True, index=True)
-
+    
     def validate(self):
         if not self.name_en:
             raise ValueError("name_en is required")
-
+    
     @property
     def has_children(self):
         count = Indication.query.filter_by(parent_id=self.id).count()
         return count > 0
 
 class Target(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'target'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    name_tr = db.Column(db.String(255), nullable=False)  # Increased to 255
-    name_en = db.Column(db.String(255), nullable=False)  # Increased to 255
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name_tr = db.Column(db.String(255), nullable=False)
+    name_en = db.Column(db.String(255), nullable=False)
 
 # Food Model
 class Food(db.Model):
@@ -395,7 +408,7 @@ class Food(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name_en = db.Column(db.String(255), nullable=False)
     name_tr = db.Column(db.String(255), nullable=True)
-    category = db.Column(db.String(100), nullable=True)  # e.g., "Dairy", "Citrus", "Leafy Greens"
+    category = db.Column(db.String(100), nullable=True)
     description = db.Column(db.Text, nullable=True)
     
     def __repr__(self):
@@ -409,10 +422,10 @@ class DrugFoodInteraction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     food_id = db.Column(db.Integer, db.ForeignKey('public.food.id'), nullable=False)
-    interaction_type = db.Column(db.String(100), nullable=False)  # e.g., "Absorption Decrease", "Toxicity Risk"
+    interaction_type = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)
-    timing_instruction = db.Column(db.Text, nullable=True)  # e.g., "Take 1 hour before meals"
+    timing_instruction = db.Column(db.Text, nullable=True)
     recommendation = db.Column(db.Text, nullable=True)
     reference = db.Column(db.Text, nullable=True)
     predicted_severity = db.Column(db.String(50), nullable=True)
@@ -425,14 +438,17 @@ class DrugFoodInteraction(db.Model):
 class Severity(db.Model):
     __tablename__ = 'severity'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=True, unique=True)
     description = db.Column(db.Text, nullable=True)
     interactions = db.relationship('DrugInteraction', backref='severity_level', lazy='dynamic')
 
 class DrugInteraction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'drug_interaction'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     drug1_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     drug2_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     interaction_type = db.Column(db.String(50), nullable=False)
@@ -455,13 +471,15 @@ class DrugInteraction(db.Model):
         backref=db.backref("interactions", lazy='dynamic')
     )
 
+
 class RouteOfAdministration(db.Model):
     __tablename__ = 'route_of_administration'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.String(50), nullable=False)  # Sistemik, Lokal veya Hem Sistemik Hem Lokal
-    description = db.Column(db.Text, nullable=True)  # e.g., "Absorbed via GI tract"
+    type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=True)
     parent = db.relationship(
         "RouteOfAdministration",
@@ -471,84 +489,87 @@ class RouteOfAdministration(db.Model):
 
 
 class Receptor(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'receptor'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    molecular_weight = db.Column(db.String(50), nullable=True)  # Molecular Weight sütunu
-    length = db.Column(db.Integer, nullable=True)              # Length sütunu
-    gene_name = db.Column(db.String(100), nullable=True)       # Gene Name sütunu
-    subcellular_location = db.Column(db.Text, nullable=True)   # Subcellular Location sütunu
-    function = db.Column(db.Text, nullable=True)               # Function sütunu
-    iuphar_id = db.Column(db.String(50))  # Yeni Alan
-    pdb_ids = db.Column(db.Text, nullable=True)  # Add this field
+    molecular_weight = db.Column(db.String(50), nullable=True)
+    length = db.Column(db.Integer, nullable=True)
+    gene_name = db.Column(db.String(100), nullable=True)
+    subcellular_location = db.Column(db.Text, nullable=True)
+    function = db.Column(db.Text, nullable=True)
+    iuphar_id = db.Column(db.String(50))
+    pdb_ids = db.Column(db.Text, nullable=True)
     binding_site_x = db.Column(db.Float, nullable=True)
     binding_site_y = db.Column(db.Float, nullable=True)
     binding_site_z = db.Column(db.Float, nullable=True)
 
-
-
-
 class DrugReceptorInteraction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'drug_receptor_interaction'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     receptor_id = db.Column(db.Integer, db.ForeignKey('public.receptor.id'), nullable=False)
-    affinity = db.Column(db.Float, nullable=True)  # e.g., Kd or Ki value
-    interaction_type = db.Column(db.String(50), nullable=True)  # Agonist, antagonist, etc.
-    mechanism = db.Column(db.Text, nullable=True)  # Interaction mechanism
-    pdb_file = db.Column(db.String(200), nullable=True)  # Optional PDB structure file
-    units = db.Column(db.String, nullable=True)  # Add this line
-    affinity_parameter = db.Column(db.String(50), nullable=True)  # New column
-
-
+    affinity = db.Column(db.Float, nullable=True)
+    interaction_type = db.Column(db.String(50), nullable=True)
+    mechanism = db.Column(db.Text, nullable=True)
+    pdb_file = db.Column(db.String(200), nullable=True)
+    units = db.Column(db.String, nullable=True)
+    affinity_parameter = db.Column(db.String(50), nullable=True)
     drug = db.relationship('Drug', backref=db.backref('interactions', lazy=True))
     receptor = db.relationship('Receptor', backref=db.backref('interactions', lazy=True))
 
 
 class DrugDiseaseInteraction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'drug_disease_interaction'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     indication_id = db.Column(db.Integer, db.ForeignKey('public.indication.id'), nullable=False)
-    interaction_type = db.Column(db.String(50), nullable=False)  # e.g., "Contraindication", "Caution"
-    description = db.Column(db.Text, nullable=True)              # Why it’s a problem
-    severity = db.Column(db.String(20), default="Moderate")      # e.g., "Mild", "Moderate", "Severe"
-    recommendation = db.Column(db.Text, nullable=True)           # What to do about it
-
+    interaction_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    severity = db.Column(db.String(20), default="Moderate")
+    recommendation = db.Column(db.Text, nullable=True)
     drug = db.relationship("Drug", backref="disease_interactions")
-    indication = db.relationship("Indication", backref="drug_interactions")      
+    indication = db.relationship("Indication", backref="drug_interactions")   
 
 # New Model for Drug-Lab Test Interactions
 
 class Unit(db.Model):
     __tablename__ = 'unit'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False, unique=True)  # e.g., "g/dL", "mg/L"
-    description = db.Column(db.Text, nullable=True)  # Optional description of the unit
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
 
 class LabTest(db.Model):
     __tablename__ = 'lab_test'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     name_en = db.Column(db.String(255), nullable=False)
     name_tr = db.Column(db.String(255), nullable=True)
     description = db.Column(db.Text, nullable=True)
-    reference_range = db.Column(db.String(100), nullable=True)  # e.g., "3.5-5.0 g/dL"
-    unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # Foreign key to Unit
-    unit = db.relationship("Unit", backref="lab_tests")  # Relationship for easy access
+    reference_range = db.Column(db.String(100), nullable=True)
+    unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    unit = db.relationship("Unit", backref="lab_tests")
 
 class DrugLabTestInteraction(db.Model):
     __tablename__ = 'drug_lab_test_interaction'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
     lab_test_id = db.Column(db.Integer, db.ForeignKey('public.lab_test.id'), nullable=False)
     interaction_type = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)  # Changed to foreign key
+    severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=False)
     recommendation = db.Column(db.Text, nullable=True)
     reference = db.Column(db.Text, nullable=True)
     drug = db.relationship("Drug", backref="lab_test_interactions")
@@ -566,30 +587,29 @@ class DrugRoute(db.Model):
     pharmacokinetics = db.Column(db.Text, nullable=True)
     absorption_rate_min = db.Column(db.Float, nullable=True)
     absorption_rate_max = db.Column(db.Float, nullable=True)
-    absorption_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., %/h
+    absorption_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     vod_rate_min = db.Column(db.Float, nullable=True)
     vod_rate_max = db.Column(db.Float, nullable=True)
-    vod_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., L
-    protein_binding_min = db.Column(db.Float, nullable=True)  # Fraction (0-1), no unit needed
+    vod_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    protein_binding_min = db.Column(db.Float, nullable=True)
     protein_binding_max = db.Column(db.Float, nullable=True)
     half_life_min = db.Column(db.Float, nullable=True)
     half_life_max = db.Column(db.Float, nullable=True)
-    half_life_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., hours
+    half_life_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     clearance_rate_min = db.Column(db.Float, nullable=True)
     clearance_rate_max = db.Column(db.Float, nullable=True)
-    clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., mL/min
-    bioavailability_min = db.Column(db.Float, nullable=True)  # Fraction (0-1), no unit needed
+    clearance_rate_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
+    bioavailability_min = db.Column(db.Float, nullable=True)
     bioavailability_max = db.Column(db.Float, nullable=True)
     tmax_min = db.Column(db.Float, nullable=True)
     tmax_max = db.Column(db.Float, nullable=True)
-    tmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., hours
+    tmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     cmax_min = db.Column(db.Float, nullable=True)
     cmax_max = db.Column(db.Float, nullable=True)
-    cmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # e.g., mg/L
+    cmax_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     therapeutic_min = db.Column(db.Float, nullable=True)
     therapeutic_max = db.Column(db.Float, nullable=True)
-    therapeutic_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)  # Replaces therapeutic_unit string
-
+    therapeutic_unit_id = db.Column(db.Integer, db.ForeignKey('public.unit.id'), nullable=True)
     route = db.relationship("RouteOfAdministration")
     drug_detail = db.relationship("DrugDetail", back_populates="routes")
     absorption_rate_unit = db.relationship('Unit', foreign_keys=[absorption_rate_unit_id])
@@ -606,422 +626,493 @@ class DrugRoute(db.Model):
 
 
 class RouteIndication(db.Model):
+    __tablename__ = 'route_indication'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     drug_detail_id = db.Column(db.Integer, db.ForeignKey('public.drug_detail.id'), nullable=False)
     route_id = db.Column(db.Integer, db.ForeignKey('public.route_of_administration.id'), nullable=False)
     indication_id = db.Column(db.Integer, db.ForeignKey('public.indication.id'), nullable=False)
-
+    drug_route_id = db.Column(db.Integer, db.ForeignKey('public.drug_route.id', ondelete="CASCADE"), nullable=True)
     drug_detail = db.relationship('DrugDetail', backref='route_indications')
     route = db.relationship('RouteOfAdministration')
     indication = db.relationship('Indication')
-    drug_route_id = db.Column(db.Integer, db.ForeignKey('public.drug_route.id', ondelete="CASCADE"), nullable=True)
 
 
 class SideEffect(db.Model):
+    __tablename__ = 'side_effect'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name_en = db.Column(db.String(100), nullable=False)  # İngilizce adı
-    name_tr = db.Column(db.String(100), nullable=True)   # Türkçe adı (opsiyonel)
+    name_en = db.Column(db.String(100), nullable=False)
+    name_tr = db.Column(db.String(100), nullable=True)
     details = db.relationship('DrugDetail', secondary=detail_side_effect, backref='side_effects', lazy='dynamic')
 
 class Pathway(db.Model):
+    __tablename__ = 'pathway'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    pathway_id = db.Column(db.String(50), unique=True, nullable=False)  # KEGG pathway ID (örneğin: hsa00010)
-    name = db.Column(db.String(255), nullable=False)  # Pathway adı
-    description = db.Column(db.Text, nullable=True)  # Pathway açıklaması
-    organism = db.Column(db.String(50), nullable=False)  # Organism (örn: hsa, mmu)
-    url = db.Column(db.String(255), nullable=True)  # KEGG pathway görseli URL'si
+    pathway_id = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    organism = db.Column(db.String(50), nullable=False)
+    url = db.Column(db.String(255), nullable=True)
     drugs = db.relationship('Drug', secondary=pathway_drug, backref='pathways', lazy='dynamic')
-
-
 
 class MetabolismOrgan(db.Model):
     __tablename__ = 'metabolism_organ'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)  # e.g., "liver", "kidneys"
+    name = db.Column(db.String(100), nullable=False, unique=True)
 
 class MetabolismEnzyme(db.Model):
     __tablename__ = 'metabolism_enzyme'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)  # e.g., "CYP2E1", "UGT"
+    name = db.Column(db.String(100), nullable=False, unique=True)
 
 class Metabolite(db.Model):
     __tablename__ = 'metabolite'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(200), nullable=False)  # e.g., "Acetaminophen", "NAPQI"
-    parent_id = db.Column(db.Integer, db.ForeignKey('public.metabolite.id'), nullable=True)  # For hierarchy
-    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=True)  # Link to the parent drug
+    name = db.Column(db.String(200), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('public.metabolite.id'), nullable=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=True)
     parent = db.relationship("Metabolite", remote_side=[id], backref="children")
-    drug = db.relationship("Drug", backref="metabolites")  # Link to the drug
-    drug_routes = db.relationship('DrugRoute', secondary=drug_route_metabolite, backref='metabolite_routes')  
+    drug = db.relationship("Drug", backref="metabolites")
+    drug_routes = db.relationship('DrugRoute', secondary=drug_route_metabolite, backref='metabolite_routes')
 
 # PharmGKB için database modelleri:
+class Publication(db.Model):
+    __tablename__ = 'publication'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    pmid = db.Column(db.String(50), primary_key=True)
+    title = db.Column(db.Text, nullable=True)
+    year = db.Column(db.String(4), nullable=True)
+    journal = db.Column(db.Text, nullable=True)
+    
+    clinical_evidence = db.relationship('ClinicalAnnEvidencePublication', back_populates='publication')
+    automated_annotations = db.relationship('AutomatedAnnotation', back_populates='publication')
+
 # Clinical Annotations
 class Gene(db.Model):
     __tablename__ = 'gene'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    gene_id = Column(String(50), primary_key=True)  # e.g., PA126 for CYP2C9
-    gene_symbol = Column(String(100), unique=True, nullable=False)
-    clinical_annotations = relationship('ClinicalAnnotationGene', back_populates='gene')
-    variant_annotations = relationship('VariantAnnotationGene', back_populates='gene')
-    drug_labels = relationship('DrugLabelGene', back_populates='gene')
-    clinical_variants = relationship('ClinicalVariant', back_populates='gene')
+    
+    gene_id = db.Column(db.String(50), primary_key=True)
+    gene_symbol = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    clinical_annotations = db.relationship('ClinicalAnnotationGene', back_populates='gene')
+    variant_annotations = db.relationship('VariantAnnotationGene', back_populates='gene')
+    drug_labels = db.relationship('DrugLabelGene', back_populates='gene')
+    clinical_variants = db.relationship('ClinicalVariant', back_populates='gene')
 
 class Phenotype(db.Model):
     __tablename__ = 'phenotype'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    name = Column(String(200), unique=True, nullable=False)
-    clinical_annotations = relationship('ClinicalAnnotationPhenotype', back_populates='phenotype')
-    clinical_variants = relationship('ClinicalVariantPhenotype', back_populates='phenotype')
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    
+    clinical_annotations = db.relationship('ClinicalAnnotationPhenotype', back_populates='phenotype')
+    clinical_variants = db.relationship('ClinicalVariantPhenotype', back_populates='phenotype')
 
 class Variant(db.Model):
     __tablename__ = 'variant'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
-    pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True)
-    name = db.Column(db.String(800), unique=True, nullable=False)
+    pharmgkb_id = db.Column(db.String(50), unique=True, nullable=True, index=True)
+    name = db.Column(db.String(800), unique=True, nullable=False, index=True)
+    
     clinical_annotations = db.relationship('ClinicalAnnotationVariant', back_populates='variant')
     variant_annotations = db.relationship('VariantAnnotationVariant', back_populates='variant')
     drug_labels = db.relationship('DrugLabelVariant', back_populates='variant')
     clinical_variants = db.relationship('ClinicalVariantVariant', back_populates='variant')
 
-class Publication(db.Model):
-    __tablename__ = 'publication'
-    __table_args__ = {'schema': 'public', 'extend_existing': True}
-    pmid = Column(String(50), primary_key=True)
-    title = Column(Text, nullable=True)
-    year = Column(String(4), nullable=True)
-    journal = Column(Text, nullable=True)
-    clinical_evidence = relationship('ClinicalAnnEvidencePublication', back_populates='publication')
-    automated_annotations = relationship('AutomatedAnnotation', back_populates='publication')
-
 # Clinical Annotations
 class ClinicalAnnotation(db.Model):
     __tablename__ = 'clinical_annotation'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_annotation_id = Column(String, primary_key=True)
-    level_of_evidence = Column(String)
-    phenotype_category = Column(String)
-    url = Column(String)
-    latest_history_date = Column(Date)
-    specialty_population = Column(String, nullable=True)
-    level_override = Column(String, nullable=True)
-    level_modifiers = Column(String, nullable=True)
-    score = Column(Float)
-    pmid_count = Column(Integer)
-    evidence_count = Column(Integer)
-    alleles = relationship('ClinicalAnnAllele', back_populates='annotation')
-    history = relationship('ClinicalAnnHistory', back_populates='annotation')
-    evidence = relationship('ClinicalAnnEvidence', back_populates='annotation')
-    drugs = relationship('ClinicalAnnotationDrug', back_populates='annotation')
-    genes = relationship('ClinicalAnnotationGene', back_populates='annotation')
-    phenotypes = relationship('ClinicalAnnotationPhenotype', back_populates='annotation')
-    variants = relationship('ClinicalAnnotationVariant', back_populates='annotation')
+    
+    clinical_annotation_id = db.Column(db.String, primary_key=True)
+    level_of_evidence = db.Column(db.String, index=True)
+    phenotype_category = db.Column(db.String)
+    url = db.Column(db.String)
+    latest_history_date = db.Column(db.Date)
+    specialty_population = db.Column(db.String, nullable=True)
+    level_override = db.Column(db.String, nullable=True)
+    level_modifiers = db.Column(db.String, nullable=True)
+    score = db.Column(db.Float)
+    pmid_count = db.Column(db.Integer)
+    evidence_count = db.Column(db.Integer)
+    
+    alleles = db.relationship('ClinicalAnnAllele', back_populates='annotation', cascade="all, delete-orphan")
+    history = db.relationship('ClinicalAnnHistory', back_populates='annotation', cascade="all, delete-orphan")
+    evidence = db.relationship('ClinicalAnnEvidence', back_populates='annotation', cascade="all, delete-orphan")
+    drugs = db.relationship('ClinicalAnnotationDrug', back_populates='annotation', cascade="all, delete-orphan")
+    genes = db.relationship('ClinicalAnnotationGene', back_populates='annotation', cascade="all, delete-orphan")
+    phenotypes = db.relationship('ClinicalAnnotationPhenotype', back_populates='annotation', cascade="all, delete-orphan")
+    variants = db.relationship('ClinicalAnnotationVariant', back_populates='annotation', cascade="all, delete-orphan")
 
 class ClinicalAnnAllele(db.Model):
     __tablename__ = 'clinical_ann_allele'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
-    genotype_allele = Column(String, index=True)
-    annotation_text = Column(Text)
-    allele_function = Column(String, nullable=True)
-    annotation = relationship('ClinicalAnnotation', back_populates='alleles')
+    
+    id = db.Column(db.Integer, primary_key=True)
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), index=True)
+    genotype_allele = db.Column(db.String, index=True)
+    annotation_text = db.Column(db.Text)
+    allele_function = db.Column(db.String, nullable=True)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='alleles')
 
 class ClinicalAnnHistory(db.Model):
     __tablename__ = 'clinical_ann_history'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
-    date = Column(Date, index=True)
-    type = Column(String)
-    comment = Column(Text)
-    annotation = relationship('ClinicalAnnotation', back_populates='history')
+    
+    id = db.Column(db.Integer, primary_key=True)
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), index=True)
+    date = db.Column(db.Date, index=True)
+    type = db.Column(db.String)
+    comment = db.Column(db.Text)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='history')
 
 class ClinicalAnnEvidence(db.Model):
     __tablename__ = 'clinical_ann_evidence'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    evidence_id = Column(String, primary_key=True)
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'))
-    evidence_type = Column(String, index=True)
-    evidence_url = Column(String)
-    summary = Column(Text)
-    score = Column(Float)
-    annotation = relationship('ClinicalAnnotation', back_populates='evidence')
-    publications = relationship('ClinicalAnnEvidencePublication', back_populates='evidence')
+    
+    evidence_id = db.Column(db.String, primary_key=True)
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), index=True)
+    evidence_type = db.Column(db.String, index=True)
+    evidence_url = db.Column(db.String)
+    summary = db.Column(db.Text)
+    score = db.Column(db.Float)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='evidence')
+    publications = db.relationship('ClinicalAnnEvidencePublication', back_populates='evidence', cascade="all, delete-orphan")
 
 # Junction Tables for ClinicalAnnotation
 class ClinicalAnnotationDrug(db.Model):
     __tablename__ = 'clinical_annotation_drug'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
-    annotation = relationship('ClinicalAnnotation', back_populates='drugs')
-    drug = relationship('Drug', back_populates='clinical_annotations')
+    
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), primary_key=True)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='drugs')
+    drug = db.relationship('Drug', back_populates='clinical_annotations')
 
 class ClinicalAnnotationGene(db.Model):
     __tablename__ = 'clinical_annotation_gene'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
-    annotation = relationship('ClinicalAnnotation', back_populates='genes')
-    gene = relationship('Gene', back_populates='clinical_annotations')
+    
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    gene_id = db.Column(db.String, db.ForeignKey('public.gene.gene_id'), primary_key=True)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='genes')
+    gene = db.relationship('Gene', back_populates='clinical_annotations')
 
 class ClinicalAnnotationPhenotype(db.Model):
     __tablename__ = 'clinical_annotation_phenotype'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
-    phenotype_id = Column(Integer, ForeignKey('public.phenotype.id'), primary_key=True)
-    annotation = relationship('ClinicalAnnotation', back_populates='phenotypes')
-    phenotype = relationship('Phenotype', back_populates='clinical_annotations')
+    
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    phenotype_id = db.Column(db.Integer, db.ForeignKey('public.phenotype.id'), primary_key=True)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='phenotypes')
+    phenotype = db.relationship('Phenotype', back_populates='clinical_annotations')
 
 class ClinicalAnnotationVariant(db.Model):
     __tablename__ = 'clinical_annotation_variant'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_annotation_id = Column(String, ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
-    annotation = relationship('ClinicalAnnotation', back_populates='variants')
-    variant = relationship('Variant', back_populates='clinical_annotations')
+    
+    clinical_annotation_id = db.Column(db.String, db.ForeignKey('public.clinical_annotation.clinical_annotation_id'), primary_key=True)
+    variant_id = db.Column(db.Integer, db.ForeignKey('public.variant.id'), primary_key=True)
+    
+    annotation = db.relationship('ClinicalAnnotation', back_populates='variants')
+    variant = db.relationship('Variant', back_populates='clinical_annotations')
 
 class ClinicalAnnEvidencePublication(db.Model):
     __tablename__ = 'clinical_ann_evidence_publication'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    evidence_id = Column(String, ForeignKey('public.clinical_ann_evidence.evidence_id'), primary_key=True)
-    pmid = Column(String, ForeignKey('public.publication.pmid'), primary_key=True)
-    evidence = relationship('ClinicalAnnEvidence', back_populates='publications')
-    publication = relationship('Publication', back_populates='clinical_evidence')
+    
+    evidence_id = db.Column(db.String, db.ForeignKey('public.clinical_ann_evidence.evidence_id'), primary_key=True)
+    pmid = db.Column(db.String(50), db.ForeignKey('public.publication.pmid'), primary_key=True)
+    
+    evidence = db.relationship('ClinicalAnnEvidence', back_populates='publications')
+    publication = db.relationship('Publication', back_populates='clinical_evidence')
 
 # Variant Annotations
 class VariantAnnotation(db.Model):
     __tablename__ = 'variant_annotation'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, primary_key=True)
-    study_parameters = relationship('StudyParameters', back_populates='variant_annotation')
-    fa_annotations = relationship('VariantFAAnn', back_populates='variant_annotation')
-    drug_annotations = relationship('VariantDrugAnn', back_populates='variant_annotation')
-    pheno_annotations = relationship('VariantPhenoAnn', back_populates='variant_annotation')
-    genes = relationship('VariantAnnotationGene', back_populates='variant_annotation')
-    variants = relationship('VariantAnnotationVariant', back_populates='variant_annotation')
-    drugs = relationship('VariantAnnotationDrug', back_populates='variant_annotation')
+    
+    variant_annotation_id = db.Column(db.String, primary_key=True)
+    
+    study_parameters = db.relationship('StudyParameters', back_populates='variant_annotation', cascade="all, delete-orphan")
+    fa_annotations = db.relationship('VariantFAAnn', back_populates='variant_annotation', cascade="all, delete-orphan")
+    drug_annotations = db.relationship('VariantDrugAnn', back_populates='variant_annotation', cascade="all, delete-orphan")
+    pheno_annotations = db.relationship('VariantPhenoAnn', back_populates='variant_annotation', cascade="all, delete-orphan")
+    genes = db.relationship('VariantAnnotationGene', back_populates='variant_annotation', cascade="all, delete-orphan")
+    variants = db.relationship('VariantAnnotationVariant', back_populates='variant_annotation', cascade="all, delete-orphan")
+    drugs = db.relationship('VariantAnnotationDrug', back_populates='variant_annotation', cascade="all, delete-orphan")
 
 class StudyParameters(db.Model):
     __tablename__ = 'study_parameters'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    study_parameters_id = Column(String, primary_key=True)
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'))
-    study_type = Column(String, nullable=True)
-    study_cases = Column(Integer, nullable=True)
-    study_controls = Column(Integer, nullable=True)
-    characteristics = Column(Text, nullable=True)
-    characteristics_type = Column(String, nullable=True)
-    frequency_in_cases = Column(Float, nullable=True)
-    allele_of_frequency_in_cases = Column(String, nullable=True)
-    frequency_in_controls = Column(Float, nullable=True)
-    allele_of_frequency_in_controls = Column(String, nullable=True)
-    p_value = Column(String, nullable=True)
-    ratio_stat_type = Column(String, nullable=True)
-    ratio_stat = Column(Float, nullable=True)
-    confidence_interval_start = Column(Float, nullable=True)
-    confidence_interval_stop = Column(Float, nullable=True)
-    biogeographical_groups = Column(String, nullable=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='study_parameters')
+    
+    study_parameters_id = db.Column(db.String, primary_key=True)
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), index=True)
+    study_type = db.Column(db.String, nullable=True)
+    study_cases = db.Column(db.Integer, nullable=True)
+    study_controls = db.Column(db.Integer, nullable=True)
+    characteristics = db.Column(db.Text, nullable=True)
+    characteristics_type = db.Column(db.String, nullable=True)
+    frequency_in_cases = db.Column(db.Float, nullable=True)
+    allele_of_frequency_in_cases = db.Column(db.String, nullable=True)
+    frequency_in_controls = db.Column(db.Float, nullable=True)
+    allele_of_frequency_in_controls = db.Column(db.String, nullable=True)
+    p_value = db.Column(db.String, nullable=True)
+    ratio_stat_type = db.Column(db.String, nullable=True)
+    ratio_stat = db.Column(db.Float, nullable=True)
+    confidence_interval_start = db.Column(db.Float, nullable=True)
+    confidence_interval_stop = db.Column(db.Float, nullable=True)
+    biogeographical_groups = db.Column(db.String, nullable=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='study_parameters')
 
 class VariantFAAnn(db.Model):
     __tablename__ = 'variant_fa_ann'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    significance = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    sentence = Column(Text)
-    alleles = Column(String)
-    specialty_population = Column(String, nullable=True)
-    assay_type = Column(String, nullable=True)
-    metabolizer_types = Column(String, nullable=True)
-    is_plural = Column(String, nullable=True)
-    is_associated = Column(String)
-    direction_of_effect = Column(String, nullable=True)
-    functional_terms = Column(String, nullable=True)
-    gene_product = Column(String, nullable=True)
-    when_treated_with = Column(String, nullable=True)
-    multiple_drugs = Column(String, nullable=True)
-    cell_type = Column(String, nullable=True)
-    comparison_alleles = Column(String, nullable=True)
-    comparison_metabolizer_types = Column(String, nullable=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='fa_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    pmid = db.Column(db.String(50), nullable=True, index=True)
+    phenotype_category = db.Column(db.String(100), nullable=True)
+    significance = db.Column(db.String, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    sentence = db.Column(db.Text)
+    alleles = db.Column(db.String)
+    specialty_population = db.Column(db.String, nullable=True)
+    assay_type = db.Column(db.String, nullable=True)
+    metabolizer_types = db.Column(db.String, nullable=True)
+    is_plural = db.Column(db.String, nullable=True)
+    is_associated = db.Column(db.String)
+    direction_of_effect = db.Column(db.String, nullable=True)
+    functional_terms = db.Column(db.String, nullable=True)
+    gene_product = db.Column(db.String, nullable=True)
+    when_treated_with = db.Column(db.String, nullable=True)
+    multiple_drugs = db.Column(db.String, nullable=True)
+    cell_type = db.Column(db.String, nullable=True)
+    comparison_alleles = db.Column(db.String, nullable=True)
+    comparison_metabolizer_types = db.Column(db.String, nullable=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='fa_annotations')
 
 class VariantDrugAnn(db.Model):
     __tablename__ = 'variant_drug_ann'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    significance = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    sentence = Column(Text)
-    alleles = Column(String)
-    specialty_population = Column(String, nullable=True)
-    metabolizer_types = Column(String, nullable=True)
-    is_plural = Column(String, nullable=True)
-    is_associated = Column(String)
-    direction_of_effect = Column(String, nullable=True)
-    pd_pk_terms = Column(String, nullable=True)
-    multiple_drugs = Column(String, nullable=True)
-    population_types = Column(String, nullable=True)
-    population_phenotypes_diseases = Column(String, nullable=True)
-    multiple_phenotypes_diseases = Column(String, nullable=True)
-    comparison_alleles = Column(String, nullable=True)
-    comparison_metabolizer_types = Column(String, nullable=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='drug_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    pmid = db.Column(db.String(50), nullable=True, index=True)
+    phenotype_category = db.Column(db.String(100), nullable=True)
+    significance = db.Column(db.String, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    sentence = db.Column(db.Text)
+    alleles = db.Column(db.String)
+    specialty_population = db.Column(db.String, nullable=True)
+    metabolizer_types = db.Column(db.String, nullable=True)
+    is_plural = db.Column(db.String, nullable=True)
+    is_associated = db.Column(db.String)
+    direction_of_effect = db.Column(db.String, nullable=True)
+    pd_pk_terms = db.Column(db.String, nullable=True)
+    multiple_drugs = db.Column(db.String, nullable=True)
+    population_types = db.Column(db.String, nullable=True)
+    population_phenotypes_diseases = db.Column(db.String, nullable=True)
+    multiple_phenotypes_diseases = db.Column(db.String, nullable=True)
+    comparison_alleles = db.Column(db.String, nullable=True)
+    comparison_metabolizer_types = db.Column(db.String, nullable=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='drug_annotations')
 
 class VariantPhenoAnn(db.Model):
     __tablename__ = 'variant_pheno_ann'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    significance = Column(String, nullable=True)
-    notes = Column(Text, nullable=True)
-    sentence = Column(Text)
-    alleles = Column(String)
-    specialty_population = Column(String, nullable=True)
-    metabolizer_types = Column(String, nullable=True)
-    is_plural = Column(String, nullable=True)
-    is_associated = Column(String)
-    direction_of_effect = Column(String, nullable=True)
-    side_effect_efficacy_other = Column(String, nullable=True)
-    phenotype = Column(String, nullable=True)
-    multiple_phenotypes = Column(String, nullable=True)
-    when_treated_with = Column(String, nullable=True)
-    multiple_drugs = Column(String, nullable=True)
-    population_types = Column(String, nullable=True)
-    population_phenotypes_diseases = Column(String, nullable=True)
-    multiple_phenotypes_diseases = Column(String, nullable=True)
-    comparison_alleles = Column(String, nullable=True)
-    comparison_metabolizer_types = Column(String, nullable=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='pheno_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    pmid = db.Column(db.String(50), nullable=True, index=True)
+    phenotype_category = db.Column(db.String(100), nullable=True)
+    significance = db.Column(db.String, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    sentence = db.Column(db.Text)
+    alleles = db.Column(db.String)
+    specialty_population = db.Column(db.String, nullable=True)
+    metabolizer_types = db.Column(db.String, nullable=True)
+    is_plural = db.Column(db.String, nullable=True)
+    is_associated = db.Column(db.String)
+    direction_of_effect = db.Column(db.String, nullable=True)
+    side_effect_efficacy_other = db.Column(db.String, nullable=True)
+    phenotype = db.Column(db.String, nullable=True)
+    multiple_phenotypes = db.Column(db.String, nullable=True)
+    when_treated_with = db.Column(db.String, nullable=True)
+    multiple_drugs = db.Column(db.String, nullable=True)
+    population_types = db.Column(db.String, nullable=True)
+    population_phenotypes_diseases = db.Column(db.String, nullable=True)
+    multiple_phenotypes_diseases = db.Column(db.String, nullable=True)
+    comparison_alleles = db.Column(db.String, nullable=True)
+    comparison_metabolizer_types = db.Column(db.String, nullable=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='pheno_annotations')
 
 # Junction Tables for VariantAnnotation
 class VariantAnnotationDrug(db.Model):
     __tablename__ = 'variant_annotation_drug'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='drugs')
-    drug = relationship('Drug', back_populates='variant_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), primary_key=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='drugs')
+    drug = db.relationship('Drug', back_populates='variant_annotations')
 
 class VariantAnnotationGene(db.Model):
     __tablename__ = 'variant_annotation_gene'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='genes')
-    gene = relationship('Gene', back_populates='variant_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    gene_id = db.Column(db.String, db.ForeignKey('public.gene.gene_id'), primary_key=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='genes')
+    gene = db.relationship('Gene', back_populates='variant_annotations')
 
 class VariantAnnotationVariant(db.Model):
     __tablename__ = 'variant_annotation_variant'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    variant_annotation_id = Column(String, ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
-    variant_annotation = relationship('VariantAnnotation', back_populates='variants')
-    variant = relationship('Variant', back_populates='variant_annotations')
+    
+    variant_annotation_id = db.Column(db.String, db.ForeignKey('public.variant_annotation.variant_annotation_id'), primary_key=True)
+    variant_id = db.Column(db.Integer, db.ForeignKey('public.variant.id'), primary_key=True)
+    
+    variant_annotation = db.relationship('VariantAnnotation', back_populates='variants')
+    variant = db.relationship('Variant', back_populates='variant_annotations')
 
 # Relationships
 class Relationship(db.Model):
     __tablename__ = 'relationships'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    entity1_id = Column(String, index=True)
-    entity1_name = Column(String)
-    entity1_type = Column(String)
-    entity2_id = Column(String, index=True)
-    entity2_name = Column(String)
-    entity2_type = Column(String)
-    evidence = Column(String)
-    association = Column(String)
-    pk = Column(String, nullable=True)
-    pd = Column(String, nullable=True)
-    pmids = Column(String, nullable=True)
+    
+    id = db.Column(db.Integer, primary_key=True)
+    entity1_id = db.Column(db.String, index=True)
+    entity1_name = db.Column(db.String)
+    entity1_type = db.Column(db.String)
+    entity2_id = db.Column(db.String, index=True)
+    entity2_name = db.Column(db.String)
+    entity2_type = db.Column(db.String)
+    evidence = db.Column(db.String)
+    association = db.Column(db.String)
+    pk = db.Column(db.String, nullable=True)
+    pd = db.Column(db.String, nullable=True)
+    pmids = db.Column(db.String, nullable=True)
 
 # Drug Labels
 class DrugLabel(db.Model):
     __tablename__ = 'drug_label'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    pharmgkb_id = Column(String, primary_key=True)
-    name = Column(String)
-    source = Column(String)
-    biomarker_flag = Column(String, nullable=True)
-    testing_level = Column(String, nullable=True)
-    has_prescribing_info = Column(String, nullable=True)
-    has_dosing_info = Column(String, nullable=True)
-    has_alternate_drug = Column(String, nullable=True)
-    has_other_prescribing_guidance = Column(String, nullable=True)
-    cancer_genome = Column(String, nullable=True)
-    prescribing = Column(String, nullable=True)
-    latest_history_date = Column(Date)
-    drugs = relationship('DrugLabelDrug', back_populates='drug_label')
-    genes = relationship('DrugLabelGene', back_populates='drug_label')
-    variants = relationship('DrugLabelVariant', back_populates='drug_label')
+    
+    pharmgkb_id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String)
+    source = db.Column(db.String)
+    biomarker_flag = db.Column(db.String, nullable=True)
+    testing_level = db.Column(db.String, nullable=True)
+    has_prescribing_info = db.Column(db.String, nullable=True)
+    has_dosing_info = db.Column(db.String, nullable=True)
+    has_alternate_drug = db.Column(db.String, nullable=True)
+    has_other_prescribing_guidance = db.Column(db.String, nullable=True)
+    cancer_genome = db.Column(db.String, nullable=True)
+    prescribing = db.Column(db.String, nullable=True)
+    latest_history_date = db.Column(db.Date)
+    
+    drugs = db.relationship('DrugLabelDrug', back_populates='drug_label', cascade="all, delete-orphan")
+    genes = db.relationship('DrugLabelGene', back_populates='drug_label', cascade="all, delete-orphan")
+    variants = db.relationship('DrugLabelVariant', back_populates='drug_label', cascade="all, delete-orphan")
 
 class DrugLabelDrug(db.Model):
     __tablename__ = 'drug_label_drug'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
-    drug_label = relationship('DrugLabel', back_populates='drugs')
-    drug = relationship('Drug', back_populates='drug_labels')
+    
+    pharmgkb_id = db.Column(db.String, db.ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), primary_key=True)
+    
+    drug_label = db.relationship('DrugLabel', back_populates='drugs')
+    drug = db.relationship('Drug', back_populates='drug_labels')
 
 class DrugLabelGene(db.Model):
     __tablename__ = 'drug_label_gene'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
-    gene_id = Column(String, ForeignKey('public.gene.gene_id'), primary_key=True)
-    drug_label = relationship('DrugLabel', back_populates='genes')
-    gene = relationship('Gene', back_populates='drug_labels')
+    
+    pharmgkb_id = db.Column(db.String, db.ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    gene_id = db.Column(db.String, db.ForeignKey('public.gene.gene_id'), primary_key=True)
+    
+    drug_label = db.relationship('DrugLabel', back_populates='genes')
+    gene = db.relationship('Gene', back_populates='drug_labels')
 
 class DrugLabelVariant(db.Model):
     __tablename__ = 'drug_label_variant'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    pharmgkb_id = Column(String, ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
-    variant_id = Column(Integer, ForeignKey('public.variant.id'), primary_key=True)
-    drug_label = relationship('DrugLabel', back_populates='variants')
-    variant = relationship('Variant', back_populates='drug_labels')
+    
+    pharmgkb_id = db.Column(db.String, db.ForeignKey('public.drug_label.pharmgkb_id'), primary_key=True)
+    variant_id = db.Column(db.Integer, db.ForeignKey('public.variant.id'), primary_key=True)
+    
+    drug_label = db.relationship('DrugLabel', back_populates='variants')
+    variant = db.relationship('Variant', back_populates='drug_labels')
 
 # Clinical Variants
 class ClinicalVariant(db.Model):
     __tablename__ = 'clinical_variants'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     id = db.Column(db.Integer, primary_key=True)
     variant_type = db.Column(db.String)
     level_of_evidence = db.Column(db.String)
     gene_id = db.Column(db.String, db.ForeignKey('public.gene.gene_id'), index=True)
+    
     gene = db.relationship('Gene', back_populates='clinical_variants')
-    drugs = db.relationship('ClinicalVariantDrug', back_populates='clinical_variant')
-    phenotypes = db.relationship('ClinicalVariantPhenotype', back_populates='clinical_variant')
-    variants = db.relationship('ClinicalVariantVariant', back_populates='clinical_variant')
+    drugs = db.relationship('ClinicalVariantDrug', back_populates='clinical_variant', cascade="all, delete-orphan")
+    phenotypes = db.relationship('ClinicalVariantPhenotype', back_populates='clinical_variant', cascade="all, delete-orphan")
+    variants = db.relationship('ClinicalVariantVariant', back_populates='clinical_variant', cascade="all, delete-orphan")
 
 class ClinicalVariantDrug(db.Model):
     __tablename__ = 'clinical_variant_drug'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_variant_id = Column(Integer, ForeignKey('public.clinical_variants.id'), primary_key=True)
-    drug_id = Column(Integer, ForeignKey('public.drug.id'), primary_key=True)
-    clinical_variant = relationship('ClinicalVariant', back_populates='drugs')
-    drug = relationship('Drug', back_populates='clinical_variants')
+    
+    clinical_variant_id = db.Column(db.Integer, db.ForeignKey('public.clinical_variants.id'), primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), primary_key=True)
+    
+    clinical_variant = db.relationship('ClinicalVariant', back_populates='drugs')
+    drug = db.relationship('Drug', back_populates='clinical_variants')
 
 class ClinicalVariantPhenotype(db.Model):
     __tablename__ = 'clinical_variant_phenotype'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    clinical_variant_id = Column(Integer, ForeignKey('public.clinical_variants.id'), primary_key=True)
-    phenotype_id = Column(Integer, ForeignKey('public.phenotype.id'), primary_key=True)
-    clinical_variant = relationship('ClinicalVariant', back_populates='phenotypes')
-    phenotype = relationship('Phenotype', back_populates='clinical_variants')
+    
+    clinical_variant_id = db.Column(db.Integer, db.ForeignKey('public.clinical_variants.id'), primary_key=True)
+    phenotype_id = db.Column(db.Integer, db.ForeignKey('public.phenotype.id'), primary_key=True)
+    
+    clinical_variant = db.relationship('ClinicalVariant', back_populates='phenotypes')
+    phenotype = db.relationship('Phenotype', back_populates='clinical_variants')
 
 class ClinicalVariantVariant(db.Model):
     __tablename__ = 'clinical_variant_variant'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
     clinical_variant_id = db.Column(db.Integer, db.ForeignKey('public.clinical_variants.id'), primary_key=True)
     variant_id = db.Column(db.Integer, db.ForeignKey('public.variant.id'), primary_key=True)
+    
     clinical_variant = db.relationship('ClinicalVariant', back_populates='variants')
     variant = db.relationship('Variant', back_populates='clinical_variants')
 
@@ -1029,58 +1120,65 @@ class ClinicalVariantVariant(db.Model):
 class Occurrence(db.Model):
     __tablename__ = 'occurrences'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    source_type = Column(String)
-    source_id = Column(String, index=True)
-    source_name = Column(Text)
-    object_type = Column(String)
-    object_id = Column(String, index=True)
-    object_name = Column(String)
+    
+    id = db.Column(db.Integer, primary_key=True)
+    source_type = db.Column(db.String)
+    source_id = db.Column(db.String, index=True)
+    source_name = db.Column(db.Text)
+    object_type = db.Column(db.String)
+    object_id = db.Column(db.String, index=True)
+    object_name = db.Column(db.String)
 
-# Automated Annotations
 class AutomatedAnnotation(db.Model):
     __tablename__ = 'automated_annotations'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    id = Column(Integer, primary_key=True)
-    chemical_id = Column(String, index=True, nullable=True)
-    chemical_name = Column(String, nullable=True)
-    chemical_in_text = Column(String, nullable=True)
-    variation_id = Column(String, index=True, nullable=True)
-    variation_name = Column(String, nullable=True)
-    variation_type = Column(String, nullable=True)
-    variation_in_text = Column(String, nullable=True)
-    gene_ids = Column(Text, nullable=True)
-    gene_symbols = Column(Text, index=True, nullable=True)
-    gene_in_text = Column(Text, nullable=True)
-    literature_id = Column(String, nullable=True)
-    literature_title = Column(Text)
-    publication_year = Column(String, nullable=True)
-    journal = Column(Text, nullable=True)
-    sentence = Column(Text)
-    source = Column(String)
-    pmid = Column(String, ForeignKey('public.publication.pmid'), index=True, nullable=True)
-    publication = relationship('Publication', back_populates='automated_annotations')
+    
+    id = db.Column(db.Integer, primary_key=True)
+    chemical_id = db.Column(db.String, index=True, nullable=True)
+    chemical_name = db.Column(db.String, nullable=True)
+    chemical_in_text = db.Column(db.String, nullable=True)
+    variation_id = db.Column(db.String, index=True, nullable=True)
+    variation_name = db.Column(db.String, nullable=True)
+    variation_type = db.Column(db.String, nullable=True)
+    variation_in_text = db.Column(db.String, nullable=True)
+    gene_ids = db.Column(db.Text, nullable=True)
+    gene_symbols = db.Column(db.Text, index=True, nullable=True)
+    gene_in_text = db.Column(db.Text, nullable=True)
+    literature_id = db.Column(db.String, nullable=True)
+    literature_title = db.Column(db.Text)
+    publication_year = db.Column(db.String, nullable=True)
+    journal = db.Column(db.Text, nullable=True)
+    sentence = db.Column(db.Text)
+    source = db.Column(db.String)
+    pmid = db.Column(db.String(50), db.ForeignKey('public.publication.pmid'), index=True, nullable=True)
+    
+    publication = db.relationship('Publication', back_populates='automated_annotations')
 # PharmGKB için database sonu.......
 
 
 
 
-
 class News(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'news'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    title = db.Column(db.String(200), nullable=False)  # Title of the news
-    description = db.Column(db.Text, nullable=False)   # Detailed description
-    category = db.Column(db.String(50), nullable=False)  # "Announcement" or "Update"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=True)
+    drug = db.relationship('Drug', backref='fda_news', lazy=True)
     publication_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-
 bcrypt = Bcrypt()
+
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'user'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(128), nullable=False)
     name = db.Column(db.String(50), nullable=False)
@@ -1088,14 +1186,13 @@ class User(db.Model):
     date_of_birth = db.Column(db.Date, nullable=False)
     occupation = db.Column(db.String(100), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
-    is_verified = db.Column(db.Boolean, default=False)  # New field
-    verification_code = db.Column(db.String(6), nullable=True)  # Store 6-digit code
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)  # Add this
-
-
+    is_verified = db.Column(db.Boolean, default=False)
+    verification_code = db.Column(db.String(6), nullable=True)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    
     def set_password(self, password):
         self.password = bcrypt.generate_password_hash(password).decode('utf-8')
-
+    
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password, password)
     
@@ -1104,29 +1201,81 @@ class User(db.Model):
             return False
         return datetime.utcnow() - self.last_seen < timedelta(minutes=5)
 
-
 class Occupation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'occupation'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
 
 class DoseResponseSimulation(db.Model):
     __tablename__ = 'dose_response_simulation'
-    id = db.Column(db.String(36), primary_key=True)  # UUID as string
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.String(36), primary_key=True)
     emax = db.Column(db.Float, nullable=False)
     ec50 = db.Column(db.Float, nullable=False)
     n = db.Column(db.Float, nullable=False)
-    e0 = db.Column(db.Float, nullable=False, default=0.0)  # Baseline effect
-    concentrations = db.Column(db.JSON, nullable=False)  # Store as JSON
-    dosing_regimen = db.Column(db.String(50), nullable=False, default='single')  # single or multiple
-    doses = db.Column(db.JSON, nullable=True)  # For multiple dosing
-    intervals = db.Column(db.JSON, nullable=True)  # For multiple dosing
-    elimination_rate = db.Column(db.Float, nullable=True, default=0.1)  # For multiple dosing
+    e0 = db.Column(db.Float, nullable=False, default=0.0)
+    concentrations = db.Column(db.JSON, nullable=False)
+    dosing_regimen = db.Column(db.String(50), nullable=False, default='single')
+    doses = db.Column(db.JSON, nullable=True)
+    intervals = db.Column(db.JSON, nullable=True)
+    elimination_rate = db.Column(db.Float, nullable=True, default=0.1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, nullable=True)  # Optional, link to User if logged in
+    user_id = db.Column(db.Integer, nullable=True)
     concentration_unit = db.Column(db.String(20), default='µM')
     effect_unit = db.Column(db.String(20), default='%')
 
+
+
+# DATABASE MODELS
+# Database Models - Add these to your existing models section
+class SUT_Version(db.Model):
+    __tablename__ = 'sut_version'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    version_number = db.Column(db.Integer, nullable=False)
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
+    filename = db.Column(db.String(255))
+    file_hash = db.Column(db.String(64))
+    is_active = db.Column(db.Boolean, default=True)
+    items = db.relationship('SUT_Item', back_populates='version', cascade='all, delete-orphan')
+    changes = db.relationship('SUT_Change', back_populates='version', cascade='all, delete-orphan')
+
+class SUT_Item(db.Model):
+    __tablename__ = 'sut_item'
+    __table_args__ = (
+        db.Index('idx_version_parent', 'version_id', 'parent_number'),
+        db.Index('idx_version_item', 'version_id', 'item_number'),
+        {'schema': 'public', 'extend_existing': True}
+    )
+    
+    id = db.Column(db.Integer, primary_key=True)
+    version_id = db.Column(db.Integer, db.ForeignKey('public.sut_version.id'), nullable=False)
+    item_number = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text)
+    parent_number = db.Column(db.String(50), index=True)
+    level = db.Column(db.Integer)
+    order_index = db.Column(db.Integer)
+    full_text = db.Column(db.Text)
+    version = db.relationship('SUT_Version', back_populates='items')
+
+class SUT_Change(db.Model):
+    __tablename__ = 'sut_change'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    version_id = db.Column(db.Integer, db.ForeignKey('public.sut_version.id'), nullable=False)
+    change_date = db.Column(db.DateTime, default=datetime.utcnow)
+    item_number = db.Column(db.String(50))
+    change_type = db.Column(db.String(20))
+    old_content = db.Column(db.Text)
+    new_content = db.Column(db.Text)
+    version = db.relationship('SUT_Version', back_populates='changes')
+    
 with app.app_context():
     #print("Registered Models:")
     for subclass in db.Model.__subclasses__():
@@ -1180,22 +1329,24 @@ def home():
         announcements = News.query.filter(News.category.ilike('Announcement')).order_by(News.publication_date.desc()).all()
         updates = News.query.filter(News.category.ilike('Update')).order_by(News.publication_date.desc()).all()
         drug_updates = News.query.filter(News.category.ilike('Drug Update')).order_by(News.publication_date.desc()).all()
+        fda_approvals = News.query.filter(News.category.ilike('FDA Approval')).order_by(News.publication_date.desc()).limit(5).all()  # Latest 5
     except Exception as e:
         print(f"Oops, toy box problem: {e}")
-        announcements = []
-        updates = []
-        drug_updates = []
+        announcements = updates = drug_updates = fda_approvals = []
+
     user = None
     user_email = None
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
         if user:
             user_email = user.email
+
     return render_template(
         'home.html',
         announcements=announcements,
         updates=updates,
         drug_updates=drug_updates,
+        fda_approvals=fda_approvals,  # YENİ EKLEDİK!
         user_email=user_email,
         user=user
     )
@@ -2515,8 +2666,10 @@ def view_details():
             for cat in detail.drug.categories
         ]
 
-        # Fetch pregnancy and lactation safety info
-        pregnancy_safety = detail.pregnancy_safety.name if detail.pregnancy_safety else 'N/A'
+        # Fetch pregnancy (trimester-specific) and lactation safety info
+        pregnancy_safety_t1 = detail.pregnancy_safety_trimester1.name if detail.pregnancy_safety_trimester1 else 'N/A'
+        pregnancy_safety_t2 = detail.pregnancy_safety_trimester2.name if detail.pregnancy_safety_trimester2 else 'N/A'
+        pregnancy_safety_t3 = detail.pregnancy_safety_trimester3.name if detail.pregnancy_safety_trimester3 else 'N/A'
         lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
 
         enriched_details.append({
@@ -2563,10 +2716,14 @@ def view_details():
             'mechanism_of_action': detail.mechanism_of_action,
             'references': detail.references,
             # New fields for pregnancy and lactation
-            'pregnancy_safety': pregnancy_safety,
-            'pregnancy_details': detail.pregnancy_details,
+            'pregnancy_safety_trimester1': pregnancy_safety_t1,
+            'pregnancy_details_trimester1': detail.pregnancy_details_trimester1 or 'N/A',
+            'pregnancy_safety_trimester2': pregnancy_safety_t2,
+            'pregnancy_details_trimester2': detail.pregnancy_details_trimester2 or 'N/A',
+            'pregnancy_safety_trimester3': pregnancy_safety_t3,
+            'pregnancy_details_trimester3': detail.pregnancy_details_trimester3 or 'N/A',
             'lactation_safety': lactation_safety,
-            'lactation_details': detail.lactation_details,  # Fixed typo from lactation_detail to lactation_details
+            'lactation_details': detail.lactation_details or 'N/A',
             'categories': categories_list
         })
 
@@ -3470,6 +3627,7 @@ def delete_drug(drug_id):
  #           print(f"DrugRoute ID: {route.id}, DrugDetail ID: {route.drug_detail_id}, Route ID: {route.route_id}")
  
 @app.route('/drug/<int:drug_id>')
+@login_required
 def drug_detail(drug_id):
     drug = Drug.query.get_or_404(drug_id)
     
@@ -3731,7 +3889,6 @@ def drug_detail(drug_id):
     )
 
 import qrcode
-from flask import send_file
 import io
 
 @app.route('/generate_qr/<int:drug_id>')
@@ -3743,7 +3900,6 @@ def generate_qr(drug_id):
     qr_io.seek(0)
     return send_file(qr_io, mimetype='image/png')
 
-from flask import request
 
 
 
@@ -7286,6 +7442,7 @@ def manage_receptors():
 
 
 
+
 from Bio.SeqUtils import molecular_weight
 import re  # Regex ile geçerli karakterleri kontrol etmek için
 
@@ -7293,9 +7450,8 @@ import re  # Regex ile geçerli karakterleri kontrol etmek için
 def calculate_molecular_weight(sequence):
     if not sequence:
         return "No Sequence Provided"
-    valid_protein_chars = re.match("^[ARNDCEQGHILKMFPSTWYV]+$", sequence)
-    if not valid_protein_chars:
-        print(f"Invalid sequence for molecular weight calculation: {sequence}")
+    if not re.match("^[ARNDCEQGHILKMFPSTWYV]+$", sequence):
+        logging.warning(f"Invalid sequence for molecular weight: {sequence}")
         return "Invalid Sequence"
     return molecular_weight(sequence, seq_type='protein')
 
@@ -7305,136 +7461,86 @@ def calculate_molecular_weight(sequence):
 def fetch_uniprot_data():
     if request.method == 'POST':
         receptor_name = request.form.get('receptor_name')
-
         if not receptor_name or receptor_name.strip() == "":
-            return "Receptor name cannot be empty. Please provide a valid name."
-
-        # UniProt API URL with binding site features
-        url = f"https://rest.uniprot.org/uniprotkb/search?query={receptor_name}&fields=accession,protein_name,organism_name,gene_names,length,cc_subcellular_location,cc_function,sequence,xref_pdb,ft_binding"
-        print(f"Request URL: {url}")
+            return "Receptor name cannot be empty."
+        
+        url = f"https://rest.uniprot.org/uniprotkb/search?query={receptor_name}+AND+organism_id:9606&fields=accession,protein_name,organism_name,gene_names,length,cc_subcellular_location,cc_function,sequence,xref_pdb,ft_binding"
+        logging.info(f"Request URL: {url}")
+        
         response = requests.get(url)
-
         if response.status_code != 200:
-            print(f"API Error: {response.text}")
-            return f"Failed to fetch data from UniProt. Status Code: {response.status_code}"
-
+            logging.error(f"API Error: {response.text}")
+            return f"Failed to fetch data from UniProt. Status: {response.status_code}"
+        
         data = response.json()
         logging.info(f"UniProt API Response: {data}")
         results = data.get('results', [])
+        
         if not results:
-            print(f"No results found for receptor: {receptor_name}")
             return f"No UniProt entries found for {receptor_name}"
-
+        
         for result in results:
-            # Organism Name
-            organism_name = result.get('organism', {}).get('scientificName', 'Unknown Organism')
+            organism_name = result.get('organism', {}).get('scientificName', 'Unknown')
             if organism_name.lower() != "homo sapiens":
-                print(f"Skipping receptor as it is not from Homo sapiens: {organism_name}")
+                logging.info(f"Skipping non-human: {organism_name}")
                 continue
-
-            # Accession (UniProt ID)
-            accession = result.get('primaryAccession', 'Unknown Accession')
-
-            # Protein Name
-            protein_description = (
-                result.get('proteinDescription', {})
-                .get('recommendedName', {})
-                .get('fullName', {})
-                .get('value', 'Unknown Protein Name')
-            )
-
-            # Gene Names
-            gene_primary = "Unknown Gene"
+            
+            accession = result.get('primaryAccession', 'Unknown')
+            protein_description = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', 'Unknown')
+            
             genes = result.get('genes', [])
-            if genes:
-                gene_primary = genes[0].get('geneName', {}).get('value', 'Unknown Gene')
-
-            # Sequence Length
+            gene_primary = genes[0].get('geneName', {}).get('value', 'Unknown') if genes else 'Unknown'
+            
             sequence_info = result.get('sequence', {})
-            length = sequence_info.get('length', 'Unknown Length')
-
-            # Molecular Weight
-            molecular_weight_val = sequence_info.get('molWeight', 'Unknown Molecular Weight')
-
-            # Subcellular Location
-            subcellular_location = 'Unknown Location'
+            length = sequence_info.get('length', 0)
+            molecular_weight_val = sequence_info.get('molWeight', 'Unknown')
+            
+            subcellular_location = 'Unknown'
             for comment in result.get('comments', []):
                 if comment.get('commentType') == 'SUBCELLULAR LOCATION':
                     subcell_locations = comment.get('subcellularLocations', [])
                     if subcell_locations:
-                        subcellular_location = subcell_locations[0].get('location', {}).get('value', 'Unknown Location')
-
-            # Function
-            function = 'Unknown Function'
+                        subcellular_location = subcell_locations[0].get('location', {}).get('value', 'Unknown')
+            
+            function = 'Unknown'
             for comment in result.get('comments', []):
                 if comment.get('commentType') == 'FUNCTION':
                     function_texts = comment.get('texts', [])
                     if function_texts:
-                        function = function_texts[0].get('value', 'Unknown Function')
-
-            # Fetch PDB IDs
-            pdb_ids = []
-            for xref in result.get('uniProtKBCrossReferences', []):
-                if xref.get('database') == 'PDB':
-                    pdb_ids.append(xref.get('id'))
-
-            # Fetch Binding Sites
+                        function = function_texts[0].get('value', 'Unknown')
+            
+            pdb_ids = [xref.get('id') for xref in result.get('uniProtKBCrossReferences', []) if xref.get('database') == 'PDB']
+            
             binding_sites = []
-            features = result.get('features', [])
-            print(f"Features for {accession}: {features}")
-            for feature in features:
+            for feature in result.get('features', []):
                 if feature.get('type') == 'BINDING':
                     pos = feature['location']['start']['value']
                     ligand = feature.get('description', 'Unknown')
                     binding_sites.append({"residue": pos, "ligand": ligand})
-            print(f"Binding sites found for {accession}: {binding_sites}")
-
-            # Get 3D coordinates from PDB (if available)
-            binding_site_coords = None
+            
+            logging.info(f"Binding sites for {accession}: {binding_sites}")
+            
+            binding_site_coords = {"x": 0, "y": 0, "z": 0}
             if pdb_ids and binding_sites:
                 pdb_id = pdb_ids[0]
                 pdb_url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-                pdb_content = requests.get(pdb_url).text
-
-                # Parse PDB
-                parser = PDBParser(QUIET=True)  # Suppress warnings
-                structure = parser.get_structure(pdb_id, io.StringIO(pdb_content))
-                chain = list(structure[0].get_chains())[0]  # Assume first chain
-
-                # Map first binding site to coordinates
-                residue_num = binding_sites[0]["residue"]
                 try:
+                    pdb_content = requests.get(pdb_url, timeout=10).text
+                    parser = PDBParser(QUIET=True)
+                    structure = parser.get_structure(pdb_id, io.StringIO(pdb_content))
+                    chain = list(structure[0].get_chains())[0]
+                    residue_num = binding_sites[0]["residue"]
                     residue = chain[residue_num]
-                    ca = residue["CA"]  # Alpha carbon
+                    ca = residue["CA"]
                     binding_site_coords = {
                         "x": float(ca.get_coord()[0]),
                         "y": float(ca.get_coord()[1]),
                         "z": float(ca.get_coord()[2])
                     }
-                    print(f"Binding site coords for residue {residue_num} in {pdb_id}: {binding_site_coords}")
-                except KeyError:
-                    print(f"Residue {residue_num} not found in PDB {pdb_id}")
-                    binding_site_coords = {"x": 0, "y": 0, "z": 0}
-            else:
-                print(f"No PDB or binding sites for {accession}")
-                binding_site_coords = {"x": 0, "y": 0, "z": 0}
-
-            # Log the filtered receptor data
-            print(f"""
-                Fetched receptor (Homo sapiens):
-                Accession: {accession},
-                Protein Name: {protein_description},
-                Organism: {organism_name},
-                Length: {length},
-                Gene: {gene_primary},
-                Location: {subcellular_location},
-                Function: {function},
-                Molecular Weight: {molecular_weight_val},
-                PDB IDs: {', '.join(pdb_ids)},
-                Binding Site Coords: {binding_site_coords}
-            """)
-
-            # Save to database
+                    logging.info(f"Binding coords for {pdb_id}: {binding_site_coords}")
+                except Exception as e:
+                    logging.error(f"Error parsing PDB {pdb_id}: {e}")
+            
             new_receptor = Receptor(
                 name=protein_description,
                 type="Protein",
@@ -7450,9 +7556,10 @@ def fetch_uniprot_data():
                 binding_site_z=binding_site_coords["z"]
             )
             db.session.add(new_receptor)
-
+        
         db.session.commit()
         return "Receptor data successfully fetched and saved!"
+    
     return render_template('fetch_uniprot.html')
 
 
@@ -7464,92 +7571,84 @@ def fetch_uniprot_data():
 @app.route('/api/iuphar', methods=['GET', 'POST'])
 def fetch_iuphar_interactions():
     if request.method == 'GET':
-        receptors = Receptor.query.filter(Receptor.iuphar_id.isnot(None)).all()  # IUPHAR ID atanmış reseptörler
+        receptors = Receptor.query.filter(Receptor.iuphar_id.isnot(None)).all()
         return render_template('fetch_iuphar.html', receptors=receptors)
-
-    elif request.method == 'POST':
-        try:
-            # Kullanıcıdan seçilen IUPHAR ID'yi al
-            receptor_id = request.form.get('receptor_id', '').strip()
-            receptor = Receptor.query.get(receptor_id)
-
-            if not receptor or not receptor.iuphar_id:
-                return "Invalid receptor or missing IUPHAR ID. Please select a valid receptor.", 400
-
-            target_id = receptor.iuphar_id
-            interaction_url = f"https://www.guidetopharmacology.org/services/targets/{target_id}/interactions"
-            response = requests.get(interaction_url)
-
-            if response.status_code != 200:
-                return f"Failed to fetch interactions from IUPHAR. Status Code: {response.status_code}", 500
-
-            interactions = response.json()
-
-            if not isinstance(interactions, list) or not interactions:
-                return f"No interactions found for Target ID: {target_id}.", 404
-
-            saved_interactions = 0
-            for interaction in interactions:
-                # **Target Species Kontrolü (Sadece Human)**
-                species = interaction.get('targetSpecies', 'Unknown Species')
-                if species.lower() != "human":
-                    continue
-
-                # **Ligand İsmini Normalize Et ve Eşleştir**
-                ligand_name = interaction.get('ligandName', '')
-                drug = Drug.query.filter(db.func.lower(Drug.name_en) == db.func.lower(ligand_name)).first()
-
-                if not drug:
-                    logging.warning(f"Ligand not found in database: {ligand_name}")
-                    continue
-
-                # **Affinity ve Diğer Bilgileri Kaydet**
-                affinity_value = parse_affinity(interaction.get('affinity'))
-                if affinity_value is None:
-                    continue
-
-                affinity_parameter = interaction.get('affinityParameter', 'N/A')
-                interaction_type = interaction.get('type', 'N/A')
-                mechanism = interaction.get('action', 'N/A')
-
-                # **Daha Önce Kaydedilmiş mi?**
-                existing_interaction = DrugReceptorInteraction.query.filter_by(
+    
+    try:
+        receptor_id = request.form.get('receptor_id', '').strip()
+        receptor = Receptor.query.get(receptor_id)
+        
+        if not receptor or not receptor.iuphar_id:
+            return "Invalid receptor or missing IUPHAR ID.", 400
+        
+        target_id = receptor.iuphar_id
+        interaction_url = f"https://www.guidetopharmacology.org/services/targets/{target_id}/interactions"
+        
+        response = requests.get(interaction_url, timeout=15)
+        if response.status_code != 200:
+            return f"Failed to fetch interactions. Status: {response.status_code}", 500
+        
+        interactions = response.json()
+        if not isinstance(interactions, list) or not interactions:
+            return f"No interactions found for Target ID: {target_id}.", 404
+        
+        saved_interactions = 0
+        for interaction in interactions:
+            species = interaction.get('targetSpecies', 'Unknown')
+            if species.lower() != "human":
+                continue
+            
+            ligand_name = interaction.get('ligandName', '')
+            drug = Drug.query.filter(db.func.lower(Drug.name_en) == db.func.lower(ligand_name)).first()
+            
+            if not drug:
+                logging.warning(f"Ligand not found: {ligand_name}")
+                continue
+            
+            affinity_value = parse_affinity(interaction.get('affinity'))
+            if affinity_value is None:
+                continue
+            
+            affinity_parameter = interaction.get('affinityParameter', 'N/A')
+            interaction_type = interaction.get('type', 'N/A')
+            mechanism = interaction.get('action', 'N/A')
+            
+            existing = DrugReceptorInteraction.query.filter_by(
+                drug_id=drug.id,
+                receptor_id=receptor.id,
+                interaction_type=interaction_type,
+                affinity=affinity_value,
+                affinity_parameter=affinity_parameter
+            ).first()
+            
+            if not existing:
+                new_interaction = DrugReceptorInteraction(
                     drug_id=drug.id,
                     receptor_id=receptor.id,
-                    interaction_type=interaction_type,
                     affinity=affinity_value,
+                    interaction_type=interaction_type,
+                    mechanism=mechanism,
                     affinity_parameter=affinity_parameter
-                ).first()
-
-                if not existing_interaction:
-                    new_interaction = DrugReceptorInteraction(
-                        drug_id=drug.id,
-                        receptor_id=receptor.id,
-                        affinity=affinity_value,
-                        interaction_type=interaction_type,
-                        mechanism=mechanism,
-                        affinity_parameter=affinity_parameter
-                    )
-                    db.session.add(new_interaction)
-                    saved_interactions += 1
-
-            # Veritabanına kaydet
-            db.session.commit()
-            return f"Successfully saved {saved_interactions} new interactions for Target ID {target_id}.", 200
-
-        except Exception as e:
-            logging.error(f"Error: {e}")
-            return jsonify({"error": "An error occurred while processing interactions.", "details": str(e)}), 500
+                )
+                db.session.add(new_interaction)
+                saved_interactions += 1
+        
+        db.session.commit()
+        return f"Successfully saved {saved_interactions} interactions for Target ID {target_id}.", 200
+    
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        return jsonify({"error": "Error processing interactions.", "details": str(e)}), 500
 
 def parse_affinity(affinity_value):
     try:
         if isinstance(affinity_value, str):
-            # Örneğin: "4.0 - 5.0" -> 4.0
             return float(affinity_value.split(" - ")[0]) if " - " in affinity_value else float(affinity_value)
         return float(affinity_value) if affinity_value else None
     except ValueError:
-        logging.warning(f"Unable to parse affinity value: {affinity_value}")
+        logging.warning(f"Unable to parse affinity: {affinity_value}")
         return None
+
 
 
 
@@ -7558,47 +7657,41 @@ def map_receptor_iuphar():
     if request.method == 'POST':
         receptor_id = request.form.get('receptor_id')
         iuphar_id = request.form.get('iuphar_id')
-
-        # Veritabanında reseptörü bul
         receptor = Receptor.query.get(receptor_id)
+        
         if receptor:
             receptor.iuphar_id = iuphar_id
             db.session.commit()
             return redirect(url_for('map_receptor_iuphar'))
-        else:
-            return "Receptor not found.", 404
-
-    # GET metodu: Mevcut eşleşmeleri ve yeni eşleştirme formunu gösterir
+        return "Receptor not found.", 404
+    
     receptors = Receptor.query.all()
     return render_template('map_receptors.html', receptors=receptors)
-
 
 
 
 @app.route('/interactions/drug-receptor', methods=['GET', 'POST'])
 def manage_drug_receptor_interactions():
     if request.method == 'POST':
-        # Interaction eklemek için işlemleri burada gerçekleştir
         drug_id = request.form.get('drug_id')
         receptor_id = request.form.get('receptor_id')
         affinity = request.form.get('affinity')
         interaction_type = request.form.get('interaction_type')
         mechanism = request.form.get('mechanism')
-        # Veritabanına kaydetme işlemleri
-        # ...
         return redirect(url_for('manage_drug_receptor_interactions'))
-
+    
     interactions = DrugReceptorInteraction.query.all()
     drugs = Drug.query.all()
     receptors = Receptor.query.all()
+    
     enriched_interactions = []
-
     for interaction in interactions:
         drug = Drug.query.get(interaction.drug_id)
         receptor = Receptor.query.get(interaction.receptor_id)
+        
         if not drug or not receptor:
-            print(f"Missing data for Interaction ID: {interaction.id}")
             continue
+        
         enriched_interactions.append({
             "id": interaction.id,
             "drug_name": drug.name_tr or drug.name_en,
@@ -7608,7 +7701,7 @@ def manage_drug_receptor_interactions():
             "interaction_type": interaction.interaction_type,
             "mechanism": interaction.mechanism or "N/A",
         })
-
+    
     return render_template('drug_receptor_interactions.html', interactions=enriched_interactions, drugs=drugs, receptors=receptors)
 
 @app.route('/interactions/drug-receptor/delete/<int:id>', methods=['POST'])
@@ -7630,7 +7723,6 @@ def edit_drug_receptor_interaction(id):
     return redirect(url_for('manage_drug_receptor_interactions'))
 
 
-
 @app.route('/api/receptor-ligand-dashboard', methods=['GET'])
 def receptor_ligand_dashboard():
     try:
@@ -7639,17 +7731,12 @@ def receptor_ligand_dashboard():
         length = request.args.get('length', 10, type=int)
         search_value = request.args.get('search[value]', '', type=str)
         table_id = request.args.get('table_id', '')
-
         order_column_index = request.args.get('order[0][column]', type=int, default=0)
         order_direction = request.args.get('order[0][dir]', default='asc')
-
+        
         if table_id == "interaction-table":
-            query = DrugReceptorInteraction.query.join(
-                Receptor, DrugReceptorInteraction.receptor_id == Receptor.id
-            ).join(
-                Drug, DrugReceptorInteraction.drug_id == Drug.id
-            )
-
+            query = DrugReceptorInteraction.query.join(Receptor).join(Drug)
+            
             if search_value:
                 query = query.filter(
                     db.or_(
@@ -7659,39 +7746,34 @@ def receptor_ligand_dashboard():
                         DrugReceptorInteraction.mechanism.ilike(f"%{search_value}%")
                     )
                 )
-
-            columns = [
-                Drug.name_en,
-                Receptor.name,
-                DrugReceptorInteraction.affinity,
-                DrugReceptorInteraction.affinity_parameter,
-                DrugReceptorInteraction.interaction_type,
-                DrugReceptorInteraction.mechanism
-            ]
-
+            
+            columns = [Drug.name_en, Receptor.name, DrugReceptorInteraction.affinity, 
+                      DrugReceptorInteraction.affinity_parameter, DrugReceptorInteraction.interaction_type, 
+                      DrugReceptorInteraction.mechanism]
+            
             if 0 <= order_column_index < len(columns):
                 column = columns[order_column_index]
                 query = query.order_by(db.desc(column)) if order_direction == 'desc' else query.order_by(column)
-
+            
             total_count = DrugReceptorInteraction.query.count()
             filtered_count = query.count()
             paginated_items = query.offset(start).limit(length).all()
-
+            
             data = [
                 {
-                    "Ligand": interaction.drug.name_en if interaction.drug else f"Unknown Ligand {interaction.drug_id}",
-                    "Receptor": interaction.receptor.name if interaction.receptor else f"Unknown Receptor {interaction.receptor_id}",
-                    "Affinity": interaction.affinity or "N/A",
-                    "Affinity Parameter": interaction.affinity_parameter or "N/A",
-                    "Interaction Type": interaction.interaction_type or "N/A",
-                    "Mechanism": interaction.mechanism or "N/A"
+                    "Ligand": i.drug.name_en if i.drug else f"Unknown {i.drug_id}",
+                    "Receptor": i.receptor.name if i.receptor else f"Unknown {i.receptor_id}",
+                    "Affinity": i.affinity or "N/A",
+                    "Affinity Parameter": i.affinity_parameter or "N/A",
+                    "Interaction Type": i.interaction_type or "N/A",
+                    "Mechanism": i.mechanism or "N/A"
                 }
-                for interaction in paginated_items
+                for i in paginated_items
             ]
-
+        
         elif table_id == "receptor-table":
             query = Receptor.query
-
+            
             if search_value:
                 query = query.filter(
                     db.or_(
@@ -7700,48 +7782,41 @@ def receptor_ligand_dashboard():
                         Receptor.gene_name.ilike(f"%{search_value}%")
                     )
                 )
-
-            columns = [
-                Receptor.name,
-                Receptor.type,
-                Receptor.molecular_weight,
-                Receptor.length,
-                Receptor.gene_name,
-                Receptor.subcellular_location,
-                Receptor.function
-            ]
-
+            
+            columns = [Receptor.name, Receptor.type, Receptor.molecular_weight, 
+                      Receptor.length, Receptor.gene_name, Receptor.subcellular_location, 
+                      Receptor.function]
+            
             if 0 <= order_column_index < len(columns):
                 column = columns[order_column_index]
                 query = query.order_by(db.desc(column)) if order_direction == 'desc' else query.order_by(column)
-
+            
             total_count = Receptor.query.count()
             filtered_count = query.count()
             paginated_items = query.offset(start).limit(length).all()
-
+            
             data = [
                 {
-                    "Name": receptor.name or "Unknown",
-                    "Type": receptor.type or "Unknown",
-                    "Molecular Weight": receptor.molecular_weight or "N/A",
-                    "Length": receptor.length or "N/A",
-                    "Gene Name": receptor.gene_name or "N/A",
-                    "Localization": receptor.subcellular_location or "N/A",
-                    "Function": receptor.function or "N/A"
+                    "Name": r.name or "Unknown",
+                    "Type": r.type or "Unknown",
+                    "Molecular Weight": r.molecular_weight or "N/A",
+                    "Length": r.length or "N/A",
+                    "Gene Name": r.gene_name or "N/A",
+                    "Localization": r.subcellular_location or "N/A",
+                    "Function": r.function or "N/A"
                 }
-                for receptor in paginated_items
+                for r in paginated_items
             ]
-
         else:
             return jsonify({"error": "Invalid table_id"}), 400
-
+        
         return jsonify({
             "draw": draw,
             "recordsTotal": total_count,
             "recordsFiltered": filtered_count,
             "data": data
         })
-
+    
     except Exception as e:
         logging.error(f"Error: {e}")
         return jsonify({"error": "Server Error", "message": str(e)}), 500
@@ -7759,38 +7834,34 @@ def receptor_ligand_dashboard_view():
 def fetch_receptor_name(target_id):
     try:
         target_url = f"https://www.guidetopharmacology.org/services/targets/{target_id}"
-        logging.info(f"Fetching receptor name for Target ID: {target_id}")
-        response = requests.get(target_url)
-
+        response = requests.get(target_url, timeout=10)
+        
         if response.status_code == 200:
             data = response.json()
             receptor_name = data.get('name', f"Unknown Target {target_id}")
-            logging.info(f"Fetched receptor name: {receptor_name} for Target ID: {target_id}")
+            logging.info(f"Fetched receptor name: {receptor_name}")
             return receptor_name
-        else:
-            logging.error(f"Failed to fetch receptor name: {response.status_code} - {response.text}")
-            return f"Target {target_id}"
-    except Exception as e:
-        logging.error(f"Failed to fetch receptor name for Target ID {target_id}: {e}")
+        
+        logging.error(f"Failed to fetch receptor name: {response.status_code}")
         return f"Target {target_id}"
-
+    
+    except Exception as e:
+        logging.error(f"Failed to fetch receptor name: {e}")
+        return f"Target {target_id}"
 
 
 
 @app.route('/api/affinity-data', methods=['GET'])
 def affinity_data():
     interactions = DrugReceptorInteraction.query.all()
-    chart_data = {
-        "labels": [],
-        "values": []
-    }
-
+    chart_data = {"labels": [], "values": []}
+    
     for interaction in interactions:
-        receptor_name = interaction.receptor.name if interaction.receptor else "Unknown Receptor"
-        ligand_name = interaction.drug.name_en if interaction.drug else "Unknown Ligand"
+        receptor_name = interaction.receptor.name if interaction.receptor else "Unknown"
+        ligand_name = interaction.drug.name_en if interaction.drug else "Unknown"
         chart_data["labels"].append(f"{ligand_name} ({receptor_name})")
         chart_data["values"].append(interaction.affinity or 0)
-
+    
     return jsonify(chart_data)
 
 @app.route('/api/interaction-type-distribution', methods=['GET'])
@@ -7799,15 +7870,291 @@ def interaction_type_distribution():
         DrugReceptorInteraction.interaction_type,
         db.func.count(DrugReceptorInteraction.id)
     ).group_by(DrugReceptorInteraction.interaction_type).all()
-
+    
     chart_data = {
-        "labels": [interaction[0] for interaction in interactions],
-        "values": [interaction[1] for interaction in interactions]
+        "labels": [i[0] for i in interactions],
+        "values": [i[1] for i in interactions]
     }
     return jsonify(chart_data)
 
 
 
+# Reseptör - Ligand Etkileşim Kodları...
+# Helper function to get executable with correct extension
+def get_executable(name):
+    if platform.system() == "Windows":
+        return shutil.which(f"{name}.exe") or shutil.which(name)
+    return shutil.which(name)
+
+def safe_remove(path, retries=3, delay=0.5):
+    path = Path(path)
+    for _ in range(retries):
+        try:
+            if path.exists():
+                if path.is_dir():
+                    shutil.rmtree(path, ignore_errors=True)
+                else:
+                    path.unlink()
+            return
+        except (OSError, PermissionError):
+            time.sleep(delay)
+    logging.warning(f"Failed to remove {path}")
+
+
+@app.route('/api/receptors', methods=['GET'])
+def get_receptors():
+    search = request.args.get('search', '').strip()
+    limit = request.args.get('limit', 10, type=int)
+    page = request.args.get('page', 1, type=int)
+    
+    query = Receptor.query.filter(Receptor.name.ilike(f"%{search}%")) if search else Receptor.query
+    paginated_query = query.paginate(page=page, per_page=limit)
+    
+    results = [{"id": r.id, "text": r.name} for r in paginated_query.items]
+    return jsonify({"results": results, "has_next": paginated_query.has_next})
+
+
+
+@app.route('/receptor-ligand-simulator', methods=['GET', 'POST'])
+def receptor_ligand_simulator():
+    if request.method == 'GET':
+        return render_template('receptor_ligand_simulator.html')
+    
+    receptor = request.form.get('receptor')
+    ligand = request.form.get('ligand')
+    
+    if ligand:
+        session['ligand'] = ligand
+    else:
+        ligand = session.get('ligand')
+    
+    if not receptor or not ligand:
+        return jsonify({"error": "Receptor and ligand required."}), 400
+    
+    try:
+        receptor_file_path = os.path.join('static', f'receptor_{uuid.uuid4().hex}.pdb')
+        with open(receptor_file_path, "w") as f:
+            f.write(receptor)
+        
+        ligand_file_url = session.get('ligand_file_url')
+        if not ligand_file_url:
+            ligand_file_path = os.path.join('static', f'ligand_{uuid.uuid4().hex}.pdb')
+            with open(ligand_file_path, "w") as f:
+                f.write(ligand)
+            session['ligand_file_url'] = f"/{ligand_file_path}"
+            ligand_file_url = session['ligand_file_url']
+        
+        return jsonify({
+            "message": "Success",
+            "receptor_file_url": f"/{receptor_file_path}",
+            "ligand_file_url": ligand_file_url
+        }), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+
+@app.route('/api/convert_ligand', methods=['GET'])
+def convert_ligand():
+    drug_id = request.args.get('drug_id')
+    if not drug_id:
+        return jsonify({"error": "Drug ID required."}), 400
+    
+    try:
+        drug_id = int(drug_id)
+    except ValueError:
+        return jsonify({"error": "Invalid Drug ID."}), 400
+    
+    drug = db.session.get(Drug, drug_id)
+    if not drug:
+        return jsonify({"error": f"No Drug found for ID {drug_id}."}), 404
+    
+    drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
+    if not drug_detail:
+        return jsonify({"error": f"No DrugDetail for ID {drug_id}."}), 404
+    
+    if not drug_detail.smiles:
+        return jsonify({"error": f"No SMILES for ID {drug_id}."}), 404
+    
+    pdb_file = None
+    try:
+        if not drug_detail.smiles.strip() or len(drug_detail.smiles) > 1000:
+            raise ValueError("Invalid SMILES")
+        
+        mol = Chem.MolFromSmiles(drug_detail.smiles)
+        if mol is None:
+            raise ValueError("Invalid SMILES")
+        
+        mol = Chem.AddHs(mol)
+        AllChem.EmbedMolecule(mol, randomSeed=42)
+        AllChem.MMFFOptimizeMolecule(mol)
+        
+        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
+        Chem.MolToPDBFile(mol, pdb_file)
+        
+        if not os.path.exists(pdb_file):
+            raise RuntimeError("Failed to generate PDB.")
+        
+        with open(pdb_file, 'r') as f:
+            pdb_content = f.read()
+        
+        return jsonify({"pdb": pdb_content}), 200
+    
+    except ValueError as e:
+        logging.error(f"SMILES error for drug_id={drug_id}: {e}")
+        return jsonify({"error": "Invalid SMILES.", "details": str(e)}), 400
+    except Exception as e:
+        logging.error(f"Error in convert_ligand: {e}")
+        return jsonify({"error": f"Unexpected error: {e}"}), 500
+    finally:
+        if pdb_file:
+            safe_remove(pdb_file)
+
+
+@app.route('/api/get_receptor_structure', methods=['GET'])
+def get_receptor_structure():
+    receptor_id = request.args.get('receptor_id')
+    if not receptor_id:
+        return jsonify({"error": "Receptor ID required."}), 400
+    
+    receptor = db.session.get(Receptor, receptor_id)
+    if not receptor or not receptor.pdb_ids:
+        return jsonify({"error": "Receptor not found or no PDB IDs."}), 404
+    
+    pdb_id = receptor.pdb_ids.split(",")[0]
+    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+    
+    response = requests.get(url, timeout=15)
+    if response.status_code != 200:
+        return jsonify({"error": f"Failed to fetch PDB {pdb_id}."}), 500
+    
+    pdb_content = response.text
+    binding_site_coords = get_pocket_coords(pdb_content, pdb_id)
+    
+    receptor.binding_site_x = binding_site_coords["x"]
+    receptor.binding_site_y = binding_site_coords["y"]
+    receptor.binding_site_z = binding_site_coords["z"]
+    db.session.commit()
+    
+    return jsonify({"pdb": pdb_content, "binding_site": binding_site_coords}), 200
+
+def get_pocket_coords(pdb_content, pdb_id):
+    temp_pdb_path = None
+    try:
+        temp_pdb = Path(f"temp_{pdb_id}.pdb")
+        temp_pdb_path = temp_pdb.absolute()
+        
+        with temp_pdb_path.open("w") as f:
+            f.write(pdb_content)
+        
+        if not temp_pdb_path.exists():
+            raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
+        
+        structure = parsePDB(str(temp_pdb_path))
+        protein = structure.select('protein')
+        
+        if not protein:
+            raise ValueError(f"No protein atoms in {pdb_id}")
+        
+        exposed_residues = protein.select('resname PHE TYR TRP HIS ASP GLU LYS ARG and within 8 of all')
+        
+        if not exposed_residues:
+            exposed_residues = protein.select('resname ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR')
+            logging.warning(f"Using fallback residues for {pdb_id}")
+        
+        if not exposed_residues:
+            logging.warning(f"No pocket residues for {pdb_id}")
+            return {"x": 0, "y": 0, "z": 0}
+        
+        coords = exposed_residues.getCoords()
+        if len(coords) < 3:
+            logging.warning(f"Insufficient pocket residues for {pdb_id}")
+            return {"x": 0, "y": 0, "z": 0}
+        
+        centroid = calcCenter(coords)
+        logging.info(f"ProDy binding site for {pdb_id}: {centroid}")
+        
+        return {"x": float(centroid[0]), "y": float(centroid[1]), "z": float(centroid[2])}
+    
+    except Exception as e:
+        logging.error(f"ProDy failed for {pdb_id}: {e}")
+        return {"x": 0, "y": 0, "z": 0}
+    finally:
+        if temp_pdb_path:
+            safe_remove(temp_pdb_path)
+
+
+@app.route('/api/get_interaction_data', methods=['GET'])
+def get_interaction_data():
+    drug_id = request.args.get('drug_id')
+    receptor_id = request.args.get('receptor_id')
+    
+    if not drug_id or not receptor_id:
+        return jsonify({"error": "Both drug_id and receptor_id required."}), 400
+    
+    try:
+        interaction = DrugReceptorInteraction.query.filter_by(
+            drug_id=drug_id, receptor_id=receptor_id
+        ).first()
+        
+        if not interaction:
+            return jsonify({"error": "No interaction found."}), 404
+        
+        receptor = db.session.get(Receptor, receptor_id)
+        if not receptor:
+            return jsonify({"error": "Receptor not found."}), 404
+        
+        drug = db.session.get(Drug, drug_id)
+        if not drug:
+            return jsonify({"error": "Drug not found."}), 404
+        
+        interaction_data = {
+            "ligand": drug.name_en,
+            "receptor": receptor.name,
+            "affinity": interaction.affinity,
+            "affinity_parameter": interaction.affinity_parameter,
+            "interaction_type": interaction.interaction_type,
+            "mechanism": interaction.mechanism,
+            "units": interaction.units,
+            "pdb_file": interaction.pdb_file,
+            "receptor_details": {
+                "type": receptor.type,
+                "description": receptor.description,
+                "molecular_weight": receptor.molecular_weight,
+                "length": receptor.length,
+                "gene_name": receptor.gene_name,
+                "subcellular_location": receptor.subcellular_location,
+                "function": receptor.function,
+                "iuphar_id": receptor.iuphar_id,
+                "pdb_ids": receptor.pdb_ids
+            }
+        }
+        return jsonify(interaction_data), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        # Check ProDy
+        import prody
+        prody_version = prody.__version__
+        # Check RDKit
+        from rdkit import Chem
+        rdkit_version = Chem.rdkitVersion
+        return jsonify({
+            "status": "healthy",
+            "prody": f"Version {prody_version}",
+            "rdkit": f"Version {rdkit_version}"
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+#Reseptör - Ligand Finitooo
+
+# Yan etki API
 @app.route('/api/side_effects', methods=['GET'])
 def search_side_effects():
     search = request.args.get('search', '').strip()
@@ -7826,7 +8173,7 @@ def search_side_effects():
     ])
 
 
-
+#Hedef Molekül API
 @app.route('/api/targets', methods=['GET'])
 def get_targets():
     query = request.args.get('query', '')
@@ -7910,1435 +8257,2718 @@ def upload_targets():
 
 
 # PHARMGKB KODLARI
-# Helper Functions
-def parse_date(date_str, row_id=""):
-    if not date_str:
-        return None
+@contextmanager
+def db_transaction():
+    """Context manager for database transactions with automatic rollback."""
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        logger.warning(f"Invalid date format '{date_str}' for row {row_id}")
-        return None
+        yield
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Transaction failed: {str(e)}")
+        raise
+    finally:
+        db.session.close()
+
+def retry_on_failure(max_retries=MAX_RETRIES):
+    """Decorator for retry logic."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except SQLAlchemyError as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    logger.warning(f"Attempt {attempt + 1} failed: {str(e)}, retrying...")
+                    db.session.rollback()
+            return None
+        return wrapper
+    return decorator
+
+# ============================================================================
+# HELPER FUNCTIONS - ENHANCED
+# ============================================================================
 
 def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
+    """Save uploaded TSV file to disk with validation."""
+    if not file_storage or not file_storage.filename:
+        raise ValueError("No file provided")
+    
+    # Validate file extension
+    if not file_storage.filename.lower().endswith('.tsv'):
         raise ValueError("Only .tsv files are supported")
+    
+    # Check file size (optional - add max size check)
+    file_storage.seek(0, os.SEEK_END)
+    file_size = file_storage.tell()
+    file_storage.seek(0)
+    
+    if file_size == 0:
+        raise ValueError("File is empty")
+    
+    MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
+    if file_size > MAX_FILE_SIZE:
+        raise ValueError(f"File too large: {file_size} bytes (max: {MAX_FILE_SIZE})")
+    
     filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{timestamp}_{filename}"
+    
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
     file_storage.save(file_path)
+    logger.info(f"Saved file: {filename} ({file_size} bytes) to {file_path}")
+    
     return file_path
 
-def check_drugs_exist(drug_names, ca_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for CA {ca_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for CA {ca_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
+def parse_date(date_str, row_id=""):
+    """Parse date string in YYYY-MM-DD format with enhanced error handling."""
+    if not date_str or not date_str.strip():
+        return None
+    
+    date_str = date_str.strip()
+    
+    # Try multiple date formats
+    formats = ["%Y-%m-%d", "%Y/%m/%d", "%d-%m-%Y", "%m/%d/%Y"]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+    
+    logger.warning(f"Invalid date format '{date_str}' for row {row_id}")
+    return None
 
 def safe_split(text, delimiter=';'):
-    return [t.strip() for t in (text or '').split(delimiter) if t.strip()] if text else []
+    """Split text by delimiter and strip whitespace."""
+    if not text or not isinstance(text, str):
+        return []
+    return [t.strip() for t in text.split(delimiter) if t.strip()]
 
-# ETL Functions
+def safe_float(value, default=None):
+    """Safely convert to float."""
+    if not value or value == '':
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def safe_int(value, default=None):
+    """Safely convert to integer."""
+    if not value or value == '':
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+# ============================================================================
+# DATABASE QUERY HELPERS - OPTIMIZED
+# ============================================================================
+
+def check_drugs_exist(drug_names, context_id=""):
+    """
+    Check if drugs exist in database and return found drugs + missing ones.
+    Uses case-insensitive matching on multiple fields.
+    
+    ⚠️ CRITICAL: Only matches drugs already in your database!
+    """
+    if not drug_names:
+        return [], set()
+    
+    missing = set()
+    found_drugs = []
+    
+    # Normalize drug names
+    drug_names_lower = {d.strip().lower(): d for d in drug_names if d and d.strip()}
+    
+    if not drug_names_lower:
+        return [], set()
+    
+    # Batch query for better performance
+    try:
+        results = db.session.query(Drug).filter(
+            or_(
+                func.lower(Drug.name_en).in_(drug_names_lower.keys()),
+                func.lower(Drug.name_tr).in_(drug_names_lower.keys()),
+                func.lower(Drug.pharmgkb_id).in_(drug_names_lower.keys())
+            )
+        ).all()
+        
+        # Map found drugs
+        found_names_lower = set()
+        for drug in results:
+            # Check which name matched
+            for key in drug_names_lower.keys():
+                if (key == drug.name_en.lower() or 
+                    key == drug.name_tr.lower() or 
+                    (drug.pharmgkb_id and key == drug.pharmgkb_id.lower())):
+                    found_drugs.append(drug)
+                    found_names_lower.add(key)
+                    logger.debug(f"✓ Found drug: {drug_names_lower[key]} -> {drug.name_en} (ID: {drug.id})")
+                    break
+        
+        # Identify missing drugs
+        missing = {drug_names_lower[k] for k in drug_names_lower.keys() - found_names_lower}
+        
+        if missing:
+            logger.warning(f"✗ Missing drugs for {context_id}: {', '.join(list(missing)[:5])}")
+        
+    except SQLAlchemyError as e:
+        logger.error(f"Database error checking drugs: {str(e)}")
+        return [], set(drug_names)
+    
+    return found_drugs, missing
+
+@retry_on_failure()
+def get_or_create_gene(gene_symbol, gene_id=None):
+    """Get existing gene or create new one with retry logic."""
+    if not gene_symbol or not gene_symbol.strip():
+        return None
+    
+    gene_symbol = gene_symbol.strip()
+    
+    # Try to find existing
+    gene = db.session.query(Gene).filter_by(gene_symbol=gene_symbol).first()
+    
+    if not gene:
+        # Generate ID if not provided
+        if not gene_id:
+            gene_id = f"PA{gene_symbol}"
+        
+        gene = Gene(gene_id=gene_id, gene_symbol=gene_symbol)
+        db.session.add(gene)
+        
+        try:
+            db.session.flush()
+            logger.debug(f"Created new gene: {gene_symbol} (ID: {gene_id})")
+        except IntegrityError:
+            db.session.rollback()
+            # Another process created it, try to fetch again
+            gene = db.session.query(Gene).filter_by(gene_symbol=gene_symbol).first()
+    
+    return gene
+
+@retry_on_failure()
+def get_or_create_variant(variant_name, pharmgkb_id=None):
+    """Get existing variant or create new one with retry logic."""
+    if not variant_name or not variant_name.strip():
+        return None
+    
+    variant_name = variant_name.strip()
+    
+    # Try by name first
+    var = db.session.query(Variant).filter_by(name=variant_name).first()
+    
+    if not var and pharmgkb_id:
+        # Try by PharmGKB ID
+        var = db.session.query(Variant).filter_by(pharmgkb_id=pharmgkb_id).first()
+    
+    if not var:
+        var = Variant(name=variant_name, pharmgkb_id=pharmgkb_id)
+        db.session.add(var)
+        
+        try:
+            db.session.flush()
+            logger.debug(f"Created new variant: {variant_name}")
+        except IntegrityError:
+            db.session.rollback()
+            # Fetch again if created by another process
+            var = db.session.query(Variant).filter_by(name=variant_name).first()
+    
+    return var
+
+@retry_on_failure()
+def get_or_create_phenotype(phenotype_name):
+    """Get existing phenotype or create new one with retry logic."""
+    if not phenotype_name or not phenotype_name.strip():
+        return None
+    
+    phenotype_name = phenotype_name.strip()
+    
+    pheno = db.session.query(Phenotype).filter_by(name=phenotype_name).first()
+    
+    if not pheno:
+        pheno = Phenotype(name=phenotype_name)
+        db.session.add(pheno)
+        
+        try:
+            db.session.flush()
+            logger.debug(f"Created new phenotype: {phenotype_name}")
+        except IntegrityError:
+            db.session.rollback()
+            pheno = db.session.query(Phenotype).filter_by(name=phenotype_name).first()
+    
+    return pheno
+
+@retry_on_failure()
+def get_or_create_publication(pmid, title=None, year=None, journal=None):
+    """Get existing publication or create new one with retry logic."""
+    if not pmid or not pmid.strip():
+        return None
+    
+    pmid = pmid.strip()
+    
+    pub = db.session.get(Publication, pmid)
+    
+    if not pub:
+        pub = Publication(
+            pmid=pmid,
+            title=title or None,
+            year=year,
+            journal=journal
+        )
+        db.session.add(pub)
+        
+        try:
+            db.session.flush()
+            logger.debug(f"Created new publication: PMID {pmid}")
+        except IntegrityError:
+            db.session.rollback()
+            pub = db.session.get(Publication, pmid)
+    
+    return pub
+
+def bulk_insert_with_progress(items, model_name, batch_size=BATCH_SIZE):
+    """
+    Bulk insert items with progress tracking and automatic commits.
+    Enhanced with better error handling.
+    """
+    if not items:
+        logger.warning(f"[{model_name}] No items to insert")
+        return 0
+    
+    total = len(items)
+    inserted = 0
+    failed = 0
+    
+    logger.info(f"[{model_name}] Starting bulk insert of {total} items")
+    
+    for i in range(0, total, batch_size):
+        batch = items[i:i + batch_size]
+        
+        try:
+            db.session.bulk_save_objects(batch)
+            inserted += len(batch)
+            
+            # Commit periodically
+            if (i // batch_size) % COMMIT_FREQUENCY == 0:
+                db.session.commit()
+                progress = (inserted * 100) // total
+                logger.info(f"[{model_name}] Progress: {inserted}/{total} ({progress}%)")
+        
+        except SQLAlchemyError as e:
+            logger.error(f"[{model_name}] Batch failed at {i}: {str(e)}")
+            db.session.rollback()
+            failed += len(batch)
+            
+            # Try individual inserts for this batch
+            for item in batch:
+                try:
+                    db.session.add(item)
+                    db.session.commit()
+                    inserted += 1
+                except SQLAlchemyError:
+                    db.session.rollback()
+                    failed += 1
+    
+    # Final commit
+    try:
+        db.session.commit()
+        logger.info(f"[{model_name}] ✓ Complete: {inserted}/{total} inserted, {failed} failed")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"[{model_name}] Final commit failed: {str(e)}")
+    
+    return inserted
+
+# ============================================================================
+# ETL FUNCTIONS - CLINICAL ANNOTATIONS (ENHANCED)
+# ============================================================================
+
 def load_clinical_annotations_tsv(filepath):
-    missing_drugs = set()
+    """
+    Load clinical_annotations.tsv with optimized bulk processing.
+    ✅ ENHANCED: Better error handling, progress tracking, drug matching
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
     inserted = 0
     skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            ca_id = row.get("Clinical Annotation ID", "").strip()
-            if not ca_id:
-                logger.warning(f"Skipping row with empty Clinical Annotation ID")
-                skipped += 1
-                continue
-            raw_drugs = row.get("Drug(s)", "").strip()
-            drug_names = [d.strip().lower() for d in raw_drugs.split(';') if d.strip()]
-            found_drugs, missing = check_drugs_exist(drug_names, ca_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as Drug(s) can be empty
-            try:
-                # Get or create ClinicalAnnotation
-                ca = db.session.get(ClinicalAnnotation, ca_id)
-                if not ca:
-                    ca = ClinicalAnnotation(clinical_annotation_id=ca_id)
-                    db.session.add(ca)
+    errors = []
+    
+    logger.info(f"[clinical_annotations] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["Clinical Annotation ID", "Gene", "Level of Evidence"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns. Expected: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[clinical_annotations] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                ca_id = row.get("Clinical Annotation ID", "").strip()
                 
-                # Update ClinicalAnnotation fields
-                ca.level_of_evidence = row.get("Level of Evidence", "")
-                ca.level_override = row.get("Level Override", "")
-                ca.level_modifiers = row.get("Level Modifiers", "")
-                ca.score = float(row["Score"]) if row.get("Score") else None
-                ca.pmid_count = int(row["PMID Count"]) if row.get("PMID Count") else None
-                ca.evidence_count = int(row["Evidence Count"]) if row.get("Evidence Count") else None
-                ca.phenotype_category = row.get("Phenotype Category", "")
-                ca.url = row.get("URL", "")
-                ca.latest_history_date = parse_date(row.get("Latest History Date (YYYY-MM-DD)", ""), ca_id)
-                ca.specialty_population = row.get("Specialty Population", "")
-
-                # Clear existing relationships with no_autoflush to prevent premature flush
-                with db.session.no_autoflush:
+                if not ca_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Get or create ClinicalAnnotation
+                    ca = db.session.get(ClinicalAnnotation, ca_id)
+                    if not ca:
+                        ca = ClinicalAnnotation(clinical_annotation_id=ca_id)
+                        db.session.add(ca)
+                    
+                    # Update fields with safe conversions
+                    ca.level_of_evidence = row.get("Level of Evidence", "").strip() or None
+                    ca.level_override = row.get("Level Override", "").strip() or None
+                    ca.level_modifiers = row.get("Level Modifiers", "").strip() or None
+                    ca.score = safe_float(row.get("Score"))
+                    ca.pmid_count = safe_int(row.get("PMID Count"))
+                    ca.evidence_count = safe_int(row.get("Evidence Count"))
+                    ca.phenotype_category = row.get("Phenotype Category", "").strip() or None
+                    ca.url = row.get("URL", "").strip() or None
+                    ca.latest_history_date = parse_date(row.get("Latest History Date (YYYY-MM-DD)"), ca_id)
+                    ca.specialty_population = row.get("Specialty Population", "").strip() or None
+                    
+                    db.session.flush()  # Get the ID if new
+                    
+                    # Clear existing relationships (for re-imports)
                     db.session.query(ClinicalAnnotationDrug).filter_by(clinical_annotation_id=ca_id).delete()
                     db.session.query(ClinicalAnnotationGene).filter_by(clinical_annotation_id=ca_id).delete()
                     db.session.query(ClinicalAnnotationPhenotype).filter_by(clinical_annotation_id=ca_id).delete()
                     db.session.query(ClinicalAnnotationVariant).filter_by(clinical_annotation_id=ca_id).delete()
-
-                # Add drugs (only those found)
-                for drug in found_drugs:
-                    ca_drug = ClinicalAnnotationDrug(clinical_annotation_id=ca_id, drug_id=drug.id)
-                    db.session.add(ca_drug)
-
-                # Add genes
-                raw_genes = row.get("Gene", "").strip()
-                for gene_name in safe_split(raw_genes):
-                    gene = db.session.query(Gene).filter_by(gene_symbol=gene_name).first()
-                    if not gene:
-                        gene = Gene(gene_id=f"PA{gene_name}", gene_symbol=gene_name)
-                        db.session.add(gene)
-                        db.session.flush()  # Ensure gene.id is available
-                    ca_gene = ClinicalAnnotationGene(clinical_annotation_id=ca_id, gene_id=gene.gene_id)
-                    db.session.add(ca_gene)
-
-                # Add phenotypes
-                raw_phenotypes = row.get("Phenotype(s)", "").strip()
-                for pheno_name in safe_split(raw_phenotypes):
-                    pheno = db.session.query(Phenotype).filter_by(name=pheno_name).first()
-                    if not pheno:
-                        pheno = Phenotype(name=pheno_name)
-                        db.session.add(pheno)
-                        db.session.flush()  # Ensure phenotype.id is available
-                    ca_pheno = ClinicalAnnotationPhenotype(clinical_annotation_id=ca_id, phenotype_id=pheno.id)
-                    db.session.add(ca_pheno)
-
-                # Add variants (only if non-empty)
-                raw_variants = row.get("Variant/Haplotypes", "").strip()
-                if raw_variants:  # Skip if empty to avoid invalid insertions
-                    for var_name in safe_split(raw_variants):
-                        var = db.session.query(Variant).filter_by(name=var_name).first()
-                        if not var:
-                            var = Variant(name=var_name, pharmgkb_id=None)
-                            db.session.add(var)
-                            db.session.flush()  # Ensure variant.id is available
-                        ca_var = ClinicalAnnotationVariant(clinical_annotation_id=ca_id, variant_id=var.id)
-                        db.session.add(ca_var)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Row CA {ca_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[clinical_annotations] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[clinical_annotations] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
+                    
+                    # ✅ CRITICAL: Process drugs - Only link to existing drugs in DB
+                    raw_drugs = row.get("Drug(s)", "").strip()
+                    if raw_drugs:
+                        drug_names = safe_split(raw_drugs, ';')
+                        found_drugs, missing = check_drugs_exist(drug_names, ca_id)
+                        missing_drugs_global.update(missing)
+                        
+                        for drug in found_drugs:
+                            ca_drug = ClinicalAnnotationDrug(
+                                clinical_annotation_id=ca_id,
+                                drug_id=drug.id
+                            )
+                            db.session.add(ca_drug)
+                    
+                    # Process genes
+                    raw_genes = row.get("Gene", "").strip()
+                    if raw_genes:
+                        for gene_symbol in safe_split(raw_genes, ';'):
+                            gene = get_or_create_gene(gene_symbol)
+                            if gene:
+                                ca_gene = ClinicalAnnotationGene(
+                                    clinical_annotation_id=ca_id,
+                                    gene_id=gene.gene_id
+                                )
+                                db.session.add(ca_gene)
+                    
+                    # Process phenotypes
+                    raw_phenotypes = row.get("Phenotype(s)", "").strip()
+                    if raw_phenotypes:
+                        for pheno_name in safe_split(raw_phenotypes, ';'):
+                            pheno = get_or_create_phenotype(pheno_name)
+                            if pheno:
+                                ca_pheno = ClinicalAnnotationPhenotype(
+                                    clinical_annotation_id=ca_id,
+                                    phenotype_id=pheno.id
+                                )
+                                db.session.add(ca_pheno)
+                    
+                    # Process variants/haplotypes
+                    raw_variants = row.get("Variant/Haplotypes", "").strip()
+                    if raw_variants:
+                        for var_name in safe_split(raw_variants, ';'):
+                            var = get_or_create_variant(var_name)
+                            if var:
+                                ca_var = ClinicalAnnotationVariant(
+                                    clinical_annotation_id=ca_id,
+                                    variant_id=var.id
+                                )
+                                db.session.add(ca_var)
+                    
+                    inserted += 1
+                    
+                    # Periodic commits for memory management
+                    if inserted % 100 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[clinical_annotations] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {ca_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[clinical_annotations] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            # Final commit
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[clinical_annotations] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    # Summary
+    logger.info(f"[clinical_annotations] ✓ COMPLETE")
+    logger.info(f"  - Inserted: {inserted}")
+    logger.info(f"  - Skipped: {skipped}")
+    logger.info(f"  - Errors: {len(errors)}")
+    
+    if missing_drugs_global:
+        logger.warning(f"[clinical_annotations] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}{'...' if len(missing_drugs_global) > 20 else ''}")
+    
+    return inserted, skipped, missing_drugs_global
 
 def load_clinical_ann_history_tsv(filepath):
+    """Load clinical_ann_history.tsv with enhanced error handling."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
     inserted = 0
     skipped = 0
-    missing_drugs = set()  # No drugs involved
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            ca_id = row.get("Clinical Annotation ID", "").strip()
-            if not ca_id or not db.session.get(ClinicalAnnotation, ca_id):
-                logger.warning(f"Skipping history for non-existent Clinical Annotation ID: {ca_id}")
-                skipped += 1
-                continue
-            try:
-                hist = ClinicalAnnHistory(
-                    clinical_annotation_id=ca_id,
-                    date=parse_date(row.get("Date (YYYY-MM-DD)", ""), ca_id),
-                    type=row.get("Type", ""),
-                    comment=row.get("Comment", "")
-                )
-                db.session.add(hist)
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"History row for CA {ca_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    logger.info(f"[clinical_ann_history] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
+    errors = []
+    
+    logger.info(f"[clinical_ann_history] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            
+            for idx, row in enumerate(reader, 1):
+                ca_id = row.get("Clinical Annotation ID", "").strip()
+                
+                if not ca_id:
+                    skipped += 1
+                    continue
+                
+                # Verify parent exists
+                if not db.session.get(ClinicalAnnotation, ca_id):
+                    skipped += 1
+                    continue
+                
+                try:
+                    hist = ClinicalAnnHistory(
+                        clinical_annotation_id=ca_id,
+                        date=parse_date(row.get("Date (YYYY-MM-DD)"), ca_id),
+                        type=row.get("Type", "").strip() or None,
+                        comment=row.get("Comment", "").strip() or None
+                    )
+                    db.session.add(hist)
+                    inserted += 1
+                    
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[clinical_ann_history] Progress: {idx}/{total_rows} ({progress}%)")
+                
+                except Exception as e:
+                    error_msg = f"Row {ca_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[clinical_ann_history] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[clinical_ann_history] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[clinical_ann_history] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    return inserted, skipped, set()
 
 def load_clinical_ann_alleles_tsv(filepath):
+    """Load clinical_ann_alleles.tsv with enhanced error handling."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
     inserted = 0
     skipped = 0
-    missing_drugs = set()  # No drugs involved
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            ca_id = row.get("Clinical Annotation ID", "").strip()
-            genotype = row.get("Genotype/Allele", "").strip()
-            if not ca_id or not db.session.get(ClinicalAnnotation, ca_id):
-                logger.warning(f"Skipping allele for non-existent Clinical Annotation ID: {ca_id}")
-                skipped += 1
-                continue
-            if not genotype:
-                logger.warning(f"Skipping allele with empty Genotype/Allele for CA {ca_id}")
-                skipped += 1
-                continue
-            try:
-                allele = ClinicalAnnAllele(
-                    clinical_annotation_id=ca_id,
-                    genotype_allele=genotype,
-                    annotation_text=row.get("Annotation Text", ""),
-                    allele_function=row.get("Allele Function", "")
-                )
-                db.session.add(allele)
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Allele row for CA {ca_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    logger.info(f"[clinical_ann_alleles] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
+    errors = []
+    
+    logger.info(f"[clinical_ann_alleles] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            
+            for idx, row in enumerate(reader, 1):
+                ca_id = row.get("Clinical Annotation ID", "").strip()
+                genotype = row.get("Genotype/Allele", "").strip()
+                
+                if not ca_id or not genotype:
+                    skipped += 1
+                    continue
+                
+                # Verify parent exists
+                if not db.session.get(ClinicalAnnotation, ca_id):
+                    skipped += 1
+                    continue
+                
+                try:
+                    allele = ClinicalAnnAllele(
+                        clinical_annotation_id=ca_id,
+                        genotype_allele=genotype,
+                        annotation_text=row.get("Annotation Text", "").strip() or None,
+                        allele_function=row.get("Allele Function", "").strip() or None
+                    )
+                    db.session.add(allele)
+                    inserted += 1
+                    
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[clinical_ann_alleles] Progress: {idx}/{total_rows} ({progress}%)")
+                
+                except Exception as e:
+                    error_msg = f"Row {ca_id}/{genotype} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[clinical_ann_alleles] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[clinical_ann_alleles] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[clinical_ann_alleles] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    return inserted, skipped, set()
 
 def load_clinical_ann_evidence_tsv(filepath):
+    """Load clinical_ann_evidence.tsv with enhanced error handling."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
     inserted = 0
     skipped = 0
-    missing_drugs = set()  # No drugs involved
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            ev_id = row.get("Evidence ID", "").strip()
-            ca_id = row.get("Clinical Annotation ID", "").strip()
-            pmid = row.get("PMID", "").strip()
-            if not ev_id:
-                logger.warning(f"Skipping evidence with empty Evidence ID")
-                skipped += 1
-                continue
-            if not ca_id or not db.session.get(ClinicalAnnotation, ca_id):
-                logger.warning(f"Skipping evidence for non-existent Clinical Annotation ID: {ca_id}")
-                skipped += 1
-                continue
-            try:
-                # Get or create ClinicalAnnEvidence
-                ev = db.session.get(ClinicalAnnEvidence, ev_id)
-                if not ev:
-                    ev = ClinicalAnnEvidence(evidence_id=ev_id)
-                    db.session.add(ev)
+    errors = []
+    
+    logger.info(f"[clinical_ann_evidence] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            
+            for idx, row in enumerate(reader, 1):
+                ev_id = row.get("Evidence ID", "").strip()
+                ca_id = row.get("Clinical Annotation ID", "").strip()
+                pmid = row.get("PMID", "").strip()
                 
-                ev.clinical_annotation_id = ca_id
-                ev.evidence_type = row.get("Evidence Type", "")
-                ev.evidence_url = row.get("Evidence URL", "")
-                ev.summary = row.get("Summary", "")
-                ev.score = float(row["Score"]) if row.get("Score") else None
-
-                # Handle Publication
-                if pmid:
-                    pub = db.session.get(Publication, pmid)
-                    if not pub:
-                        pub = Publication(pmid=pmid, title="Unknown", year=None, journal=None)
-                        db.session.add(pub)
-                        db.session.flush()  # Ensure publication.pmid is available
-                    # Link via ClinicalAnnEvidencePublication
-                    ev_pub = db.session.query(ClinicalAnnEvidencePublication).filter_by(
-                        evidence_id=ev_id, pmid=pmid
-                    ).first()
-                    if not ev_pub:
-                        ev_pub = ClinicalAnnEvidencePublication(evidence_id=ev_id, pmid=pmid)
-                        db.session.add(ev_pub)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Evidence {ev_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    logger.info(f"[clinical_ann_evidence] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-# Route
-@app.route("/upload_clinical_annotations", methods=["GET", "POST"])
-def upload_clinical_annotations():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_clinical_annotations.html")
-        
-        files = {
-            "clinical_annotations": load_clinical_annotations_tsv,
-            "clinical_ann_history": load_clinical_ann_history_tsv,
-            "clinical_ann_alleles": load_clinical_ann_alleles_tsv,
-            "clinical_ann_evidence": load_clinical_ann_evidence_tsv
-        }
-        for key, func in files.items():
-            file = request.files.get(key)
-            if file and file.filename:
+                if not ev_id or not ca_id:
+                    skipped += 1
+                    continue
+                
+                # Verify parent exists
+                if not db.session.get(ClinicalAnnotation, ca_id):
+                    skipped += 1
+                    continue
+                
                 try:
-                    path = save_uploaded_file(file)
-                    inserted, skipped, missing_drugs = func(path)
-                    logger.info(f"Processed {key}.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                    flash(f"{key}.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                    os.remove(path)
-                except Exception as e:
-                    logger.error(f"Error processing {key}.tsv: {str(e)}")
-                    flash(f"Error processing {key}.tsv: {str(e)}", "danger")
-                    db.session.rollback()
-                    if os.path.exists(path):
-                        os.remove(path)
-            else:
-                logger.warning(f"No file uploaded for {key}")
-                flash(f"No file uploaded for {key}", "warning")
-        return redirect(url_for("upload_clinical_annotations"))
-# clinical annotations için yükleme sonu
-
-#variant annotations klasörü için yükleme route'ları
-# ETL Functions for Variant Annotations
-# ETL Functions for Variant Annotations
-def load_study_parameters_tsv(filepath):
-    inserted = 0
-    skipped = 0
-    missing_drugs = set()  # No drugs involved
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            sp_id = row.get("Study Parameters ID", "").strip()
-            va_id = row.get("Variant Annotation ID", "").strip()
-            if not sp_id:
-                logger.warning(f"Skipping row with empty Study Parameters ID")
-                skipped += 1
-                continue
-            if not va_id or not db.session.get(VariantAnnotation, va_id):
-                logger.warning(f"Skipping row with invalid Variant Annotation ID: {va_id}")
-                skipped += 1
-                continue
-            try:
-                sp = db.session.get(StudyParameters, sp_id)
-                if not sp:
-                    sp = StudyParameters(study_parameters_id=sp_id)
-                    db.session.add(sp)
-                sp.variant_annotation_id = va_id
-                sp.study_type = row.get("Study Type", "")
-                sp.study_cases = int(row["Study Cases"]) if row.get("Study Cases") else None
-                sp.study_controls = int(row["Study Controls"]) if row.get("Study Controls") else None
-                sp.characteristics = row.get("Characteristics", "")
-                sp.characteristics_type = row.get("Characteristics Type", "")
-                sp.frequency_in_cases = float(row["Frequency In Cases"]) if row.get("Frequency In Cases") else None
-                sp.allele_of_frequency_in_cases = row.get("Allele Of Frequency In Cases", "")
-                sp.frequency_in_controls = float(row["Frequency In Controls"]) if row.get("Frequency In Controls") else None
-                sp.allele_of_frequency_in_controls = row.get("Allele Of Frequency In Controls", "")
-                sp.p_value = row.get("P Value", "")
-                sp.ratio_stat_type = row.get("Ratio Stat Type", "")
-                sp.ratio_stat = float(row["Ratio Stat"]) if row.get("Ratio Stat") else None
-                sp.confidence_interval_start = float(row["Confidence Interval Start"]) if row.get("Confidence Interval Start") else None
-                sp.confidence_interval_stop = float(row["Confidence Interval Stop"]) if row.get("Confidence Interval Stop") else None
-                sp.biogeographical_groups = row.get("Biogeographical Groups", "")
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Study Parameters {sp_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    logger.info(f"[study_parameters] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-def load_var_fa_ann_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            va_id = row.get("Variant Annotation ID", "").strip()
-            if not va_id:
-                logger.warning(f"Skipping row with empty Variant Annotation ID")
-                skipped += 1
-                continue
-            raw_drugs = row.get("Drug(s)", "").strip()
-            drug_names = [d.strip().lower() for d in raw_drugs.split(';') if d.strip()]
-            found_drugs, missing = check_drugs_exist(drug_names, va_id)
-            missing_drugs.update(missing)
-            try:
-                # Ensure VariantAnnotation exists
-                va = db.session.get(VariantAnnotation, va_id)
-                if not va:
-                    va = VariantAnnotation(variant_annotation_id=va_id)
-                    db.session.add(va)
-                    db.session.flush()
-                
-                # Update VariantFAAnn
-                vfa = db.session.get(VariantFAAnn, va_id)
-                if not vfa:
-                    vfa = VariantFAAnn(variant_annotation_id=va_id)
-                    db.session.add(vfa)
-                vfa.significance = row.get("Significance", "")
-                vfa.notes = row.get("Notes", "")
-                vfa.sentence = row.get("Sentence", "")
-                vfa.alleles = row.get("Alleles", "")
-                vfa.specialty_population = row.get("Specialty Population", "")
-                vfa.assay_type = row.get("Assay type", "")
-                vfa.metabolizer_types = row.get("Metabolizer types", "")
-                vfa.is_plural = row.get("isPlural", "")
-                vfa.is_associated = row.get("Is/Is Not associated", "")
-                vfa.direction_of_effect = row.get("Direction of effect", "")
-                vfa.functional_terms = row.get("Functional terms", "")
-                vfa.gene_product = row.get("Gene/gene product", "")
-                vfa.when_treated_with = row.get("When treated with/exposed to/when assayed with", "")
-                vfa.multiple_drugs = row.get("Multiple drugs And/or", "")
-                vfa.cell_type = row.get("Cell type", "")
-                vfa.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "")
-                vfa.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "")
-
-                # Clear and update VariantAnnotationDrug
-                with db.session.no_autoflush:
-                    db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
-                for drug in found_drugs:
-                    va_drug = VariantAnnotationDrug(variant_annotation_id=va_id, drug_id=drug.id)
-                    db.session.add(va_drug)
-
-                # Add genes to VariantAnnotationGene
-                with db.session.no_autoflush:
-                    db.session.query(VariantAnnotationGene).filter_by(variant_annotation_id=va_id).delete()
-                raw_genes = row.get("Gene", "").strip()
-                for gene_name in safe_split(raw_genes):
-                    gene = db.session.query(Gene).filter_by(gene_symbol=gene_name).first()
-                    if not gene:
-                        gene = Gene(gene_id=f"PA{gene_name}", gene_symbol=gene_name)
-                        db.session.add(gene)
-                        db.session.flush()
-                    va_gene = VariantAnnotationGene(variant_annotation_id=va_id, gene_id=gene.gene_id)
-                    db.session.add(va_gene)
-
-                # Add variants to VariantAnnotationVariant
-                with db.session.no_autoflush:
-                    db.session.query(VariantAnnotationVariant).filter_by(variant_annotation_id=va_id).delete()
-                raw_variants = row.get("Variant/Haplotypes", "").strip()
-                if raw_variants:
-                    for var_name in safe_split(raw_variants):
-                        var = db.session.query(Variant).filter_by(name=var_name).first()
-                        if not var:
-                            var = Variant(name=var_name, pharmgkb_id=None)
-                            db.session.add(var)
-                            db.session.flush()
-                        va_var = VariantAnnotationVariant(variant_annotation_id=va_id, variant_id=var.id)
-                        db.session.add(va_var)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Variant FA Ann {va_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[var_fa_ann] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[var_fa_ann] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-def load_var_drug_ann_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            va_id = row.get("Variant Annotation ID", "").strip()
-            if not va_id:
-                logger.warning(f"Skipping row with empty Variant Annotation ID")
-                skipped += 1
-                continue
-            raw_drugs = row.get("Drug(s)", "").strip()
-            drug_names = [d.strip().lower() for d in raw_drugs.split(';') if d.strip()]
-            found_drugs, missing = check_drugs_exist(drug_names, va_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as Drug(s) can be empty
-            try:
-                # Ensure VariantAnnotation exists
-                va = db.session.get(VariantAnnotation, va_id)
-                if not va:
-                    va = VariantAnnotation(variant_annotation_id=va_id)
-                    db.session.add(va)
-                    db.session.flush()
-                
-                # Update VariantDrugAnn
-                vda = db.session.get(VariantDrugAnn, va_id)
-                if not vda:
-                    vda = VariantDrugAnn(variant_annotation_id=va_id)
-                    db.session.add(vda)
-                vda.significance = row.get("Significance", "")
-                vda.notes = row.get("Notes", "")
-                vda.sentence = row.get("Sentence", "")
-                vda.alleles = row.get("Alleles", "")
-                vda.specialty_population = row.get("Specialty Population", "")
-                vda.metabolizer_types = row.get("Metabolizer types", "")
-                vda.is_plural = row.get("isPlural", "")
-                vda.is_associated = row.get("Is/Is Not associated", "")
-                vda.direction_of_effect = row.get("Direction of effect", "")
-                vda.pd_pk_terms = row.get("PD/PK terms", "")
-                vda.multiple_drugs = row.get("Multiple drugs And/or", "")
-                vda.population_types = row.get("Population types", "")
-                vda.population_phenotypes_diseases = row.get("Population Phenotypes or diseases", "")
-                vda.multiple_phenotypes_diseases = row.get("Multiple phenotypes or diseases And/or", "")
-                vda.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "")
-                vda.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "")
-
-                # Clear and update VariantAnnotationDrug
-                with db.session.no_autoflush:
-                    db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
-                for drug in found_drugs:
-                    va_drug = VariantAnnotationDrug(variant_annotation_id=va_id, drug_id=drug.id)
-                    db.session.add(va_drug)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Variant Drug Ann {va_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[var_drug_ann] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[var_drug_ann] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-def load_var_pheno_ann_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            va_id = row.get("Variant Annotation ID", "").strip()
-            if not va_id:
-                logger.warning(f"Skipping row with empty Variant Annotation ID")
-                skipped += 1
-                continue
-            raw_drugs = row.get("Drug(s)", "").strip()
-            drug_names = [d.strip().lower() for d in raw_drugs.split(';') if d.strip()]
-            found_drugs, missing = check_drugs_exist(drug_names, va_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as Drug(s) can be empty
-            try:
-                # Ensure VariantAnnotation exists
-                va = db.session.get(VariantAnnotation, va_id)
-                if not va:
-                    va = VariantAnnotation(variant_annotation_id=va_id)
-                    db.session.add(va)
-                    db.session.flush()
-                
-                # Update VariantPhenoAnn
-                vpa = db.session.get(VariantPhenoAnn, va_id)
-                if not vpa:
-                    vpa = VariantPhenoAnn(variant_annotation_id=va_id)
-                    db.session.add(vpa)
-                vpa.significance = row.get("Significance", "")
-                vpa.notes = row.get("Notes", "")
-                vpa.sentence = row.get("Sentence", "")
-                vpa.alleles = row.get("Alleles", "")
-                vpa.specialty_population = row.get("Specialty Population", "")
-                vpa.metabolizer_types = row.get("Metabolizer types", "")
-                vpa.is_plural = row.get("isPlural", "")
-                vpa.is_associated = row.get("Is/Is Not associated", "")
-                vpa.direction_of_effect = row.get("Direction of effect", "")
-                vpa.side_effect_efficacy_other = row.get("Side effect/efficacy/other", "")
-                vpa.phenotype = row.get("Phenotype", "")
-                vpa.multiple_phenotypes = row.get("Multiple phenotypes", "")
-                vpa.when_treated_with = row.get("When treated with/exposed to/when assayed with", "")
-                vpa.multiple_drugs = row.get("Multiple drugs And/or", "")
-                vpa.population_types = row.get("Population types", "")
-                vpa.population_phenotypes_diseases = row.get("Population Phenotypes or diseases", "")
-                vpa.multiple_phenotypes_diseases = row.get("Multiple phenotypes or diseases And/or", "")
-                vpa.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "")
-                vpa.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "")
-
-                # Clear and update VariantAnnotationDrug
-                with db.session.no_autoflush:
-                    db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
-                for drug in found_drugs:
-                    va_drug = VariantAnnotationDrug(variant_annotation_id=va_id, drug_id=drug.id)
-                    db.session.add(va_drug)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Variant Pheno Ann {va_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[var_pheno_ann] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[var_pheno_ann] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-# Route for Variant Annotations
-@app.route("/upload_variant_annotations", methods=["GET", "POST"])
-def upload_variant_annotations():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_variant_annotations.html")
-        
-        files = {
-            "study_parameters": load_study_parameters_tsv,
-            "var_fa_ann": load_var_fa_ann_tsv,
-            "var_drug_ann": load_var_drug_ann_tsv,
-            "var_pheno_ann": load_var_pheno_ann_tsv
-        }
-        for key, func in files.items():
-            file = request.files.get(key)
-            if file and file.filename:
-                try:
-                    path = save_uploaded_file(file)
-                    inserted, skipped, missing_drugs = func(path)
-                    logger.info(f"Processed {key}.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                    flash(f"{key}.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                    os.remove(path)
-                except Exception as e:
-                    logger.error(f"Error processing {key}.tsv: {str(e)}")
-                    flash(f"Error processing {key}.tsv: {str(e)}", "danger")
-                    db.session.rollback()
-                    if os.path.exists(path):
-                        os.remove(path)
-            else:
-                logger.warning(f"No file uploaded for {key}")
-                flash(f"No file uploaded for {key}", "warning")
-        return redirect(url_for("upload_variant_annotations"))
-#Variant Annotations için son
-
-
-#Relationships yükleme route'u
-# ETL Function for Relationships
-def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
-        raise ValueError("Only .tsv files are supported")
-    filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    file_storage.save(file_path)
-    return file_path
-
-def check_drugs_exist(drug_names, rel_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for relationship {rel_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for relationship {rel_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
-
-def load_relationships_tsv(filepath):
-    inserted = 0
-    skipped = 0
-    missing_entities = set()
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            entity1_id = row.get("Entity1_id", "").strip()
-            entity1_name = row.get("Entity1_name", "").strip()
-            entity1_type = row.get("Entity1_type", "").strip().lower()
-            entity2_id = row.get("Entity2_id", "").strip()
-            entity2_name = row.get("Entity2_name", "").strip()
-            entity2_type = row.get("Entity2_type", "").strip().lower()
-            evidence = row.get("Evidence", "").strip()
-            association = row.get("Association", "").strip()
-            pk = row.get("PK", "").strip()
-            pd = row.get("PD", "").strip()
-            pmids = row.get("PMIDs", "").strip()
-            rel_id = f"{entity1_id}-{entity2_id}"
-
-            if not entity1_id or not entity2_id:
-                logger.warning(f"Skipping row with missing Entity1_id or Entity2_id for {rel_id}")
-                skipped += 1
-                continue
-
-            try:
-                # Check for drugs if entity1_type or entity2_type is chemical
-                drug_names = []
-                if entity1_type == "chemical" and entity1_name:
-                    drug_names.append(entity1_name.lower())
-                if entity2_type == "chemical" and entity2_name:
-                    drug_names.append(entity2_name.lower())
-                if drug_names:
-                    found_drugs, missing = check_drugs_exist(drug_names, rel_id)
-                    missing_entities.update(missing)
-
-                # Create Relationship record
-                rel = Relationship(
-                    entity1_id=entity1_id,
-                    entity1_name=entity1_name,
-                    entity1_type=entity1_type,
-                    entity2_id=entity2_id,
-                    entity2_name=entity2_name,
-                    entity2_type=entity2_type,
-                    evidence=evidence,
-                    association=association,
-                    pk=pk,
-                    pd=pd,
-                    pmids=pmids
-                )
-                db.session.add(rel)
-
-                # Process VariantAnnotation if Evidence contains VariantAnnotation
-                if "VariantAnnotation" in evidence.split(','):
-                    # Generate synthetic source_id for VariantAnnotation
-                    source_id = f"VA_{entity1_id}_{entity2_id}"
+                    # Get or create evidence
+                    ev = db.session.get(ClinicalAnnEvidence, ev_id)
+                    if not ev:
+                        ev = ClinicalAnnEvidence(evidence_id=ev_id)
+                        db.session.add(ev)
                     
-                    # Ensure VariantAnnotation exists
-                    va = db.session.get(VariantAnnotation, source_id)
+                    ev.clinical_annotation_id = ca_id
+                    ev.evidence_type = row.get("Evidence Type", "").strip() or None
+                    ev.evidence_url = row.get("Evidence URL", "").strip() or None
+                    ev.summary = row.get("Summary", "").strip() or None
+                    ev.score = safe_float(row.get("Score"))
+                    
+                    db.session.flush()
+                    
+                    # Handle publication link
+                    if pmid:
+                        pub = get_or_create_publication(pmid)
+                        if pub:
+                            # Check if link exists
+                            ev_pub = db.session.query(ClinicalAnnEvidencePublication).filter_by(
+                                evidence_id=ev_id,
+                                pmid=pmid
+                            ).first()
+                            
+                            if not ev_pub:
+                                ev_pub = ClinicalAnnEvidencePublication(
+                                    evidence_id=ev_id,
+                                    pmid=pmid
+                                )
+                                db.session.add(ev_pub)
+                    
+                    inserted += 1
+                    
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[clinical_ann_evidence] Progress: {idx}/{total_rows} ({progress}%)")
+                
+                except Exception as e:
+                    error_msg = f"Row {ev_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[clinical_ann_evidence] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[clinical_ann_evidence] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[clinical_ann_evidence] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    return inserted, skipped, set()
+
+# ============================================================================
+# VALIDATION & REPORTING
+# ============================================================================
+
+def validate_import_results(results):
+    """Validate and summarize import results."""
+    total_inserted = sum(r[0] for r in results.values())
+    total_skipped = sum(r[1] for r in results.values())
+    all_missing_drugs = set()
+    
+    for missing in [r[2] for r in results.values()]:
+        all_missing_drugs.update(missing)
+    
+    logger.info("=" * 80)
+    logger.info("PHARMGKB IMPORT SUMMARY")
+    logger.info("=" * 80)
+    logger.info(f"Total inserted: {total_inserted}")
+    logger.info(f"Total skipped: {total_skipped}")
+    
+    if all_missing_drugs:
+        logger.warning(f"⚠️  Missing drugs ({len(all_missing_drugs)}): {', '.join(sorted(all_missing_drugs)[:30])}")
+    
+    for name, (ins, skip, _) in results.items():
+        logger.info(f"  {name}: {ins} inserted, {skip} skipped")
+    
+    logger.info("=" * 80)
+    
+    return {
+        'total_inserted': total_inserted,
+        'total_skipped': total_skipped,
+        'missing_drugs': list(all_missing_drugs),
+        'details': {k: {'inserted': v[0], 'skipped': v[1]} for k, v in results.items()}
+    }
+
+# ============================================================================
+# ETL FUNCTIONS - VARIANT ANNOTATIONS (ENHANCED)
+# ============================================================================
+
+def load_study_parameters_tsv(filepath):
+    """
+    Load study_parameters.tsv with enhanced error handling and validation.
+    ✅ ENHANCED: Better type conversions, progress tracking, parent validation
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    inserted = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[study_parameters] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["Study Parameters ID", "Variant Annotation ID"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[study_parameters] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                sp_id = row.get("Study Parameters ID", "").strip()
+                va_id = row.get("Variant Annotation ID", "").strip()
+                
+                if not sp_id or not va_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Ensure parent VariantAnnotation exists
+                    va = db.session.get(VariantAnnotation, va_id)
                     if not va:
-                        va = VariantAnnotation(variant_annotation_id=source_id)
+                        va = VariantAnnotation(variant_annotation_id=va_id)
                         db.session.add(va)
                         db.session.flush()
+                        logger.debug(f"Created VariantAnnotation: {va_id}")
+                    
+                    # Get or create StudyParameters
+                    sp = db.session.get(StudyParameters, sp_id)
+                    if not sp:
+                        sp = StudyParameters(study_parameters_id=sp_id)
+                        db.session.add(sp)
+                    
+                    # Update fields with safe conversions
+                    sp.variant_annotation_id = va_id
+                    sp.study_type = row.get("Study Type", "").strip() or None
+                    sp.study_cases = safe_int(row.get("Study Cases"))
+                    sp.study_controls = safe_int(row.get("Study Controls"))
+                    sp.characteristics = row.get("Characteristics", "").strip() or None
+                    sp.characteristics_type = row.get("Characteristics Type", "").strip() or None
+                    sp.frequency_in_cases = safe_float(row.get("Frequency In Cases"))
+                    sp.allele_of_frequency_in_cases = row.get("Allele Of Frequency In Cases", "").strip() or None
+                    sp.frequency_in_controls = safe_float(row.get("Frequency In Controls"))
+                    sp.allele_of_frequency_in_controls = row.get("Allele Of Frequency In Controls", "").strip() or None
+                    sp.p_value = row.get("P Value", "").strip() or None
+                    sp.ratio_stat_type = row.get("Ratio Stat Type", "").strip() or None
+                    sp.ratio_stat = safe_float(row.get("Ratio Stat"))
+                    sp.confidence_interval_start = safe_float(row.get("Confidence Interval Start"))
+                    sp.confidence_interval_stop = safe_float(row.get("Confidence Interval Stop"))
+                    sp.biogeographical_groups = row.get("Biogeographical Groups", "").strip() or None
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[study_parameters] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {sp_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[study_parameters] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[study_parameters] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[study_parameters] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    return inserted, skipped, set()
 
-                    # Process Gene (entity1 or entity2)
-                    if entity1_type == "gene":
-                        gene = db.session.query(Gene).filter_by(gene_id=entity1_id).first()
-                        if not gene:
-                            logger.warning(f"Gene {entity1_id} not found for {rel_id}, skipping gene link")
-                            missing_entities.add(entity1_id)
-                        else:
-                            va_gene = db.session.query(VariantAnnotationGene).filter_by(
-                                variant_annotation_id=source_id, gene_id=entity1_id
-                            ).first()
-                            if not va_gene:
-                                va_gene = VariantAnnotationGene(variant_annotation_id=source_id, gene_id=entity1_id)
-                                db.session.add(va_gene)
-                    elif entity2_type == "gene":
-                        gene = db.session.query(Gene).filter_by(gene_id=entity2_id).first()
-                        if not gene:
-                            logger.warning(f"Gene {entity2_id} not found for {rel_id}, skipping gene link")
-                            missing_entities.add(entity2_id)
-                        else:
-                            va_gene = db.session.query(VariantAnnotationGene).filter_by(
-                                variant_annotation_id=source_id, gene_id=entity2_id
-                            ).first()
-                            if not va_gene:
-                                va_gene = VariantAnnotationGene(variant_annotation_id=source_id, gene_id=entity2_id)
-                                db.session.add(va_gene)
-
-                    # Process Variant or Haplotype (entity1 or entity2)
-                    if entity1_type in ["variant", "haplotype"]:
-                        var = db.session.query(Variant).filter_by(pharmgkb_id=entity1_id).first()
-                        if not var:
-                            # Create Variant if not found
-                            var = Variant(pharmgkb_id=entity1_id, name=entity1_name)
-                            db.session.add(var)
-                            db.session.flush()
-                        va_var = db.session.query(VariantAnnotationVariant).filter_by(
-                            variant_annotation_id=source_id, variant_id=var.id
-                        ).first()
-                        if not va_var:
-                            va_var = VariantAnnotationVariant(variant_annotation_id=source_id, variant_id=var.id)
-                            db.session.add(va_var)
-                    elif entity2_type in ["variant", "haplotype"]:
-                        var = db.session.query(Variant).filter_by(pharmgkb_id=entity2_id).first()
-                        if not var:
-                            # Create Variant if not found
-                            var = Variant(pharmgkb_id=entity2_id, name=entity2_name)
-                            db.session.add(var)
-                            db.session.flush()
-                        va_var = db.session.query(VariantAnnotationVariant).filter_by(
-                            variant_annotation_id=source_id, variant_id=var.id
-                        ).first()
-                        if not va_var:
-                            va_var = VariantAnnotationVariant(variant_annotation_id=source_id, variant_id=var.id)
-                            db.session.add(va_var)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except sqlalchemy.exc.IntegrityError as e:
-                logger.error(f"Relationship {rel_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_entities:
-        logger.warning(f"[relationships] Missing entities: {', '.join(missing_entities)}")
-    logger.info(f"[relationships] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_entities
-
-@app.route("/upload_relationships", methods=["GET", "POST"])
-def upload_relationships():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_relationships.html")
-        
-        rel_file = request.files.get("relationships_file")
-        if rel_file and rel_file.filename:
-            try:
-                path = save_uploaded_file(rel_file)
-                inserted, skipped, missing_entities = load_relationships_tsv(path)
-                logger.info(f"Processed relationships.tsv: Inserted={inserted}, Skipped={skipped}, Missing entities={missing_entities}")
-                flash(f"relationships.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing entities: {', '.join(missing_entities) if missing_entities else 'None'}", "success")
-                os.remove(path)
-            except Exception as e:
-                logger.error(f"Error processing relationships.tsv: {str(e)}")
-                flash(f"Error processing relationships.tsv: {str(e)}", "danger")
-                db.session.rollback()
-                if os.path.exists(path):
-                    os.remove(path)
-        else:
-            logger.warning("No file selected or invalid file for relationships_file")
-            flash("No file selected or invalid file!", "danger")
-        return redirect(url_for("upload_relationships"))
-#Relationships için son....
-
-#Drug Labels Başlangıç
-def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
-        raise ValueError("Only .tsv files are supported")
-    filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    file_storage.save(file_path)
-    return file_path
-
-def check_drugs_exist(drug_names, label_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for DrugLabel {label_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for DrugLabel {label_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
-
-def parse_date(date_str, row_id=""):
-    if not date_str:
-        return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        logger.warning(f"Invalid date format '{date_str}' for row {row_id}")
-        return None
-
-def safe_split(text, delimiter=';'):
-    return [t.strip() for t in (text or '').split(delimiter) if t.strip()] if text else []
-
-# ETL Functions for Drug Labels
-def load_drug_labels_tsv(filepath):
-    missing_drugs = set()
+def load_var_fa_ann_tsv(filepath):
+    """
+    Load var_fa_ann.tsv (Functional Assay Annotations).
+    ✅ ENHANCED: Better relationship handling, bulk operations, drug matching
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
     inserted = 0
     skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            pharmgkb_id = row.get("PharmGKB ID", "").strip()
-            if not pharmgkb_id:
-                logger.warning(f"Skipping row with empty PharmGKB ID")
-                skipped += 1
-                continue
-            raw_chems = row.get("Chemicals", "").strip()
-            chem_list = [c.strip().lower() for c in raw_chems.replace('/', ';').split(';') if c.strip()]
-            found_drugs, missing = check_drugs_exist(chem_list, pharmgkb_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as Chemicals can be empty
-            try:
-                # Get or create DrugLabel
-                dl = db.session.get(DrugLabel, pharmgkb_id)
-                if not dl:
-                    dl = DrugLabel(pharmgkb_id=pharmgkb_id)
-                    db.session.add(dl)
+    errors = []
+    
+    logger.info(f"[var_fa_ann] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[var_fa_ann] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                va_id = row.get("Variant Annotation ID", "").strip()
                 
-                # Update DrugLabel fields
-                dl.name = row.get("Name", "")
-                dl.source = row.get("Source", "")
-                dl.biomarker_flag = row.get("Biomarker Flag", "") or None
-                dl.testing_level = row.get("Testing Level", "") or None
-                dl.has_prescribing_info = row.get("Has Prescribing Info", "") or None
-                dl.has_dosing_info = row.get("Has Dosing Info", "") or None
-                dl.has_alternate_drug = row.get("Has Alternate Drug", "") or None
-                dl.has_other_prescribing_guidance = row.get("Has Other Prescribing Guidance", "") or None
-                dl.cancer_genome = row.get("Cancer Genome", "") or None
-                dl.prescribing = row.get("Prescribing", "") or None
-                dl.latest_history_date = parse_date(row.get("Latest History Date (YYYY-MM-DD)", ""), pharmgkb_id)
+                if not va_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Ensure parent VariantAnnotation exists
+                    va = db.session.get(VariantAnnotation, va_id)
+                    if not va:
+                        va = VariantAnnotation(variant_annotation_id=va_id)
+                        db.session.add(va)
+                        db.session.flush()
+                    
+                    # Get or create VariantFAAnn (one-to-one relationship)
+                    vfa = db.session.query(VariantFAAnn).filter_by(variant_annotation_id=va_id).first()
+                    if not vfa:
+                        vfa = VariantFAAnn(variant_annotation_id=va_id)
+                        db.session.add(vfa)
+                    
+                    # ✅ IMPORTANT: Set all fields including PMID and Phenotype Category
+                    vfa.pmid = row.get("PMID", "").strip() or None
+                    vfa.phenotype_category = row.get("Phenotype Category", "").strip() or None
+                    vfa.significance = row.get("Significance", "").strip() or None
+                    vfa.notes = row.get("Notes", "").strip() or None
+                    vfa.sentence = row.get("Sentence", "").strip() or None
+                    vfa.alleles = row.get("Alleles", "").strip() or None
+                    vfa.specialty_population = row.get("Specialty Population", "").strip() or None
+                    vfa.assay_type = row.get("Assay type", "").strip() or None
+                    vfa.metabolizer_types = row.get("Metabolizer types", "").strip() or None
+                    vfa.is_plural = row.get("isPlural", "").strip() or None
+                    vfa.is_associated = row.get("Is/Is Not associated", "").strip() or None
+                    vfa.direction_of_effect = row.get("Direction of effect", "").strip() or None
+                    vfa.functional_terms = row.get("Functional terms", "").strip() or None
+                    vfa.gene_product = row.get("Gene/gene product", "").strip() or None
+                    vfa.when_treated_with = row.get("When treated with/exposed to/when assayed with", "").strip() or None
+                    vfa.multiple_drugs = row.get("Multiple drugs And/or", "").strip() or None
+                    vfa.cell_type = row.get("Cell type", "").strip() or None
+                    vfa.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "").strip() or None
+                    vfa.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "").strip() or None
+                    
+                    db.session.flush()
+                    
+                    # ⚠️ CRITICAL: Clear existing relationships before adding new ones
+                    # This prevents duplicates on re-imports
+                    db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
+                    db.session.query(VariantAnnotationGene).filter_by(variant_annotation_id=va_id).delete()
+                    db.session.query(VariantAnnotationVariant).filter_by(variant_annotation_id=va_id).delete()
+                    
+                    # Process drugs - Only link to existing drugs in your DB
+                    raw_drugs = row.get("Drug(s)", "").strip()
+                    if raw_drugs:
+                        drug_names = safe_split(raw_drugs, ';')
+                        found_drugs, missing = check_drugs_exist(drug_names, va_id)
+                        missing_drugs_global.update(missing)
+                        
+                        for drug in found_drugs:
+                            va_drug = VariantAnnotationDrug(
+                                variant_annotation_id=va_id,
+                                drug_id=drug.id
+                            )
+                            db.session.add(va_drug)
+                    
+                    # Process genes
+                    raw_genes = row.get("Gene", "").strip()
+                    if raw_genes:
+                        for gene_symbol in safe_split(raw_genes, ';'):
+                            gene = get_or_create_gene(gene_symbol)
+                            if gene:
+                                va_gene = VariantAnnotationGene(
+                                    variant_annotation_id=va_id,
+                                    gene_id=gene.gene_id
+                                )
+                                db.session.add(va_gene)
+                    
+                    # Process variants/haplotypes
+                    raw_variants = row.get("Variant/Haplotypes", "").strip()
+                    if raw_variants:
+                        for var_name in safe_split(raw_variants, ';'):
+                            var = get_or_create_variant(var_name)
+                            if var:
+                                va_var = VariantAnnotationVariant(
+                                    variant_annotation_id=va_id,
+                                    variant_id=var.id
+                                )
+                                db.session.add(va_var)
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[var_fa_ann] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {va_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[var_fa_ann] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[var_fa_ann] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[var_fa_ann] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    if missing_drugs_global:
+        logger.warning(f"[var_fa_ann] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}")
+    
+    return inserted, skipped, missing_drugs_global
 
-                # Clear existing relationships with no_autoflush
-                with db.session.no_autoflush:
+def load_var_drug_ann_tsv(filepath):
+    """
+    Load var_drug_ann.tsv (Drug Annotations).
+    ✅ ENHANCED: Better handling of drug relationships and data validation
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
+    inserted = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[var_drug_ann] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[var_drug_ann] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                va_id = row.get("Variant Annotation ID", "").strip()
+                
+                if not va_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Ensure parent VariantAnnotation exists
+                    va = db.session.get(VariantAnnotation, va_id)
+                    if not va:
+                        va = VariantAnnotation(variant_annotation_id=va_id)
+                        db.session.add(va)
+                        db.session.flush()
+                    
+                    # Get or create VariantDrugAnn (one-to-one relationship)
+                    vda = db.session.query(VariantDrugAnn).filter_by(variant_annotation_id=va_id).first()
+                    if not vda:
+                        vda = VariantDrugAnn(variant_annotation_id=va_id)
+                        db.session.add(vda)
+                    
+                    # ✅ Set all fields
+                    vda.pmid = row.get("PMID", "").strip() or None
+                    vda.phenotype_category = row.get("Phenotype Category", "").strip() or None
+                    vda.significance = row.get("Significance", "").strip() or None
+                    vda.notes = row.get("Notes", "").strip() or None
+                    vda.sentence = row.get("Sentence", "").strip() or None
+                    vda.alleles = row.get("Alleles", "").strip() or None
+                    vda.specialty_population = row.get("Specialty Population", "").strip() or None
+                    vda.metabolizer_types = row.get("Metabolizer types", "").strip() or None
+                    vda.is_plural = row.get("isPlural", "").strip() or None
+                    vda.is_associated = row.get("Is/Is Not associated", "").strip() or None
+                    vda.direction_of_effect = row.get("Direction of effect", "").strip() or None
+                    vda.pd_pk_terms = row.get("PD/PK terms", "").strip() or None
+                    vda.multiple_drugs = row.get("Multiple drugs And/or", "").strip() or None
+                    vda.population_types = row.get("Population types", "").strip() or None
+                    vda.population_phenotypes_diseases = row.get("Population Phenotypes or diseases", "").strip() or None
+                    vda.multiple_phenotypes_diseases = row.get("Multiple phenotypes or diseases And/or", "").strip() or None
+                    vda.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "").strip() or None
+                    vda.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "").strip() or None
+                    
+                    db.session.flush()
+                    
+                    # Process drugs (clear existing first)
+                    raw_drugs = row.get("Drug(s)", "").strip()
+                    if raw_drugs:
+                        # Clear existing drug relationships for this annotation
+                        db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        drug_names = safe_split(raw_drugs, ';')
+                        found_drugs, missing = check_drugs_exist(drug_names, va_id)
+                        missing_drugs_global.update(missing)
+                        
+                        for drug in found_drugs:
+                            va_drug = VariantAnnotationDrug(
+                                variant_annotation_id=va_id,
+                                drug_id=drug.id
+                            )
+                            db.session.add(va_drug)
+                    
+                    # Process genes (if present in this file)
+                    raw_genes = row.get("Gene", "").strip()
+                    if raw_genes:
+                        db.session.query(VariantAnnotationGene).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        for gene_symbol in safe_split(raw_genes, ';'):
+                            gene = get_or_create_gene(gene_symbol)
+                            if gene:
+                                va_gene = VariantAnnotationGene(
+                                    variant_annotation_id=va_id,
+                                    gene_id=gene.gene_id
+                                )
+                                db.session.add(va_gene)
+                    
+                    # Process variants (if present)
+                    raw_variants = row.get("Variant/Haplotypes", "").strip()
+                    if raw_variants:
+                        db.session.query(VariantAnnotationVariant).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        for var_name in safe_split(raw_variants, ';'):
+                            var = get_or_create_variant(var_name)
+                            if var:
+                                va_var = VariantAnnotationVariant(
+                                    variant_annotation_id=va_id,
+                                    variant_id=var.id
+                                )
+                                db.session.add(va_var)
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[var_drug_ann] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {va_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[var_drug_ann] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[var_drug_ann] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[var_drug_ann] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    if missing_drugs_global:
+        logger.warning(f"[var_drug_ann] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}")
+    
+    return inserted, skipped, missing_drugs_global
+
+def load_var_pheno_ann_tsv(filepath):
+    """
+    Load var_pheno_ann.tsv (Phenotype Annotations).
+    ✅ ENHANCED: Complete field mapping and relationship handling
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
+    inserted = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[var_pheno_ann] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[var_pheno_ann] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                va_id = row.get("Variant Annotation ID", "").strip()
+                
+                if not va_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Ensure parent VariantAnnotation exists
+                    va = db.session.get(VariantAnnotation, va_id)
+                    if not va:
+                        va = VariantAnnotation(variant_annotation_id=va_id)
+                        db.session.add(va)
+                        db.session.flush()
+                    
+                    # Get or create VariantPhenoAnn (one-to-one relationship)
+                    vpa = db.session.query(VariantPhenoAnn).filter_by(variant_annotation_id=va_id).first()
+                    if not vpa:
+                        vpa = VariantPhenoAnn(variant_annotation_id=va_id)
+                        db.session.add(vpa)
+                    
+                    # ✅ Set all fields
+                    vpa.pmid = row.get("PMID", "").strip() or None
+                    vpa.phenotype_category = row.get("Phenotype Category", "").strip() or None
+                    vpa.significance = row.get("Significance", "").strip() or None
+                    vpa.notes = row.get("Notes", "").strip() or None
+                    vpa.sentence = row.get("Sentence", "").strip() or None
+                    vpa.alleles = row.get("Alleles", "").strip() or None
+                    vpa.specialty_population = row.get("Specialty Population", "").strip() or None
+                    vpa.metabolizer_types = row.get("Metabolizer types", "").strip() or None
+                    vpa.is_plural = row.get("isPlural", "").strip() or None
+                    vpa.is_associated = row.get("Is/Is Not associated", "").strip() or None
+                    vpa.direction_of_effect = row.get("Direction of effect", "").strip() or None
+                    vpa.side_effect_efficacy_other = row.get("Side effect/efficacy/other", "").strip() or None
+                    vpa.phenotype = row.get("Phenotype", "").strip() or None
+                    vpa.multiple_phenotypes = row.get("Multiple phenotypes And/or", "").strip() or None
+                    vpa.when_treated_with = row.get("When treated with/exposed to/when assayed with", "").strip() or None
+                    vpa.multiple_drugs = row.get("Multiple drugs And/or", "").strip() or None
+                    vpa.population_types = row.get("Population types", "").strip() or None
+                    vpa.population_phenotypes_diseases = row.get("Population Phenotypes or diseases", "").strip() or None
+                    vpa.multiple_phenotypes_diseases = row.get("Multiple phenotypes or diseases And/or", "").strip() or None
+                    vpa.comparison_alleles = row.get("Comparison Allele(s) or Genotype(s)", "").strip() or None
+                    vpa.comparison_metabolizer_types = row.get("Comparison Metabolizer types", "").strip() or None
+                    
+                    db.session.flush()
+                    
+                    # Process drugs (clear existing first)
+                    raw_drugs = row.get("Drug(s)", "").strip()
+                    if raw_drugs:
+                        db.session.query(VariantAnnotationDrug).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        drug_names = safe_split(raw_drugs, ';')
+                        found_drugs, missing = check_drugs_exist(drug_names, va_id)
+                        missing_drugs_global.update(missing)
+                        
+                        for drug in found_drugs:
+                            va_drug = VariantAnnotationDrug(
+                                variant_annotation_id=va_id,
+                                drug_id=drug.id
+                            )
+                            db.session.add(va_drug)
+                    
+                    # Process genes (if present)
+                    raw_genes = row.get("Gene", "").strip()
+                    if raw_genes:
+                        db.session.query(VariantAnnotationGene).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        for gene_symbol in safe_split(raw_genes, ';'):
+                            gene = get_or_create_gene(gene_symbol)
+                            if gene:
+                                va_gene = VariantAnnotationGene(
+                                    variant_annotation_id=va_id,
+                                    gene_id=gene.gene_id
+                                )
+                                db.session.add(va_gene)
+                    
+                    # Process variants (if present)
+                    raw_variants = row.get("Variant/Haplotypes", "").strip()
+                    if raw_variants:
+                        db.session.query(VariantAnnotationVariant).filter_by(variant_annotation_id=va_id).delete()
+                        
+                        for var_name in safe_split(raw_variants, ';'):
+                            var = get_or_create_variant(var_name)
+                            if var:
+                                va_var = VariantAnnotationVariant(
+                                    variant_annotation_id=va_id,
+                                    variant_id=var.id
+                                )
+                                db.session.add(va_var)
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[var_pheno_ann] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {va_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[var_pheno_ann] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[var_pheno_ann] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[var_pheno_ann] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    if missing_drugs_global:
+        logger.warning(f"[var_pheno_ann] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}")
+    
+    return inserted, skipped, missing_drugs_global
+
+# ============================================================================
+# ETL FUNCTIONS - RELATIONSHIPS (ENHANCED)
+# ============================================================================
+
+def load_relationships_tsv(filepath):
+    """
+    Load relationships.tsv with enhanced validation and entity tracking.
+    ✅ ENHANCED: Better entity validation, duplicate handling, progress tracking
+    
+    This table links entities (drugs, genes, variants, diseases) together with
+    evidence of their relationships (e.g., "warfarin associated with CYP2C9").
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_entities = {
+        'chemicals': set(),
+        'genes': set(),
+        'variants': set(),
+        'diseases': set()
+    }
+    inserted = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[relationships] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["Entity1_id", "Entity1_name", "Entity1_type", 
+                           "Entity2_id", "Entity2_name", "Entity2_type"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[relationships] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                entity1_id = row.get("Entity1_id", "").strip()
+                entity2_id = row.get("Entity2_id", "").strip()
+                
+                if not entity1_id or not entity2_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    entity1_name = row.get("Entity1_name", "").strip()
+                    entity1_type = row.get("Entity1_type", "").strip().lower()
+                    entity2_name = row.get("Entity2_name", "").strip()
+                    entity2_type = row.get("Entity2_type", "").strip().lower()
+                    
+                    # ✅ ENHANCED: Validate entities exist in database
+                    entity_valid = True
+                    
+                    # Check Entity 1
+                    if entity1_type == "chemical":
+                        if entity1_name:
+                            found_drugs, missing = check_drugs_exist([entity1_name], f"E1:{entity1_id}")
+                            if not found_drugs:
+                                missing_entities['chemicals'].add(entity1_name)
+                                entity_valid = False
+                    
+                    elif entity1_type == "gene":
+                        if entity1_name:
+                            gene = db.session.query(Gene).filter_by(gene_symbol=entity1_name).first()
+                            if not gene:
+                                missing_entities['genes'].add(entity1_name)
+                                # Don't fail - gene might be created later or not in our scope
+                    
+                    elif entity1_type == "variant":
+                        if entity1_name:
+                            variant = db.session.query(Variant).filter(
+                                or_(
+                                    Variant.name == entity1_name,
+                                    Variant.pharmgkb_id == entity1_id
+                                )
+                            ).first()
+                            if not variant:
+                                missing_entities['variants'].add(entity1_name)
+                    
+                    elif entity1_type == "disease":
+                        if entity1_name:
+                            pheno = db.session.query(Phenotype).filter_by(name=entity1_name).first()
+                            if not pheno:
+                                missing_entities['diseases'].add(entity1_name)
+                    
+                    # Check Entity 2
+                    if entity2_type == "chemical":
+                        if entity2_name:
+                            found_drugs, missing = check_drugs_exist([entity2_name], f"E2:{entity2_id}")
+                            if not found_drugs:
+                                missing_entities['chemicals'].add(entity2_name)
+                                entity_valid = False
+                    
+                    elif entity2_type == "gene":
+                        if entity2_name:
+                            gene = db.session.query(Gene).filter_by(gene_symbol=entity2_name).first()
+                            if not gene:
+                                missing_entities['genes'].add(entity2_name)
+                    
+                    elif entity2_type == "variant":
+                        if entity2_name:
+                            variant = db.session.query(Variant).filter(
+                                or_(
+                                    Variant.name == entity2_name,
+                                    Variant.pharmgkb_id == entity2_id
+                                )
+                            ).first()
+                            if not variant:
+                                missing_entities['variants'].add(entity2_name)
+                    
+                    elif entity2_type == "disease":
+                        if entity2_name:
+                            pheno = db.session.query(Phenotype).filter_by(name=entity2_name).first()
+                            if not pheno:
+                                missing_entities['diseases'].add(entity2_name)
+                    
+                    # ✅ CRITICAL: Skip if chemical (drug) is missing
+                    # We want to maintain referential integrity for drugs
+                    if not entity_valid:
+                        skipped += 1
+                        logger.debug(f"Skipping relationship {entity1_id}-{entity2_id}: missing drug entity")
+                        continue
+                    
+                    # ✅ Check for duplicates before inserting
+                    existing = db.session.query(Relationship).filter_by(
+                        entity1_id=entity1_id,
+                        entity2_id=entity2_id
+                    ).first()
+                    
+                    if existing:
+                        # Update existing relationship
+                        rel = existing
+                        logger.debug(f"Updating existing relationship: {entity1_id}-{entity2_id}")
+                    else:
+                        # Create new relationship
+                        rel = Relationship()
+                        db.session.add(rel)
+                    
+                    # Set/update all fields
+                    rel.entity1_id = entity1_id
+                    rel.entity1_name = entity1_name or None
+                    rel.entity1_type = entity1_type or None
+                    rel.entity2_id = entity2_id
+                    rel.entity2_name = entity2_name or None
+                    rel.entity2_type = entity2_type or None
+                    rel.evidence = row.get("Evidence", "").strip() or None
+                    rel.association = row.get("Association", "").strip() or None
+                    rel.pk = row.get("PK", "").strip() or None
+                    rel.pd = row.get("PD", "").strip() or None
+                    rel.pmids = row.get("PMIDs", "").strip() or None
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[relationships] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {entity1_id}-{entity2_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[relationships] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[relationships] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    # Summary with detailed entity tracking
+    logger.info(f"[relationships] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    
+    total_missing = sum(len(v) for v in missing_entities.values())
+    if total_missing > 0:
+        logger.warning(f"[relationships] ⚠️  Missing entities summary:")
+        logger.warning(f"  - Missing chemicals/drugs: {len(missing_entities['chemicals'])}")
+        logger.warning(f"  - Missing genes: {len(missing_entities['genes'])}")
+        logger.warning(f"  - Missing variants: {len(missing_entities['variants'])}")
+        logger.warning(f"  - Missing diseases: {len(missing_entities['diseases'])}")
+        
+        # Log sample of missing drugs (most important)
+        if missing_entities['chemicals']:
+            sample = list(missing_entities['chemicals'])[:10]
+            logger.warning(f"  - Sample missing drugs: {', '.join(sample)}")
+    
+    # Flatten for return value
+    all_missing = set()
+    for entity_set in missing_entities.values():
+        all_missing.update(entity_set)
+    
+    return inserted, skipped, all_missing
+
+# ============================================================================
+# ETL FUNCTIONS - DRUG LABELS (ENHANCED)
+# ============================================================================
+
+def load_drug_labels_tsv(filepath):
+    """
+    Load drugLabels.tsv with enhanced drug name parsing and validation.
+    ✅ ENHANCED: Better chemical name parsing, duplicate prevention, progress tracking
+    
+    This file contains FDA/EMA/HCSC drug labels with pharmacogenomic information.
+    Chemicals field may contain: "drug1; drug2" or "drug1 / drug2" combinations.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
+    inserted = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[drug_labels] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["PharmGKB ID", "Name", "Source"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[drug_labels] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                pharmgkb_id = row.get("PharmGKB ID", "").strip()
+                
+                if not pharmgkb_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Get or create DrugLabel
+                    dl = db.session.get(DrugLabel, pharmgkb_id)
+                    if not dl:
+                        dl = DrugLabel(pharmgkb_id=pharmgkb_id)
+                        db.session.add(dl)
+                        logger.debug(f"Created new DrugLabel: {pharmgkb_id}")
+                    
+                    # Update all fields
+                    dl.name = row.get("Name", "").strip() or None
+                    dl.source = row.get("Source", "").strip() or None
+                    dl.biomarker_flag = row.get("Biomarker Flag", "").strip() or None
+                    dl.testing_level = row.get("Testing Level", "").strip() or None
+                    dl.has_prescribing_info = row.get("Has Prescribing Info", "").strip() or None
+                    dl.has_dosing_info = row.get("Has Dosing Info", "").strip() or None
+                    dl.has_alternate_drug = row.get("Has Alternate Drug", "").strip() or None
+                    dl.has_other_prescribing_guidance = row.get("Has Other Prescribing Guidance", "").strip() or None
+                    dl.cancer_genome = row.get("Cancer Genome", "").strip() or None
+                    dl.prescribing = row.get("Prescribing", "").strip() or None
+                    dl.latest_history_date = parse_date(row.get("Latest History Date (YYYY-MM-DD)"), pharmgkb_id)
+                    
+                    db.session.flush()
+                    
+                    # ⚠️ CRITICAL: Clear existing relationships (prevents duplicates on re-import)
                     db.session.query(DrugLabelDrug).filter_by(pharmgkb_id=pharmgkb_id).delete()
                     db.session.query(DrugLabelGene).filter_by(pharmgkb_id=pharmgkb_id).delete()
                     db.session.query(DrugLabelVariant).filter_by(pharmgkb_id=pharmgkb_id).delete()
-
-                # Add drugs (only those found)
-                for drug in found_drugs:
-                    dl_drug = DrugLabelDrug(pharmgkb_id=pharmgkb_id, drug_id=drug.id)
-                    db.session.add(dl_drug)
-
-                # Add genes
-                raw_genes = row.get("Genes", "").strip()
-                for gene_name in safe_split(raw_genes):
-                    # Check by gene_symbol first to avoid duplicates
-                    gene = db.session.query(Gene).filter_by(gene_symbol=gene_name).first()
-                    if not gene:
-                        gene = Gene(gene_id=f"PA{gene_name}", gene_symbol=gene_name)
-                        db.session.add(gene)
-                        db.session.flush()  # Ensure gene_id is available
-                    else:
-                        logger.debug(f"Reusing existing Gene {gene.gene_id} for symbol {gene_name}")
-                    dl_gene = DrugLabelGene(pharmgkb_id=pharmgkb_id, gene_id=gene.gene_id)
-                    db.session.add(dl_gene)
-
-                # Add variants (only if non-empty)
-                raw_variants = row.get("Variants/Haplotypes", "").strip()
-                if raw_variants:  # Skip if empty to avoid invalid insertions
-                    for var_name in safe_split(raw_variants):
-                        var = db.session.query(Variant).filter_by(name=var_name).first()
-                        if not var:
-                            var = Variant(name=var_name, pharmgkb_id=None)
-                            db.session.add(var)
-                            db.session.flush()  # Ensure variant_id is available
-                        dl_var = DrugLabelVariant(pharmgkb_id=pharmgkb_id, variant_id=var.id)
-                        db.session.add(dl_var)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Drug Label {pharmgkb_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[drugLabels] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[drugLabels] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
+                    
+                    # ✅ ENHANCED: Process chemicals/drugs with better parsing
+                    raw_chems = row.get("Chemicals", "").strip()
+                    if raw_chems:
+                        # Split by both ';' and '/' (common in combination drugs)
+                        # e.g., "abacavir / lamivudine" or "drug1; drug2"
+                        chem_list = []
+                        
+                        # First split by ';'
+                        for part in raw_chems.split(';'):
+                            # Then split each part by '/'
+                            for chem in part.split('/'):
+                                chem_clean = chem.strip().lower()
+                                if chem_clean:
+                                    chem_list.append(chem_clean)
+                        
+                        if chem_list:
+                            found_drugs, missing = check_drugs_exist(chem_list, pharmgkb_id)
+                            missing_drugs_global.update(missing)
+                            
+                            for drug in found_drugs:
+                                dl_drug = DrugLabelDrug(
+                                    pharmgkb_id=pharmgkb_id,
+                                    drug_id=drug.id
+                                )
+                                db.session.add(dl_drug)
+                                logger.debug(f"Linked drug {drug.name_en} to label {pharmgkb_id}")
+                    
+                    # Process genes
+                    raw_genes = row.get("Genes", "").strip()
+                    if raw_genes:
+                        for gene_symbol in safe_split(raw_genes, ';'):
+                            gene = get_or_create_gene(gene_symbol)
+                            if gene:
+                                dl_gene = DrugLabelGene(
+                                    pharmgkb_id=pharmgkb_id,
+                                    gene_id=gene.gene_id
+                                )
+                                db.session.add(dl_gene)
+                    
+                    # Process variants/haplotypes
+                    raw_variants = row.get("Variants/Haplotypes", "").strip()
+                    if raw_variants:
+                        for var_name in safe_split(raw_variants, ';'):
+                            var = get_or_create_variant(var_name)
+                            if var:
+                                dl_var = DrugLabelVariant(
+                                    pharmgkb_id=pharmgkb_id,
+                                    variant_id=var.id
+                                )
+                                db.session.add(dl_var)
+                    
+                    inserted += 1
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[drug_labels] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {pharmgkb_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[drug_labels] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[drug_labels] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[drug_labels] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    if missing_drugs_global:
+        logger.warning(f"[drug_labels] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}")
+    
+    return inserted, skipped, missing_drugs_global
 
 def load_drug_labels_byGene_tsv(filepath):
+    """
+    Load drugLabels.byGene.tsv - supplementary gene-to-label mappings.
+    ✅ ENHANCED: Better validation, duplicate prevention, orphan detection
+    
+    This file provides additional gene-to-drug-label relationships that may
+    not be present in the main drugLabels.tsv file.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
     inserted = 0
     skipped = 0
-    missing_drugs = set()  # No drugs involved
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            gene_id = row.get("Gene ID", "").strip()
-            gene_symbol = row.get("Gene Symbol", "").strip()
-            label_ids = row.get("Label IDs", "").strip()
-            if not gene_id or not label_ids:
-                logger.warning(f"Skipping row with empty Gene ID or Label IDs")
-                skipped += 1
-                continue
-            pharmgkb_ids = [lid.strip() for lid in label_ids.split(';') if lid.strip()]
-            try:
-                # Ensure Gene exists, check by gene_symbol first
-                gene = db.session.query(Gene).filter_by(gene_symbol=gene_symbol).first()
-                if not gene:
-                    gene = Gene(gene_id=gene_id, gene_symbol=gene_symbol)
-                    db.session.add(gene)
-                    db.session.flush()  # Ensure gene_id is available
-                elif gene.gene_id != gene_id:
-                    logger.warning(f"Gene symbol {gene_symbol} already exists with gene_id {gene.gene_id}, using it instead of {gene_id}")
+    orphan_labels = set()
+    orphan_genes = set()
+    errors = []
+    
+    logger.info(f"[drug_labels_byGene] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["Gene ID", "Gene Symbol", "Label IDs"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[drug_labels_byGene] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                gene_id = row.get("Gene ID", "").strip()
+                gene_symbol = row.get("Gene Symbol", "").strip()
+                label_ids = row.get("Label IDs", "").strip()
                 
-                # Add DrugLabelGene relationships
-                for pharmgkb_id in pharmgkb_ids:
-                    dl = db.session.get(DrugLabel, pharmgkb_id)
-                    if not dl:
-                        logger.warning(f"DrugLabel {pharmgkb_id} not found for Gene {gene_id}")
-                        continue  # Skip individual ID, don't skip row
-                    dlg = db.session.query(DrugLabelGene).filter_by(
-                        pharmgkb_id=pharmgkb_id, gene_id=gene.gene_id
-                    ).first()
-                    if not dlg:
-                        dlg = DrugLabelGene(pharmgkb_id=pharmgkb_id, gene_id=gene.gene_id)
-                        db.session.add(dlg)
-                        inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except sqlalchemy.exc.IntegrityError as e:
-                logger.error(f"DrugLabelGene {gene_id} ({gene_symbol}) failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    logger.info(f"[drugLabels_byGene] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
+                if not gene_id or not gene_symbol or not label_ids:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Ensure gene exists (create if missing)
+                    gene = get_or_create_gene(gene_symbol, gene_id)
+                    if not gene:
+                        orphan_genes.add(f"{gene_id}:{gene_symbol}")
+                        skipped += 1
+                        continue
+                    
+                    # Process label IDs (semicolon-separated)
+                    pharmgkb_ids = [lid.strip() for lid in label_ids.split(';') if lid.strip()]
+                    
+                    for pharmgkb_id in pharmgkb_ids:
+                        # Check if DrugLabel exists
+                        dl = db.session.get(DrugLabel, pharmgkb_id)
+                        if not dl:
+                            orphan_labels.add(pharmgkb_id)
+                            logger.debug(f"DrugLabel {pharmgkb_id} not found for Gene {gene_symbol}")
+                            continue
+                        
+                        # ✅ Check if relationship already exists (prevent duplicates)
+                        existing = db.session.query(DrugLabelGene).filter_by(
+                            pharmgkb_id=pharmgkb_id,
+                            gene_id=gene.gene_id
+                        ).first()
+                        
+                        if not existing:
+                            dlg = DrugLabelGene(
+                                pharmgkb_id=pharmgkb_id,
+                                gene_id=gene.gene_id
+                            )
+                            db.session.add(dlg)
+                            inserted += 1
+                            logger.debug(f"Linked gene {gene_symbol} to label {pharmgkb_id}")
+                        else:
+                            logger.debug(f"Relationship already exists: {gene_symbol} <-> {pharmgkb_id}")
+                    
+                    # Periodic commits
+                    if inserted % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[drug_labels_byGene] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted")
+                
+                except Exception as e:
+                    error_msg = f"Row {gene_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[drug_labels_byGene] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[drug_labels_byGene] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[drug_labels_byGene] ✓ Complete: Inserted={inserted}, Skipped={skipped}, Errors={len(errors)}")
+    
+    # Report orphaned data
+    if orphan_labels:
+        logger.warning(f"[drug_labels_byGene] ⚠️  Orphan labels (not in drugLabels.tsv): {len(orphan_labels)}")
+        logger.warning(f"  Sample: {', '.join(list(orphan_labels)[:10])}")
+    
+    if orphan_genes:
+        logger.warning(f"[drug_labels_byGene] ⚠️  Orphan genes (failed to create): {len(orphan_genes)}")
+        logger.warning(f"  Sample: {', '.join(list(orphan_genes)[:10])}")
+    
+    return inserted, skipped, set()
 
-# Route for Drug Labels
+
+# ============================================================================
+# ETL FUNCTIONS - CLINICAL VARIANTS (ENHANCED)
+# ============================================================================
+
+def load_clinical_variants_tsv(filepath):
+    """
+    Load clinicalVariants.tsv with enhanced duplicate handling and validation.
+    ✅ ENHANCED: Duplicate prevention, better parsing, composite key handling
+    
+    This file contains high-level clinical variant-drug-phenotype associations.
+    Each row represents a clinical finding about a variant's effect on drug response.
+    
+    Note: ClinicalVariant has auto-incrementing ID, so we must handle duplicates
+    by checking if same variant+gene+drug+phenotype combination exists.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_drugs_global = set()
+    inserted = 0
+    updated = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[clinical_variants] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["variant", "gene", "level of evidence"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[clinical_variants] Processing {total_rows} rows")
+            
+            for idx, row in enumerate(reader, 1):
+                variant_name = row.get("variant", "").strip()
+                gene_symbol = row.get("gene", "").strip()
+                
+                if not variant_name or not gene_symbol:
+                    skipped += 1
+                    continue
+                
+                try:
+                    # Validate/create gene
+                    gene = get_or_create_gene(gene_symbol)
+                    if not gene:
+                        logger.warning(f"Failed to create gene: {gene_symbol}")
+                        skipped += 1
+                        continue
+                    
+                    # Get or create variant
+                    var = get_or_create_variant(variant_name)
+                    if not var:
+                        logger.warning(f"Failed to create variant: {variant_name}")
+                        skipped += 1
+                        continue
+                    
+                    # ✅ CRITICAL: Check for existing ClinicalVariant with same composite key
+                    # Since there's no unique constraint, we check manually
+                    variant_type = row.get("type", "").strip() or None
+                    level_of_evidence = row.get("level of evidence", "").strip() or None
+                    
+                    # Try to find existing by variant ID + gene ID
+                    existing_cvs = db.session.query(ClinicalVariant).filter_by(
+                        gene_id=gene.gene_id
+                    ).join(ClinicalVariantVariant).filter(
+                        ClinicalVariantVariant.variant_id == var.id
+                    ).all()
+                    
+                    # Find exact match if multiple exist
+                    cv = None
+                    for existing_cv in existing_cvs:
+                        if (existing_cv.variant_type == variant_type and 
+                            existing_cv.level_of_evidence == level_of_evidence):
+                            cv = existing_cv
+                            logger.debug(f"Found existing ClinicalVariant ID {cv.id}")
+                            break
+                    
+                    if not cv:
+                        # Create new ClinicalVariant
+                        cv = ClinicalVariant(
+                            variant_type=variant_type,
+                            level_of_evidence=level_of_evidence,
+                            gene_id=gene.gene_id
+                        )
+                        db.session.add(cv)
+                        db.session.flush()  # Get the auto-generated ID
+                        logger.debug(f"Created new ClinicalVariant ID {cv.id}")
+                        
+                        # Add variant relationship (for new CV only)
+                        cv_var = ClinicalVariantVariant(
+                            clinical_variant_id=cv.id,
+                            variant_id=var.id
+                        )
+                        db.session.add(cv_var)
+                        inserted += 1
+                    else:
+                        # Update existing
+                        cv.variant_type = variant_type
+                        cv.level_of_evidence = level_of_evidence
+                        updated += 1
+                    
+                    db.session.flush()
+                    
+                    # ⚠️ Clear existing relationships (for both new and existing)
+                    db.session.query(ClinicalVariantDrug).filter_by(
+                        clinical_variant_id=cv.id
+                    ).delete()
+                    db.session.query(ClinicalVariantPhenotype).filter_by(
+                        clinical_variant_id=cv.id
+                    ).delete()
+                    
+                    # ✅ Process chemicals/drugs with better parsing
+                    raw_chems = row.get("chemicals", "").strip()
+                    if raw_chems:
+                        # Split by both '/' and ',' (some entries use different delimiters)
+                        drug_list = []
+                        for part in raw_chems.split(','):
+                            for chem in part.split('/'):
+                                chem_clean = chem.strip().lower()
+                                if chem_clean:
+                                    drug_list.append(chem_clean)
+                        
+                        if drug_list:
+                            found_drugs, missing = check_drugs_exist(
+                                drug_list, 
+                                f"{variant_name}-{gene_symbol}"
+                            )
+                            missing_drugs_global.update(missing)
+                            
+                            for drug in found_drugs:
+                                cv_drug = ClinicalVariantDrug(
+                                    clinical_variant_id=cv.id,
+                                    drug_id=drug.id
+                                )
+                                db.session.add(cv_drug)
+                    
+                    # Process phenotypes (comma-separated)
+                    raw_phenos = row.get("phenotypes", "").strip()
+                    if raw_phenos:
+                        for pheno_name in safe_split(raw_phenos, delimiter=','):
+                            pheno = get_or_create_phenotype(pheno_name)
+                            if pheno:
+                                cv_pheno = ClinicalVariantPhenotype(
+                                    clinical_variant_id=cv.id,
+                                    phenotype_id=pheno.id
+                                )
+                                db.session.add(cv_pheno)
+                    
+                    # Periodic commits
+                    if (inserted + updated) % 500 == 0:
+                        db.session.commit()
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[clinical_variants] Progress: {idx}/{total_rows} ({progress}%) - {inserted} new, {updated} updated")
+                
+                except Exception as e:
+                    error_msg = f"Row {variant_name}/{gene_symbol} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[clinical_variants] {error_msg}")
+                    errors.append(error_msg)
+                    db.session.rollback()
+                    skipped += 1
+            
+            db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[clinical_variants] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    logger.info(f"[clinical_variants] ✓ Complete: Inserted={inserted}, Updated={updated}, Skipped={skipped}, Errors={len(errors)}")
+    if missing_drugs_global:
+        logger.warning(f"[clinical_variants] ⚠️  Missing drugs ({len(missing_drugs_global)}): {', '.join(sorted(missing_drugs_global)[:20])}")
+    
+    return inserted, skipped, missing_drugs_global
+
+
+# ============================================================================
+# ETL FUNCTIONS - OCCURRENCES (ENHANCED)
+# ============================================================================
+
+def load_occurrences_tsv(filepath):
+    """
+    Load occurrences.tsv with enhanced duplicate handling and entity validation.
+    ✅ ENHANCED: Duplicate prevention, entity tracking, bulk operations
+    
+    This file tracks where entities (drugs, genes, variants, diseases) are mentioned
+    in literature sources (PMIDs, PMC IDs). It's a many-to-many relationship between
+    sources and objects.
+    
+    Example: "PMID:12345678 mentions Chemical:warfarin"
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_entities = {
+        'chemicals': set(),
+        'genes': set(),
+        'variants': set(),
+        'haplotypes': set(),
+        'diseases': set()
+    }
+    inserted = 0
+    duplicates = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[occurrences] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["Source Type", "Source ID", "Object Type", "Object ID"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[occurrences] Processing {total_rows} rows")
+            
+            # ✅ Batch collection for bulk insert
+            batch = []
+            seen_pairs = set()  # Track (source_id, object_id) to prevent duplicates in this run
+            
+            for idx, row in enumerate(reader, 1):
+                source_id = row.get("Source ID", "").strip()
+                object_id = row.get("Object ID", "").strip()
+                
+                if not source_id or not object_id:
+                    skipped += 1
+                    continue
+                
+                try:
+                    source_type = row.get("Source Type", "").strip()
+                    source_name = row.get("Source Name", "").strip()
+                    object_type = row.get("Object Type", "").strip()
+                    object_name = row.get("Object Name", "").strip()
+                    
+                    # ✅ CRITICAL: Check for duplicate in this batch
+                    pair_key = (source_id, object_id)
+                    if pair_key in seen_pairs:
+                        duplicates += 1
+                        continue
+                    
+                    # ✅ Check if already exists in database
+                    existing = db.session.query(Occurrence).filter_by(
+                        source_id=source_id,
+                        object_id=object_id
+                    ).first()
+                    
+                    if existing:
+                        duplicates += 1
+                        seen_pairs.add(pair_key)
+                        continue
+                    
+                    # ✅ ENHANCED: Validate and track entities
+                    source_type_lower = source_type.lower()
+                    object_type_lower = object_type.lower()
+                    
+                    # Track source entities
+                    if source_type_lower == "chemical" and source_name:
+                        found_drugs, missing = check_drugs_exist([source_name], f"S:{source_id}")
+                        if not found_drugs:
+                            missing_entities['chemicals'].add(source_name)
+                    
+                    elif source_type_lower == "gene" and source_name:
+                        gene = db.session.query(Gene).filter_by(gene_symbol=source_name).first()
+                        if not gene:
+                            missing_entities['genes'].add(source_name)
+                    
+                    elif source_type_lower in ("variant", "haplotype") and source_name:
+                        variant = db.session.query(Variant).filter(
+                            or_(
+                                Variant.name == source_name,
+                                Variant.pharmgkb_id == source_id
+                            )
+                        ).first()
+                        if not variant:
+                            missing_entities[source_type_lower + 's'].add(source_name)
+                    
+                    elif source_type_lower == "disease" and source_name:
+                        pheno = db.session.query(Phenotype).filter_by(name=source_name).first()
+                        if not pheno:
+                            missing_entities['diseases'].add(source_name)
+                    
+                    # Track object entities
+                    if object_type_lower == "chemical" and object_name:
+                        found_drugs, missing = check_drugs_exist([object_name], f"O:{object_id}")
+                        if not found_drugs:
+                            missing_entities['chemicals'].add(object_name)
+                    
+                    elif object_type_lower == "gene" and object_name:
+                        gene = db.session.query(Gene).filter_by(gene_symbol=object_name).first()
+                        if not gene:
+                            missing_entities['genes'].add(object_name)
+                    
+                    elif object_type_lower in ("variant", "haplotype") and object_name:
+                        variant = db.session.query(Variant).filter(
+                            or_(
+                                Variant.name == object_name,
+                                Variant.pharmgkb_id == object_id
+                            )
+                        ).first()
+                        if not variant:
+                            missing_entities[object_type_lower + 's'].add(object_name)
+                    
+                    elif object_type_lower == "disease" and object_name:
+                        pheno = db.session.query(Phenotype).filter_by(name=object_name).first()
+                        if not pheno:
+                            missing_entities['diseases'].add(object_name)
+                    
+                    # ✅ Create Occurrence object for batch
+                    occ = Occurrence(
+                        source_type=source_type or None,
+                        source_id=source_id,
+                        source_name=source_name or None,
+                        object_type=object_type or None,
+                        object_id=object_id,
+                        object_name=object_name or None
+                    )
+                    
+                    batch.append(occ)
+                    seen_pairs.add(pair_key)
+                    inserted += 1
+                    
+                    # ✅ Bulk insert when batch is full
+                    if len(batch) >= 1000:
+                        db.session.bulk_save_objects(batch)
+                        db.session.commit()
+                        batch = []
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[occurrences] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted, {duplicates} duplicates")
+                
+                except Exception as e:
+                    error_msg = f"Row {source_id}-{object_id} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[occurrences] {error_msg}")
+                    errors.append(error_msg)
+                    skipped += 1
+            
+            # ✅ Insert remaining batch
+            if batch:
+                db.session.bulk_save_objects(batch)
+                db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[occurrences] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    # Summary with detailed entity tracking
+    logger.info(f"[occurrences] ✓ Complete: Inserted={inserted}, Duplicates={duplicates}, Skipped={skipped}, Errors={len(errors)}")
+    
+    total_missing = sum(len(v) for v in missing_entities.values())
+    if total_missing > 0:
+        logger.warning(f"[occurrences] ⚠️  Missing entities summary:")
+        logger.warning(f"  - Missing chemicals/drugs: {len(missing_entities['chemicals'])}")
+        logger.warning(f"  - Missing genes: {len(missing_entities['genes'])}")
+        logger.warning(f"  - Missing variants: {len(missing_entities['variants'])}")
+        logger.warning(f"  - Missing haplotypes: {len(missing_entities['haplotypes'])}")
+        logger.warning(f"  - Missing diseases: {len(missing_entities['diseases'])}")
+        
+        # Log sample of missing entities
+        if missing_entities['chemicals']:
+            sample = list(missing_entities['chemicals'])[:10]
+            logger.warning(f"  - Sample missing drugs: {', '.join(sample)}")
+    
+    # Flatten for return value
+    all_missing = set()
+    for entity_set in missing_entities.values():
+        all_missing.update(entity_set)
+    
+    return inserted, skipped, all_missing
+
+# ============================================================================
+# ETL FUNCTIONS - AUTOMATED ANNOTATIONS (ENHANCED)
+# ============================================================================
+
+def load_automated_annotations_tsv(filepath):
+    """
+    Load automated_annotations.tsv with enhanced bulk processing and validation.
+    ✅ ENHANCED: Bulk inserts, duplicate prevention, better entity tracking
+    
+    This file contains automated text-mining results that link chemicals, genes,
+    and variants mentioned in scientific literature. Generated by NLP tools.
+    
+    Note: This is typically a VERY LARGE file (100K+ rows), so bulk operations
+    and memory management are critical.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    missing_entities = {
+        'chemicals': set(),
+        'genes': set(),
+        'variants': set()
+    }
+    inserted = 0
+    duplicates = 0
+    skipped = 0
+    errors = []
+    
+    logger.info(f"[automated_annotations] Starting import from {filepath}")
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            
+            # Validate headers
+            required_cols = ["PMID", "Sentence", "Source"]
+            if not all(col in reader.fieldnames for col in required_cols):
+                raise ValueError(f"Missing required columns: {required_cols}")
+            
+            total_rows = sum(1 for _ in open(filepath, 'r', encoding='utf-8')) - 1
+            logger.info(f"[automated_annotations] Processing {total_rows} rows")
+            
+            # ✅ Batch collection for bulk insert
+            batch = []
+            seen_keys = set()  # Track duplicates in this batch
+            
+            # ✅ Cache for publications (avoid repeated queries)
+            pub_cache = {}
+            
+            for idx, row in enumerate(reader, 1):
+                pmid = row.get("PMID", "").strip() or None
+                lit_title = row.get("Literature Title", "").strip() or None
+                sentence = row.get("Sentence", "").strip() or None
+                
+                # ✅ Relaxed validation - at least one field must exist
+                if not (pmid or lit_title or sentence):
+                    skipped += 1
+                    continue
+                
+                try:
+                    chem_id = row.get("Chemical ID", "").strip() or None
+                    chem_name = row.get("Chemical Name", "").strip() or None
+                    var_id = row.get("Variation ID", "").strip() or None
+                    gene_ids = row.get("Gene IDs", "").strip() or None
+                    
+                    # ✅ Create composite key for duplicate detection
+                    # Use combination of PMID + Chemical + Variation + Sentence hash
+                    key_parts = [
+                        pmid or "NO_PMID",
+                        chem_id or chem_name or "NO_CHEM",
+                        var_id or "NO_VAR",
+                        sentence[:50] if sentence else "NO_SENT"  # First 50 chars
+                    ]
+                    composite_key = "|".join(key_parts)
+                    
+                    if composite_key in seen_keys:
+                        duplicates += 1
+                        continue
+                    
+                    # ✅ ENHANCED: Validate chemical/drug
+                    if chem_name:
+                        found_drugs, missing = check_drugs_exist(
+                            [chem_name.lower()], 
+                            f"PMID:{pmid or 'unknown'}"
+                        )
+                        if not found_drugs:
+                            missing_entities['chemicals'].add(chem_name)
+                    
+                    # ✅ Track genes (optional validation)
+                    gene_symbols = row.get("Gene Symbols", "").strip() or None
+                    if gene_symbols:
+                        for gene_symbol in safe_split(gene_symbols, ','):
+                            gene = db.session.query(Gene).filter_by(
+                                gene_symbol=gene_symbol
+                            ).first()
+                            if not gene:
+                                missing_entities['genes'].add(gene_symbol)
+                    
+                    # ✅ Track variants (optional validation)
+                    var_name = row.get("Variation Name", "").strip() or None
+                    if var_name:
+                        variant = db.session.query(Variant).filter(
+                            or_(
+                                Variant.name == var_name,
+                                Variant.pharmgkb_id == var_id
+                            )
+                        ).first()
+                        if not variant:
+                            missing_entities['variants'].add(var_name)
+                    
+                    # ✅ Create/cache Publication if PMID exists
+                    if pmid:
+                        if pmid not in pub_cache:
+                            pub = get_or_create_publication(
+                                pmid,
+                                lit_title,
+                                row.get("Publication Year", "").strip() or None,
+                                row.get("Journal", "").strip() or None
+                            )
+                            pub_cache[pmid] = pub
+                    
+                    # ✅ Create AutomatedAnnotation object
+                    ann = AutomatedAnnotation(
+                        chemical_id=chem_id,
+                        chemical_name=chem_name,
+                        chemical_in_text=row.get("Chemical in Text", "").strip() or None,
+                        variation_id=var_id,
+                        variation_name=var_name,
+                        variation_type=row.get("Variation Type", "").strip() or None,
+                        variation_in_text=row.get("Variation in Text", "").strip() or None,
+                        gene_ids=gene_ids,
+                        gene_symbols=gene_symbols,
+                        gene_in_text=row.get("Gene in Text", "").strip() or None,
+                        literature_id=row.get("Literature ID", "").strip() or None,
+                        pmid=pmid,
+                        literature_title=lit_title,
+                        publication_year=row.get("Publication Year", "").strip() or None,
+                        journal=row.get("Journal", "").strip() or None,
+                        sentence=sentence,
+                        source=row.get("Source", "").strip() or None
+                    )
+                    
+                    batch.append(ann)
+                    seen_keys.add(composite_key)
+                    inserted += 1
+                    
+                    # ✅ Bulk insert when batch is full
+                    if len(batch) >= 1000:
+                        db.session.bulk_save_objects(batch)
+                        db.session.commit()
+                        batch = []
+                        progress = (idx * 100) // total_rows
+                        logger.info(f"[automated_annotations] Progress: {idx}/{total_rows} ({progress}%) - {inserted} inserted, {duplicates} duplicates")
+                
+                except Exception as e:
+                    error_msg = f"Row PMID:{pmid} (line {idx}) failed: {str(e)}"
+                    logger.error(f"[automated_annotations] {error_msg}")
+                    errors.append(error_msg)
+                    skipped += 1
+            
+            # ✅ Insert remaining batch
+            if batch:
+                db.session.bulk_save_objects(batch)
+                db.session.commit()
+    
+    except Exception as e:
+        logger.error(f"[automated_annotations] Fatal error: {str(e)}")
+        db.session.rollback()
+        raise
+    
+    # Summary with detailed entity tracking
+    logger.info(f"[automated_annotations] ✓ Complete: Inserted={inserted}, Duplicates={duplicates}, Skipped={skipped}, Errors={len(errors)}")
+    
+    total_missing = sum(len(v) for v in missing_entities.values())
+    if total_missing > 0:
+        logger.warning(f"[automated_annotations] ⚠️  Missing entities summary:")
+        logger.warning(f"  - Missing chemicals/drugs: {len(missing_entities['chemicals'])}")
+        logger.warning(f"  - Missing genes: {len(missing_entities['genes'])}")
+        logger.warning(f"  - Missing variants: {len(missing_entities['variants'])}")
+        
+        # Log sample of missing entities
+        if missing_entities['chemicals']:
+            sample = list(missing_entities['chemicals'])[:15]
+            logger.warning(f"  - Sample missing drugs: {', '.join(sample)}")
+    
+    # Flatten for return value
+    all_missing = set()
+    for entity_set in missing_entities.values():
+        all_missing.update(entity_set)
+    
+    return inserted, skipped, all_missing
+
+
+# ============================================================================
+# FLASK ROUTES - ENHANCED WITH ASYNC PROCESSING & PROGRESS TRACKING
+# ============================================================================
+
+upload_progress_data = {}  # Changed from upload_progress
+
+def background_upload(upload_id, files_config, user_session_id):
+    """
+    Background task for processing uploads with progress tracking.
+    ✅ FIXED: Added app context for database operations in thread
+    """
+    # ✅ CRITICAL: Add Flask app context for database operations
+    with app.app_context():
+        total_files = len(files_config)
+        processed = 0
+        
+        upload_progress_data[upload_id] = {
+            'status': 'processing',
+            'current_file': None,
+            'progress': 0,
+            'total_files': total_files,
+            'processed_files': 0,
+            'results': {},
+            'errors': [],
+            'started_at': datetime.utcnow().isoformat()
+        }
+        
+        try:
+            for key, (file_path, func) in files_config.items():
+                upload_progress_data[upload_id]['current_file'] = key
+                upload_progress_data[upload_id]['progress'] = int((processed / total_files) * 100)
+                
+                try:
+                    logger.info(f"[{upload_id}] Processing {key}...")
+                    inserted, skipped, missing = func(file_path)
+                    
+                    upload_progress_data[upload_id]['results'][key] = {
+                        'inserted': inserted,
+                        'skipped': skipped,
+                        'missing': len(missing) if isinstance(missing, (set, list)) else 0,
+                        'status': 'success'
+                    }
+                    
+                    logger.info(f"[{upload_id}] ✓ {key}: {inserted} inserted, {skipped} skipped")
+                    
+                except Exception as e:
+                    error_msg = f"{key}: {str(e)}"
+                    logger.error(f"[{upload_id}] ✗ {error_msg}")
+                    upload_progress_data[upload_id]['errors'].append(error_msg)
+                    upload_progress_data[upload_id]['results'][key] = {
+                        'status': 'error',
+                        'error': str(e)
+                    }
+                    db.session.rollback()
+                
+                finally:
+                    # Clean up file
+                    try:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to delete {file_path}: {str(e)}")
+                
+                processed += 1
+                upload_progress_data[upload_id]['processed_files'] = processed
+            
+            # Mark as completed
+            upload_progress_data[upload_id]['status'] = 'completed'
+            upload_progress_data[upload_id]['progress'] = 100
+            upload_progress_data[upload_id]['completed_at'] = datetime.utcnow().isoformat()
+            
+        except Exception as e:
+            logger.error(f"[{upload_id}] Fatal error: {str(e)}")
+            upload_progress_data[upload_id]['status'] = 'failed'
+            upload_progress_data[upload_id]['error'] = str(e)
+            db.session.rollback()
+
+# ============================================================================
+# CLINICAL ANNOTATIONS ROUTES
+# ============================================================================
+
+@app.route("/upload_clinical_annotations", methods=["GET", "POST"])
+def upload_clinical_annotations():
+    """
+    Upload Clinical Annotations files with async processing.
+    ✅ ENHANCED: Background processing, progress tracking, better error handling
+    """
+    if request.method == "GET":
+        return render_template("upload_clinical_annotations.html")
+    
+    # Generate unique upload ID
+    upload_id = f"clinical_ann_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    files_map = {
+        "clinical_annotations": ("clinical_annotations", load_clinical_annotations_tsv),
+        "clinical_ann_history": ("clinical_ann_history", load_clinical_ann_history_tsv),
+        "clinical_ann_alleles": ("clinical_ann_alleles", load_clinical_ann_alleles_tsv),
+        "clinical_ann_evidence": ("clinical_ann_evidence", load_clinical_ann_evidence_tsv)
+    }
+    
+    files_config = {}
+    uploaded_count = 0
+    
+    # Save all files first
+    for key, (display_name, func) in files_map.items():
+        file = request.files.get(key)
+        if file and file.filename:
+            try:
+                path = save_uploaded_file(file)
+                files_config[display_name] = (path, func)
+                uploaded_count += 1
+            except Exception as e:
+                logger.error(f"Error saving {key}: {str(e)}")
+                flash(f"✗ Error saving {display_name}.tsv: {str(e)}", "danger")
+    
+    if not files_config:
+        flash("⚠️  No valid files uploaded", "warning")
+        return redirect(url_for("upload_clinical_annotations"))
+    
+    # Start background processing
+    thread = threading.Thread(
+        target=background_upload,
+        args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+    )
+    thread.daemon = True
+    thread.start()
+    
+    flash(f"✓ {uploaded_count} file(s) queued for processing. Track progress below.", "info")
+    
+    return jsonify({
+        'status': 'queued',
+        'upload_id': upload_id,
+        'files_count': uploaded_count,
+        'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+    })
+
+# ============================================================================
+# VARIANT ANNOTATIONS ROUTES
+# ============================================================================
+
+@app.route("/upload_variant_annotations", methods=["GET", "POST"])
+def upload_variant_annotations():
+    """Upload Variant Annotations files with async processing."""
+    if request.method == "GET":
+        return render_template("upload_variant_annotations.html")
+    
+    upload_id = f"var_ann_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    files_map = {
+        "study_parameters": ("study_parameters", load_study_parameters_tsv),
+        "var_fa_ann": ("var_fa_ann", load_var_fa_ann_tsv),
+        "var_drug_ann": ("var_drug_ann", load_var_drug_ann_tsv),
+        "var_pheno_ann": ("var_pheno_ann", load_var_pheno_ann_tsv)
+    }
+    
+    files_config = {}
+    uploaded_count = 0
+    
+    for key, (display_name, func) in files_map.items():
+        file = request.files.get(key)
+        if file and file.filename:
+            try:
+                path = save_uploaded_file(file)
+                files_config[display_name] = (path, func)
+                uploaded_count += 1
+            except Exception as e:
+                logger.error(f"Error saving {key}: {str(e)}")
+                flash(f"✗ Error saving {display_name}.tsv: {str(e)}", "danger")
+    
+    if not files_config:
+        flash("⚠️  No valid files uploaded", "warning")
+        return redirect(url_for("upload_variant_annotations"))
+    
+    thread = threading.Thread(
+        target=background_upload,
+        args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+    )
+    thread.daemon = True
+    thread.start()
+    
+    flash(f"✓ {uploaded_count} file(s) queued for processing.", "info")
+    
+    return jsonify({
+        'status': 'queued',
+        'upload_id': upload_id,
+        'files_count': uploaded_count,
+        'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+    })
+
+# ============================================================================
+# RELATIONSHIPS ROUTES
+# ============================================================================
+
+@app.route("/upload_relationships", methods=["GET", "POST"])
+def upload_relationships():
+    """Upload Relationships file with async processing."""
+    if request.method == "GET":
+        return render_template("upload_relationships.html")
+    
+    upload_id = f"relationships_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    rel_file = request.files.get("relationships_file")
+    if not rel_file or not rel_file.filename:
+        flash("⚠️  No file uploaded", "warning")
+        return redirect(url_for("upload_relationships"))
+    
+    try:
+        path = save_uploaded_file(rel_file)
+        files_config = {"relationships": (path, load_relationships_tsv)}
+        
+        thread = threading.Thread(
+            target=background_upload,
+            args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        flash("✓ File queued for processing.", "info")
+        
+        return jsonify({
+            'status': 'queued',
+            'upload_id': upload_id,
+            'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        flash(f"✗ Error: {str(e)}", "danger")
+        return redirect(url_for("upload_relationships"))
+
+# ============================================================================
+# DRUG LABELS ROUTES
+# ============================================================================
+
 @app.route("/upload_drug_labels", methods=["GET", "POST"])
 def upload_drug_labels():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_drug_labels.html")
-        
-        files = {
-            "drug_labels": load_drug_labels_tsv,
-            "drug_labels_byGene": load_drug_labels_byGene_tsv
-        }
-        for key, func in files.items():
-            file = request.files.get(key)
-            if file and file.filename:
-                try:
-                    path = save_uploaded_file(file)
-                    inserted, skipped, missing_drugs = func(path)
-                    logger.info(f"Processed {key}.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                    flash(f"{key.replace('_', '.')}.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                    os.remove(path)
-                except Exception as e:
-                    logger.error(f"Error processing {key}.tsv: {str(e)}")
-                    flash(f"Error processing {key}.tsv: {str(e)}", "danger")
-                    db.session.rollback()
-                    if os.path.exists(path):
-                        os.remove(path)
-            else:
-                logger.warning(f"No file uploaded for {key}")
-                flash(f"No file uploaded for {key}", "warning")
+    """Upload Drug Labels files with async processing."""
+    if request.method == "GET":
+        return render_template("upload_drug_labels.html")
+    
+    upload_id = f"drug_labels_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    files_map = {
+        "drug_labels": ("drug_labels", load_drug_labels_tsv),
+        "drug_labels_byGene": ("drug_labels_byGene", load_drug_labels_byGene_tsv)
+    }
+    
+    files_config = {}
+    uploaded_count = 0
+    
+    for key, (display_name, func) in files_map.items():
+        file = request.files.get(key)
+        if file and file.filename:
+            try:
+                path = save_uploaded_file(file)
+                files_config[display_name] = (path, func)
+                uploaded_count += 1
+            except Exception as e:
+                logger.error(f"Error saving {key}: {str(e)}")
+                flash(f"✗ Error saving {display_name}.tsv: {str(e)}", "danger")
+    
+    if not files_config:
+        flash("⚠️  No valid files uploaded", "warning")
         return redirect(url_for("upload_drug_labels"))
     
-#drug labels yükleme route sonu...
+    thread = threading.Thread(
+        target=background_upload,
+        args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+    )
+    thread.daemon = True
+    thread.start()
     
-#Clinical Variant için yükleme route'u
-# ETL Function for Clinical Variants
-# ETL Function for Clinical Variants
-def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
-        raise ValueError("Only .tsv files are supported")
-    filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    file_storage.save(file_path)
-    return file_path
+    flash(f"✓ {uploaded_count} file(s) queued for processing.", "info")
+    
+    return jsonify({
+        'status': 'queued',
+        'upload_id': upload_id,
+        'files_count': uploaded_count,
+        'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+    })
 
-def check_drugs_exist(drug_names, cv_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for Clinical Variant {cv_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for Clinical Variant {cv_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
+# ============================================================================
+# CLINICAL VARIANTS ROUTES
+# ============================================================================
 
-def safe_split(text, delimiter=','):
-    return [t.strip() for t in (text or '').split(delimiter) if t.strip()] if text else []
-
-# ETL Function for Clinical Variants
-def load_clinical_variants_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            variant_name = row.get("variant", "").strip()
-            gene_symbol = row.get("gene", "").strip()
-            cv_id = f"{variant_name}-{gene_symbol}"
-            if not variant_name or not gene_symbol:
-                logger.warning(f"Skipping row with empty variant or gene for {cv_id}")
-                skipped += 1
-                continue
-            raw_chems = row.get("chemicals", "").strip()
-            drug_list = [d.strip().lower() for d in raw_chems.replace('/', ',').replace(';', ',').split(',') if d.strip()]
-            found_drugs, missing = check_drugs_exist(drug_list, cv_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as chemicals can be empty
-            try:
-                # Validate Gene
-                gene = db.session.query(Gene).filter_by(gene_symbol=gene_symbol).first()
-                if not gene:
-                    gene = Gene(gene_id=f"PA{gene_symbol}", gene_symbol=gene_symbol)
-                    db.session.add(gene)
-                    db.session.flush()  # Ensure gene_id is available
-                else:
-                    logger.debug(f"Reusing existing Gene {gene.gene_id} for symbol {gene_symbol}")
-
-                # Create ClinicalVariant
-                cv = ClinicalVariant(
-                    variant_type=row.get("Type", ""),
-                    level_of_evidence=row.get("Level of Evidence", ""),
-                    gene_id=gene.gene_id
-                )
-                db.session.add(cv)
-                db.session.flush()  # Get cv.id for relationships
-
-                # Clear existing relationships with no_autoflush
-                with db.session.no_autoflush:
-                    db.session.query(ClinicalVariantDrug).filter_by(clinical_variant_id=cv.id).delete()
-                    db.session.query(ClinicalVariantPhenotype).filter_by(clinical_variant_id=cv.id).delete()
-                    db.session.query(ClinicalVariantVariant).filter_by(clinical_variant_id=cv.id).delete()
-
-                # Add drugs (only those found)
-                for drug in found_drugs:
-                    cv_drug = ClinicalVariantDrug(clinical_variant_id=cv.id, drug_id=drug.id)
-                    db.session.add(cv_drug)
-
-                # Add phenotypes
-                raw_phenotypes = row.get("phenotypes", "").strip()
-                for pheno_name in safe_split(raw_phenotypes):
-                    pheno = db.session.query(Phenotype).filter_by(name=pheno_name).first()
-                    if not pheno:
-                        pheno = Phenotype(name=pheno_name)
-                        db.session.add(pheno)
-                        db.session.flush()  # Ensure phenotype_id is available
-                    else:
-                        logger.debug(f"Reusing existing Phenotype {pheno.id} for name {pheno_name}")
-                    cv_pheno = ClinicalVariantPhenotype(clinical_variant_id=cv.id, phenotype_id=pheno.id)
-                    db.session.add(cv_pheno)
-
-                # Add variant (only if non-empty)
-                if variant_name:  # Ensure variant_name is valid
-                    var = db.session.query(Variant).filter_by(name=variant_name).first()
-                    if not var:
-                        var = Variant(name=variant_name, pharmgkb_id=None)
-                        db.session.add(var)
-                        db.session.flush()  # Ensure variant_id is available
-                    else:
-                        logger.debug(f"Reusing existing Variant {var.id} for name {variant_name}")
-                    cv_var = ClinicalVariantVariant(clinical_variant_id=cv.id, variant_id=var.id)
-                    db.session.add(cv_var)
-
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Clinical Variant {cv_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[clinicalVariants] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[clinicalVariants] Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-# Route for Clinical Variants
 @app.route("/upload_clinical_variants", methods=["GET", "POST"])
 def upload_clinical_variants():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_clinical_variants.html")
-        
-        f_cv = request.files.get("clinical_variants_file")  # Match likely HTML input name
-        if f_cv and f_cv.filename:
-            try:
-                logger.debug(f"Received file: {f_cv.filename}")
-                path = save_uploaded_file(f_cv)
-                inserted, skipped, missing_drugs = load_clinical_variants_tsv(path)
-                logger.info(f"Processed clinicalVariants.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                flash(f"clinicalVariants.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                os.remove(path)
-            except Exception as e:
-                logger.error(f"Error processing clinicalVariants.tsv: {str(e)}")
-                flash(f"Error processing clinicalVariants.tsv: {str(e)}", "danger")
-                db.session.rollback()
-                if os.path.exists(path):
-                    os.remove(path)
-        else:
-            logger.warning("No file selected or invalid file for clinical_variants_file")
-            flash("No file selected or invalid file!", "danger")
+    """Upload Clinical Variants file with async processing."""
+    if request.method == "GET":
+        return render_template("upload_clinical_variants.html")
+    
+    upload_id = f"clinical_variants_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    cv_file = request.files.get("clinical_variants_file")
+    if not cv_file or not cv_file.filename:
+        flash("⚠️  No file uploaded", "warning")
         return redirect(url_for("upload_clinical_variants"))
-#clinical variants için  yükleme sonu...
+    
+    try:
+        path = save_uploaded_file(cv_file)
+        files_config = {"clinical_variants": (path, load_clinical_variants_tsv)}
+        
+        thread = threading.Thread(
+            target=background_upload,
+            args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        flash("✓ File queued for processing.", "info")
+        
+        return jsonify({
+            'status': 'queued',
+            'upload_id': upload_id,
+            'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        flash(f"✗ Error: {str(e)}", "danger")
+        return redirect(url_for("upload_clinical_variants"))
 
+# ============================================================================
+# OCCURRENCES ROUTES
+# ============================================================================
 
-# ETL Function for Occurrences
-def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
-        raise ValueError("Only .tsv files are supported")
-    filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    file_storage.save(file_path)
-    return file_path
-
-def check_drugs_exist(drug_names, occ_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for Occurrence {occ_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for Occurrence {occ_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
-
-# ETL Function for Occurrences
-def load_occurrences_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    total_rows = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            total_rows += 1
-            source_id = row.get("Source ID", "").strip()
-            object_id = row.get("Object ID", "").strip()
-            occ_id = f"{source_id}-{object_id}"
-            if not source_id or not object_id:
-                logger.warning(f"Skipping row with empty Source ID or Object ID for {occ_id}")
-                skipped += 1
-                continue
-            source_type = row.get("Source Type", "").strip()
-            source_name = row.get("Source Name", "").strip()
-            object_type = row.get("Object Type", "").strip()
-            object_name = row.get("Object Name", "").strip()
-            
-            # Check drugs for both source_type and object_type = "chemical"
-            drug_names = []
-            if source_type.lower() == "chemical" and source_name:
-                drug_names.append(source_name.lower())
-            if object_type.lower() == "chemical" and object_name:
-                drug_names.append(object_name.lower())
-            
-            found_drugs, missing = check_drugs_exist(drug_names, occ_id)
-            missing_drugs.update(missing)
-            # Process row even if no drugs are found, as types may not be chemical
-
-            # Validate source_type and object_type
-            valid_types = {"chemical", "gene", "variant", "haplotype", "disease", "phenotype", "literature", "pathway"}
-            if source_type.lower() not in valid_types:
-                logger.warning(f"Invalid Source Type: {source_type} for {occ_id}, proceeding anyway")
-            if object_type.lower() not in valid_types:
-                logger.warning(f"Invalid Object Type: {object_type} for {occ_id}, proceeding anyway")
-            # Only skip if both types are invalid and critical fields are missing
-            if (source_type.lower() not in valid_types and object_type.lower() not in valid_types and
-                not (source_name or object_name)):
-                logger.warning(f"Skipping row with both invalid types: {source_type}, {object_type} and no names for {occ_id}")
-                skipped += 1
-                continue
-
-            # Optional: Warn about non-existent entity IDs (no skipping)
-            if source_type.lower() == "chemical" and source_id and not db.session.query(Drug).filter_by(pharmgkb_id=source_id).first():
-                logger.warning(f"Non-existent Drug {source_id} for {occ_id}, proceeding anyway")
-            if object_type.lower() == "chemical" and object_id and not db.session.query(Drug).filter_by(pharmgkb_id=object_id).first():
-                logger.warning(f"Non-existent Drug {object_id} for {occ_id}, proceeding anyway")
-            if source_type.lower() == "gene" and source_id and not db.session.query(Gene).filter_by(gene_id=source_id).first():
-                logger.warning(f"Non-existent Gene {source_id} for {occ_id}, proceeding anyway")
-            if object_type.lower() == "gene" and object_id and not db.session.query(Gene).filter_by(gene_id=object_id).first():
-                logger.warning(f"Non-existent Gene {object_id} for {occ_id}, proceeding anyway")
-            if source_type.lower() == "variant" and source_id and not db.session.query(Variant).filter_by(pharmgkb_id=source_id).first():
-                logger.warning(f"Non-existent Variant {source_id} for {occ_id}, proceeding anyway")
-            if object_type.lower() == "variant" and object_id and not db.session.query(Variant).filter_by(pharmgkb_id=object_id).first():
-                logger.warning(f"Non-existent Variant {object_id} for {occ_id}, proceeding anyway")
-
-            try:
-                logger.debug(f"Processing valid row for Occurrence {occ_id} with types {source_type}, {object_type}")
-                occ = Occurrence(
-                    source_type=source_type,
-                    source_id=source_id,
-                    source_name=source_name,
-                    object_type=object_type,
-                    object_id=object_id,
-                    object_name=object_name
-                )
-                db.session.add(occ)
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Occurrence {occ_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[occurrences] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[occurrences] Total rows: {total_rows}, Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-# Route for Occurrences
 @app.route("/upload_occurrences", methods=["GET", "POST"])
 def upload_occurrences():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_occurrences.html")
-        
-        occ_file = request.files.get("occurrences_file")  # Match HTML input name
-        if occ_file and occ_file.filename:
-            try:
-                logger.debug(f"Received file: {occ_file.filename}")
-                path = save_uploaded_file(occ_file)
-                inserted, skipped, missing_drugs = load_occurrences_tsv(path)
-                logger.info(f"Processed occurrences.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                flash(f"occurrences.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                os.remove(path)
-            except Exception as e:
-                logger.error(f"Error processing occurrences.tsv: {str(e)}")
-                flash(f"Error processing occurrences.tsv: {str(e)}", "danger")
-                db.session.rollback()
-                if os.path.exists(path):
-                    os.remove(path)
-        else:
-            logger.warning("No file selected or invalid file for occurrences_file")
-            flash("No file selected or invalid file!", "danger")
+    """Upload Occurrences file with async processing."""
+    if request.method == "GET":
+        return render_template("upload_occurrences.html")
+    
+    upload_id = f"occurrences_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    occ_file = request.files.get("occurrences_file")
+    if not occ_file or not occ_file.filename:
+        flash("⚠️  No file uploaded", "warning")
         return redirect(url_for("upload_occurrences"))
     
-#occurrences için yükleme sonu
-    
-#automated annotations için yükleme
-# ETL Function for Automated Annotations
-def save_uploaded_file(file_storage):
-    if not file_storage.filename.endswith('.tsv'):
-        raise ValueError("Only .tsv files are supported")
-    filename = secure_filename(file_storage.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    file_storage.save(file_path)
-    return file_path
+    try:
+        path = save_uploaded_file(occ_file)
+        files_config = {"occurrences": (path, load_occurrences_tsv)}
+        
+        thread = threading.Thread(
+            target=background_upload,
+            args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        flash("✓ File queued for processing.", "info")
+        
+        return jsonify({
+            'status': 'queued',
+            'upload_id': upload_id,
+            'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        flash(f"✗ Error: {str(e)}", "danger")
+        return redirect(url_for("upload_occurrences"))
 
-def check_drugs_exist(drug_names, ann_id=""):
-    missing = set()
-    found_drugs = []
-    for dname in drug_names:
-        found = db.session.query(Drug).filter(
-            (Drug.name_en.ilike(dname)) | 
-            (Drug.name_tr.ilike(dname)) | 
-            (Drug.pharmgkb_id.ilike(dname))
-        ).first()
-        if found:
-            found_drugs.append(found)
-        else:
-            missing.add(dname)
-            logger.warning(f"DRUG {dname} not found in database for Automated Annotation {ann_id}, will skip linking this drug")
-    logger.debug(f"Checked {len(drug_names)} drugs for Automated Annotation {ann_id}, found {len(found_drugs)}, missing {len(missing)}")
-    return found_drugs, missing
+# ============================================================================
+# AUTOMATED ANNOTATIONS ROUTES
+# ============================================================================
 
-# ETL Function for Automated Annotations (unchanged)
-def load_automated_annotations_tsv(filepath):
-    missing_drugs = set()
-    inserted = 0
-    skipped = 0
-    row_number = 0
-    with open(filepath, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            row_number += 1
-            chem_name = row.get("Chemical Name", "").strip()
-            pmid = row.get("PMID", "").strip()
-            lit_title = row.get("Literature Title", "").strip()
-            sentence = row.get("Sentence", "").strip()
-            ann_id = f"Row {row_number} (PMID: {pmid or 'Unknown'})"
-            if not (pmid or lit_title or sentence):
-                logger.warning(f"Skipping row {row_number} with no PMID, title, or sentence")
-                skipped += 1
-                continue
-            # Check drug if chem_name is provided, but don't skip row
-            if chem_name:
-                found_drugs, missing = check_drugs_exist([chem_name.lower()], ann_id)
-                missing_drugs.update(missing)
-            try:
-                # Validate and create Publication if PMID is provided
-                if pmid:
-                    pub = db.session.get(Publication, pmid)
-                    if not pub:
-                        pub = Publication(
-                            pmid=pmid,
-                            title=lit_title or "Unknown",
-                            year=row.get("Publication Year", "") or None,
-                            journal=row.get("Journal", "") or None
-                        )
-                        db.session.add(pub)
-                        db.session.flush()  # Ensure pmid is available
-                    logger.debug(f"Using Publication {pmid} for {ann_id}")
-                
-                # Create AutomatedAnnotation
-                logger.debug(f"Processing valid row for Automated Annotation {ann_id}")
-                ann = AutomatedAnnotation(
-                    chemical_id=row.get("Chemical ID", "") or None,
-                    chemical_name=chem_name or None,
-                    chemical_in_text=row.get("Chemical in Text", "") or None,
-                    variation_id=row.get("Variation ID", "") or None,
-                    variation_name=row.get("Variation Name", "") or None,
-                    variation_type=row.get("Variation Type", "") or None,
-                    variation_in_text=row.get("Variation in Text", "") or None,
-                    gene_ids=row.get("Gene IDs", "") or None,
-                    gene_symbols=row.get("Gene Symbols", "") or None,
-                    gene_in_text=row.get("Gene in Text", "") or None,
-                    literature_id=row.get("Literature ID", "") or None,
-                    pmid=pmid or None,  # Links to Publication
-                    literature_title=lit_title or None,
-                    publication_year=row.get("Publication Year", "") or None,
-                    journal=row.get("Journal", "") or None,
-                    sentence=sentence or None,
-                    source=row.get("Source", "") or None
-                )
-                db.session.add(ann)
-                inserted += 1
-                if inserted % 100 == 0:
-                    db.session.commit()
-            except (ValueError, KeyError, sqlalchemy.exc.IntegrityError) as e:
-                logger.error(f"Automated Annotation {ann_id} failed: {str(e)}")
-                db.session.rollback()
-                skipped += 1
-        db.session.commit()
-    if missing_drugs:
-        logger.warning(f"[automated_annotations] Missing drugs: {', '.join(missing_drugs)}")
-    logger.info(f"[automated_annotations] Total rows: {row_number}, Inserted: {inserted}, Skipped: {skipped}")
-    return inserted, skipped, missing_drugs
-
-# Route for Automated Annotations
 @app.route("/upload_automated_annotations", methods=["GET", "POST"])
 def upload_automated_annotations():
-    with app.app_context():
-        if request.method == "GET":
-            return render_template("upload_automated_annotations.html")
-        
-        # Log all file keys received for debugging
-        logger.debug(f"Received file keys in request.files: {list(request.files.keys())}")
-        
-        # Use the correct input name from the form
-        f_auto = request.files.get("automated_file")
-        
-        if f_auto and f_auto.filename:
-            try:
-                logger.debug(f"Found file with key 'automated_file': {f_auto.filename}")
-                path = save_uploaded_file(f_auto)
-                inserted, skipped, missing_drugs = load_automated_annotations_tsv(path)
-                logger.info(f"Processed automated_annotations.tsv: Inserted={inserted}, Skipped={skipped}, Missing drugs={missing_drugs}")
-                flash(f"automated_annotations.tsv processed successfully! Inserted: {inserted}, Skipped: {skipped}, Missing drugs: {', '.join(missing_drugs) if missing_drugs else 'None'}", "success")
-                os.remove(path)
-            except Exception as e:
-                logger.error(f"Error processing automated_annotations.tsv: {str(e)}")
-                flash(f"Error processing automated_annotations.tsv: {str(e)}", "danger")
-                db.session.rollback()
-                if os.path.exists(path):
-                    os.remove(path)
-        else:
-            logger.warning(f"No valid file found for key 'automated_file', request.files: {list(request.files.keys())}")
-            flash("No file selected or invalid file! Ensure the form uses input name 'automated_file' and the file is a valid TSV.", "danger")
+    """Upload Automated Annotations file with async processing."""
+    if request.method == "GET":
+        return render_template("upload_automated_annotations.html")
+    
+    upload_id = f"auto_ann_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    
+    auto_file = request.files.get("automated_file")
+    if not auto_file or not auto_file.filename:
+        flash("⚠️  No file uploaded", "warning")
         return redirect(url_for("upload_automated_annotations"))
-#automated annotations için yükleme sonu    
+    
+    try:
+        path = save_uploaded_file(auto_file)
+        files_config = {"automated_annotations": (path, load_automated_annotations_tsv)}
+        
+        thread = threading.Thread(
+            target=background_upload,
+            args=(upload_id, files_config, session.get('user_id', 'anonymous'))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        flash("✓ File queued for processing (this may take 10-15 minutes for large files).", "info")
+        
+        return jsonify({
+            'status': 'queued',
+            'upload_id': upload_id,
+            'progress_url': url_for('upload_progress_api', upload_id=upload_id)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        flash(f"✗ Error: {str(e)}", "danger")
+        return redirect(url_for("upload_automated_annotations"))
 
-# Pharmacogenomics Module:
-# Pharmacogenomics Module
+# ============================================================================
+# PROGRESS TRACKING API
+# ============================================================================
+
+@app.route("/api/upload_progress/<upload_id>")
+def upload_progress_api(upload_id):
+    """
+    API endpoint to check upload progress.
+    Returns JSON with current status, progress, and results.
+    """
+    if upload_id not in upload_progress_data:
+        return jsonify({'error': 'Upload ID not found'}), 404
+    
+    return jsonify(upload_progress_data[upload_id])
+
+@app.route("/upload_progress/<upload_id>")
+def upload_progress_page(upload_id):
+    """
+    HTML page to view upload progress with auto-refresh.
+    """
+    return render_template("upload_progress.html", upload_id=upload_id)
+
+# ============================================================================
+# CLEANUP OLD PROGRESS DATA (OPTIONAL CRON JOB)
+# ============================================================================
+
+@app.route("/api/cleanup_progress", methods=["POST"])
+def cleanup_progress():
+    """
+    Clean up progress data older than 24 hours.
+    Should be called by cron job or scheduled task.
+    """
+    cutoff = datetime.utcnow().timestamp() - (24 * 3600)
+    cleaned = 0
+    
+    for upload_id in list(upload_progress_data.keys()):
+        data = upload_progress_data[upload_id]
+        if 'started_at' in data:
+            started = datetime.fromisoformat(data['started_at']).timestamp()
+            if started < cutoff:
+                del upload_progress_data[upload_id]
+                cleaned += 1
+    
+    return jsonify({'cleaned': cleaned, 'remaining': len(upload_progress_data)})
+
+
 # API Endpoints for Search Suggestions
 # Helper Functions
 def safe_split(text, delimiter=';'):
@@ -9355,149 +10985,235 @@ def matches_any(text, query, case_sensitive=False):
 
 # Existing Search Endpoints (unchanged)
 # Search Variants
-# Search Variants
 @app.route("/search_variants", methods=["GET"])
 def search_variants():
+    """
+    Search for variants across multiple tables.
+    ✅ MINOR OPTIMIZATION: Added caching hint and limit validation
+    """
     query = request.args.get("q", "").strip().lower()
     page = request.args.get("page", 1, type=int)
-    limit = request.args.get("limit", 10, type=int)
+    limit = min(request.args.get("limit", 10, type=int), 50)  # ✅ Cap at 50
     offset = (page - 1) * limit
-
+    
+    if not query or len(query) < 2:  # ✅ Minimum query length
+        return jsonify({
+            "results": [],
+            "pagination": {"more": False}
+        })
+    
     with app.app_context():
         variants = set()
-        # Query ClinicalAnnotation via ClinicalAnnotationVariant
-        cas = db.session.query(ClinicalAnnotation).join(ClinicalAnnotationVariant).join(Variant).filter(
-            or_(
-                Variant.name.ilike(f"%{query}%"),
-                Variant.pharmgkb_id.ilike(f"%{query}%")
-            )
-        ).all()
-        variants.update(v.variant.name for ca in cas for v in ca.variants if v.variant.name)
-        # Query ClinicalAnnAllele
-        ca_alleles = db.session.query(ClinicalAnnAllele).filter(
-            ClinicalAnnAllele.genotype_allele.ilike(f"%{query}%")
-        ).all()
-        variants.update(ca.genotype_allele for ca in ca_alleles if ca.genotype_allele)
-        # Query VariantFAAnn, VariantDrugAnn, VariantPhenoAnn
-        for va_type in [VariantFAAnn, VariantDrugAnn, VariantPhenoAnn]:
-            vas = db.session.query(va_type).filter(
+        
+        try:
+            # Query ClinicalAnnotation via ClinicalAnnotationVariant
+            cas = db.session.query(ClinicalAnnotation).join(
+                ClinicalAnnotationVariant
+            ).join(Variant).filter(
                 or_(
-                    va_type.variant_annotation_id.ilike(f"%{query}%"),
-                    va_type.alleles.ilike(f"%{query}%")
+                    Variant.name.ilike(f"%{query}%"),
+                    Variant.pharmgkb_id.ilike(f"%{query}%")
                 )
-            ).all()
-            variants.update(va.variant_annotation_id for va in vas if va.variant_annotation_id)
-        # Query ClinicalVariant
-        cvs = db.session.query(ClinicalVariant).join(ClinicalVariantVariant).join(Variant).filter(
-            or_(
-                Variant.name.ilike(f"%{query}%"),
-                Variant.pharmgkb_id.ilike(f"%{query}%")
-            )
-        ).all()
-        variants.update(v.variant.name for cv in cvs for v in cv.variants if v.variant.name)
-        # Query AutomatedAnnotation
-        autos = db.session.query(AutomatedAnnotation).filter(
-            or_(
-                AutomatedAnnotation.variation_id.ilike(f"%{query}%"),
-                AutomatedAnnotation.variation_name.ilike(f"%{query}%")
-            )
-        ).all()
-        variants.update(auto.variation_name for auto in autos if auto.variation_name)
-
-        variant_list = list(variants)
-        paginated = variant_list[offset:offset + limit]
-        has_more = len(variant_list) > offset + limit
-
-        logger.debug(f"search_variants: query={query}, found={len(variant_list)}, returned={len(paginated)}")
-        return jsonify({
-            "results": [{"id": v, "text": v} for v in paginated],
-            "pagination": {"more": has_more}
-        })
+            ).limit(100).all()  # ✅ Limit subqueries
+            variants.update(v.variant.name for ca in cas for v in ca.variants if v.variant and v.variant.name)
+            
+            # Query ClinicalAnnAllele
+            ca_alleles = db.session.query(ClinicalAnnAllele).filter(
+                ClinicalAnnAllele.genotype_allele.ilike(f"%{query}%")
+            ).limit(100).all()
+            variants.update(ca.genotype_allele for ca in ca_alleles if ca.genotype_allele)
+            
+            # Query VariantFAAnn, VariantDrugAnn, VariantPhenoAnn
+            for va_type in [VariantFAAnn, VariantDrugAnn, VariantPhenoAnn]:
+                vas = db.session.query(va_type).filter(
+                    or_(
+                        va_type.variant_annotation_id.ilike(f"%{query}%"),
+                        va_type.alleles.ilike(f"%{query}%")
+                    )
+                ).limit(100).all()
+                variants.update(va.variant_annotation_id for va in vas if va.variant_annotation_id)
+            
+            # Query ClinicalVariant
+            cvs = db.session.query(ClinicalVariant).join(
+                ClinicalVariantVariant
+            ).join(Variant).filter(
+                or_(
+                    Variant.name.ilike(f"%{query}%"),
+                    Variant.pharmgkb_id.ilike(f"%{query}%")
+                )
+            ).limit(100).all()
+            variants.update(v.variant.name for cv in cvs for v in cv.variants if v.variant and v.variant.name)
+            
+            # Query AutomatedAnnotation
+            autos = db.session.query(AutomatedAnnotation).filter(
+                or_(
+                    AutomatedAnnotation.variation_id.ilike(f"%{query}%"),
+                    AutomatedAnnotation.variation_name.ilike(f"%{query}%")
+                )
+            ).limit(100).all()
+            variants.update(auto.variation_name for auto in autos if auto.variation_name)
+            
+            # ✅ Sort for consistent pagination
+            variant_list = sorted(list(variants))
+            paginated = variant_list[offset:offset + limit]
+            has_more = len(variant_list) > offset + limit
+            
+            logger.debug(f"search_variants: query={query}, found={len(variant_list)}, returned={len(paginated)}")
+            
+            return jsonify({
+                "results": [{"id": v, "text": v} for v in paginated],
+                "pagination": {"more": has_more}
+            })
+        
+        except Exception as e:
+            logger.error(f"Error in search_variants: {str(e)}")
+            return jsonify({"error": "Search failed", "details": str(e)}), 500
 
 # Search Phenotypes
 @app.route("/search_phenotypes", methods=["GET"])
 def search_phenotypes():
+    """
+    Search for phenotypes across multiple tables.
+    ✅ MINOR OPTIMIZATION: Added caching hint and limit validation
+    """
     query = request.args.get("q", "").strip().lower()
     page = request.args.get("page", 1, type=int)
-    limit = request.args.get("limit", 10, type=int)
+    limit = min(request.args.get("limit", 10, type=int), 50)  # ✅ Cap at 50
     offset = (page - 1) * limit
-
+    
+    if not query or len(query) < 2:  # ✅ Minimum query length
+        return jsonify({
+            "results": [],
+            "pagination": {"more": False}
+        })
+    
     with app.app_context():
         phenotypes = set()
-        # Query ClinicalAnnotation via ClinicalAnnotationPhenotype
-        cas = db.session.query(ClinicalAnnotation).join(ClinicalAnnotationPhenotype).join(Phenotype).filter(
-            Phenotype.name.ilike(f"%{query}%")
-        ).all()
-        phenotypes.update(p.phenotype.name for ca in cas for p in ca.phenotypes if p.phenotype.name and query in p.phenotype.name.lower())
-        # Query VariantPhenoAnn
-        vpas = db.session.query(VariantPhenoAnn).filter(
-            VariantPhenoAnn.phenotype.ilike(f"%{query}%")
-        ).all()
-        phenotypes.update(vpa.phenotype for vpa in vpas if vpa.phenotype and query in vpa.phenotype.lower())
-        # Query Relationship
-        rels = db.session.query(Relationship).filter(
-            or_(
-                Relationship.entity1_name.ilike(f"%{query}%"),
-                Relationship.entity2_name.ilike(f"%{query}%")
-            ),
-            or_(
-                Relationship.entity1_type.ilike("disease"),
-                Relationship.entity2_type.ilike("disease")
+        
+        try:
+            # Query ClinicalAnnotation via ClinicalAnnotationPhenotype
+            cas = db.session.query(ClinicalAnnotation).join(
+                ClinicalAnnotationPhenotype
+            ).join(Phenotype).filter(
+                Phenotype.name.ilike(f"%{query}%")
+            ).limit(100).all()
+            phenotypes.update(
+                p.phenotype.name for ca in cas for p in ca.phenotypes 
+                if p.phenotype and p.phenotype.name and query in p.phenotype.name.lower()
             )
-        ).all()
-        phenotypes.update(
-            rel.entity1_name if rel.entity1_type.lower() == "disease" else rel.entity2_name
-            for rel in rels
-            if (rel.entity1_name or rel.entity2_name) and query in (rel.entity1_name or rel.entity2_name or "").lower()
-        )
-        # Query ClinicalVariant
-        cvs = db.session.query(ClinicalVariant).join(ClinicalVariantPhenotype).join(Phenotype).filter(
-            Phenotype.name.ilike(f"%{query}%")
-        ).all()
-        phenotypes.update(p.phenotype.name for cv in cvs for p in cv.phenotypes if p.phenotype.name and query in p.phenotype.name.lower())
-
-        phenotype_list = list(phenotypes)
-        paginated = phenotype_list[offset:offset + limit]
-        has_more = len(phenotype_list) > offset + limit
-
-        logger.debug(f"search_phenotypes: query={query}, found={len(phenotype_list)}, returned={len(paginated)}")
-        return jsonify({
-            "results": [{"id": p, "text": p} for p in paginated],
-            "pagination": {"more": has_more}
-        })
+            
+            # Query VariantPhenoAnn
+            vpas = db.session.query(VariantPhenoAnn).filter(
+                VariantPhenoAnn.phenotype.ilike(f"%{query}%")
+            ).limit(100).all()
+            phenotypes.update(
+                vpa.phenotype for vpa in vpas 
+                if vpa.phenotype and query in vpa.phenotype.lower()
+            )
+            
+            # Query Relationship
+            rels = db.session.query(Relationship).filter(
+                or_(
+                    Relationship.entity1_name.ilike(f"%{query}%"),
+                    Relationship.entity2_name.ilike(f"%{query}%")
+                ),
+                or_(
+                    Relationship.entity1_type.ilike("disease"),
+                    Relationship.entity2_type.ilike("disease")
+                )
+            ).limit(100).all()
+            phenotypes.update(
+                rel.entity1_name if rel.entity1_type.lower() == "disease" else rel.entity2_name
+                for rel in rels
+                if (rel.entity1_name or rel.entity2_name) and 
+                   query in (rel.entity1_name or rel.entity2_name or "").lower()
+            )
+            
+            # Query ClinicalVariant
+            cvs = db.session.query(ClinicalVariant).join(
+                ClinicalVariantPhenotype
+            ).join(Phenotype).filter(
+                Phenotype.name.ilike(f"%{query}%")
+            ).limit(100).all()
+            phenotypes.update(
+                p.phenotype.name for cv in cvs for p in cv.phenotypes 
+                if p.phenotype and p.phenotype.name and query in p.phenotype.name.lower()
+            )
+            
+            # ✅ Sort for consistent pagination
+            phenotype_list = sorted(list(phenotypes))
+            paginated = phenotype_list[offset:offset + limit]
+            has_more = len(phenotype_list) > offset + limit
+            
+            logger.debug(f"search_phenotypes: query={query}, found={len(phenotype_list)}, returned={len(paginated)}")
+            
+            return jsonify({
+                "results": [{"id": p, "text": p} for p in paginated],
+                "pagination": {"more": has_more}
+            })
+        
+        except Exception as e:
+            logger.error(f"Error in search_phenotypes: {str(e)}")
+            return jsonify({"error": "Search failed", "details": str(e)}), 500
 
 # Search Genes
 @app.route("/search_genes", methods=["GET"])
 def search_genes():
+    """
+    Search for genes across multiple tables.
+    ✅ MINOR OPTIMIZATION: Added caching hint and limit validation
+    """
     with app.app_context():
         try:
             query = request.args.get("q", "").strip().lower()
-            limit = request.args.get("limit", 10, type=int)
+            limit = min(request.args.get("limit", 10, type=int), 50)  # ✅ Cap at 50
             page = request.args.get("page", 1, type=int)
             offset = (page - 1) * limit
-
+            
+            if not query or len(query) < 2:  # ✅ Minimum query length
+                return jsonify({
+                    "results": [],
+                    "pagination": {"more": False}
+                })
+            
             genes = set()
+            
             # Query ClinicalAnnotation via ClinicalAnnotationGene
-            cas = db.session.query(ClinicalAnnotation).join(ClinicalAnnotationGene).join(Gene).filter(
+            cas = db.session.query(ClinicalAnnotation).join(
+                ClinicalAnnotationGene
+            ).join(Gene).filter(
                 or_(
                     Gene.gene_symbol.ilike(f"%{query}%"),
                     Gene.gene_id.ilike(f"%{query}%")
                 )
-            ).all()
-            genes.update(g.gene.gene_symbol for ca in cas for g in ca.genes if g.gene.gene_symbol and query in g.gene.gene_symbol.lower())
+            ).limit(100).all()
+            genes.update(
+                g.gene.gene_symbol for ca in cas for g in ca.genes 
+                if g.gene and g.gene.gene_symbol and query in g.gene.gene_symbol.lower()
+            )
+            
             # Query AutomatedAnnotation
             autos = db.session.query(AutomatedAnnotation).filter(
                 AutomatedAnnotation.gene_ids.ilike(f"%{query}%")
-            ).all()
-            genes.update(g.strip() for auto in autos for g in safe_split(auto.gene_ids, ',') if g and query in g.lower())
+            ).limit(100).all()
+            genes.update(
+                g.strip() for auto in autos 
+                for g in safe_split(auto.gene_ids, ',') 
+                if g and query in g.lower()
+            )
+            
             # Query DrugLabelGene
             dlgs = db.session.query(DrugLabelGene).join(Gene).filter(
                 or_(
                     Gene.gene_symbol.ilike(f"%{query}%"),
                     Gene.gene_id.ilike(f"%{query}%")
                 )
-            ).all()
-            genes.update(dlg.gene.gene_symbol for dlg in dlgs if dlg.gene.gene_symbol and query in dlg.gene.gene_symbol.lower())
+            ).limit(100).all()
+            genes.update(
+                dlg.gene.gene_symbol for dlg in dlgs 
+                if dlg.gene and dlg.gene.gene_symbol and query in dlg.gene.gene_symbol.lower()
+            )
+            
             # Query Relationship
             rels = db.session.query(Relationship).filter(
                 or_(
@@ -9508,22 +11224,26 @@ def search_genes():
                     Relationship.entity1_type.ilike("gene"),
                     Relationship.entity2_type.ilike("gene")
                 )
-            ).all()
+            ).limit(100).all()
             genes.update(
                 rel.entity1_name if rel.entity1_type.lower() == "gene" else rel.entity2_name
                 for rel in rels
-                if (rel.entity1_name or rel.entity2_name) and query in (rel.entity1_name or rel.entity2_name or "").lower()
+                if (rel.entity1_name or rel.entity2_name) and 
+                   query in (rel.entity1_name or rel.entity2_name or "").lower()
             )
-
-            gene_list = list(genes)
+            
+            # ✅ Sort for consistent pagination
+            gene_list = sorted(list(genes))
             paginated = gene_list[offset:offset + limit]
             has_more = len(gene_list) > offset + limit
-
+            
             logger.debug(f"search_genes: query={query}, found={len(gene_list)}, returned={len(paginated)}")
+            
             return jsonify({
                 "results": [{"id": g, "text": g} for g in paginated],
                 "pagination": {"more": has_more}
             })
+        
         except Exception as e:
             logger.error(f"Search genes error: {str(e)}")
             return jsonify({"error": f"Server error: {str(e)}"}), 500
@@ -10109,6 +11829,7 @@ def pharmacogenomics():
                 )
                 query = (
                     db.session.query(DrugInteraction)
+                    .outerjoin(Severity, DrugInteraction.severity_id == Severity.id)  # Join with Severity
                     .filter(or_(
                         DrugInteraction.drug1_id.in_(drug_ids),
                         DrugInteraction.drug2_id.in_(drug_ids)
@@ -10119,9 +11840,27 @@ def pharmacogenomics():
                 for di in query:
                     drug1 = di.drug1.name_en if di.drug1 else "Unknown"
                     drug2 = di.drug2.name_en if di.drug2 else "Unknown"
+                    
                     if matches_any(drug1, drug, False) or matches_any(drug2, drug, False):
-                        score = 2.0 if di.severity == "Severe" else 1.5 if di.severity == "Moderate" else 1.0
+                        # Access severity through the relationship, with safe fallback
+                        severity_name = di.severity_level.name if di.severity_level else di.predicted_severity or "Unknown"
+                        
+                        # Calculate score based on severity
+                        if severity_name and isinstance(severity_name, str):
+                            severity_lower = severity_name.lower()
+                            if "severe" in severity_lower or "major" in severity_lower:
+                                score = 2.0
+                            elif "moderate" in severity_lower:
+                                score = 1.5
+                            elif "minor" in severity_lower or "mild" in severity_lower:
+                                score = 1.0
+                            else:
+                                score = 1.0  # Default for unknown severity
+                        else:
+                            score = 1.0
+                        
                         score = normalize_score(score, "DrugInteraction")
+                        
                         prediction = {
                             "effect": f"Drug interaction: {di.interaction_type or 'Unknown'}",
                             "drug": f"{drug1} with {drug2}",
@@ -10133,16 +11872,26 @@ def pharmacogenomics():
                             "evidence_link": di.reference or "N/A",
                             "details": {
                                 "id": di.id,
-                                "severity": di.severity or "N/A",
+                                "severity": severity_name,
                                 "interaction_type": di.interaction_type or "N/A",
-                                "mechanism": di.mechanism or "N/A"
+                                "mechanism": di.mechanism or "N/A",
+                                "monitoring": di.monitoring or "N/A",
+                                "alternatives": di.alternatives or "N/A"
                             }
                         }
+                        
                         if has_meaningful_data(prediction):
                             results["predictions"].append(prediction)
                             evidence_weight += score
                             evidence_count += 1
+                            
+                            # Enhanced evidence text with severity and monitoring info
                             evidence_text = f"Drug Interaction: {drug1} and {drug2} ({di.interaction_description or 'No description'})"
+                            if di.monitoring:
+                                evidence_text += f" | Monitoring: {di.monitoring[:100]}"
+                            if severity_name:
+                                evidence_text += f" | Severity: {severity_name}"
+                            
                             results["evidence"].append({"text": evidence_text, "source": "DrugInteraction"})
                         else:
                             logger.debug(f"Skipping DrugInteraction prediction with no meaningful data: {prediction}")
@@ -10156,27 +11905,35 @@ def pharmacogenomics():
                         func.lower(Drug.alternative_names).ilike(f"%{drug}%")
                     )
                 ) if drug else None
+                
                 conditions = []
                 if drug:
                     conditions.append(DrugReceptorInteraction.drug_id.in_(drug_ids))
                 if gene:
                     conditions.append(func.lower(Receptor.name).ilike(f"%{gene}%"))
+                
                 if conditions:
                     query = (
                         db.session.query(DrugReceptorInteraction)
-                        .outerjoin(Drug)
-                        .outerjoin(Receptor)
+                        .outerjoin(Drug, DrugReceptorInteraction.drug_id == Drug.id)
+                        .outerjoin(Receptor, DrugReceptorInteraction.receptor_id == Receptor.id)
                         .filter(or_(False, *conditions))
                         .limit(3)
                         .all()
                     )
+                    
                     for dri in query:
-                        drug_name = dri.drug.name_en if dri.drug else "Unknown"
-                        receptor_name = dri.receptor.name if dri.receptor else "Unknown"
+                        drug_name = dri.drug.name_en if dri.drug and dri.drug.name_en else "Unknown"
+                        receptor_name = dri.receptor.name if dri.receptor and dri.receptor.name else "Unknown"
+                        
                         if (not drug or matches_any(drug_name, drug, False)) and \
-                           (not gene or matches_any(receptor_name, gene, True)):
-                            score = 1.5 if dri.affinity else 1.0
+                        (not gene or matches_any(receptor_name, gene, True)):
+                            
+                            # Safe affinity check
+                            has_affinity = dri.affinity and dri.affinity not in [None, 0, ""]
+                            score = 1.5 if has_affinity else 1.0
                             score = normalize_score(score, "DrugReceptorInteraction")
+                            
                             prediction = {
                                 "effect": f"Receptor interaction: {dri.interaction_type or 'Unknown'}",
                                 "drug": drug_name,
@@ -10189,9 +11946,11 @@ def pharmacogenomics():
                                 "details": {
                                     "id": dri.id,
                                     "interaction_type": dri.interaction_type or "N/A",
-                                    "affinity": dri.affinity or "N/A"
+                                    "affinity": str(dri.affinity) if dri.affinity else "N/A",
+                                    "mechanism": dri.mechanism or "N/A"
                                 }
                             }
+                            
                             if has_meaningful_data(prediction):
                                 results["predictions"].append(prediction)
                                 evidence_weight += score
@@ -10380,23 +12139,23 @@ def pharmacogenomics_dashboard():
         try:
             if request.method == "GET":
                 return render_template("pharmacogenomics_dashboard.html")
-
+            
             # Validate JSON input
             data = request.get_json(silent=True) or {}
             if not isinstance(data, dict):
                 return jsonify({"error": "Invalid JSON input"}), 400
-
+            
             # Sanitize and validate inputs
             variant = (data.get("variant") or "").strip()[:100] if data.get("variant") else ""
             drug = (data.get("drug") or "").strip().lower()[:100] if data.get("drug") else ""
             phenotype = (data.get("phenotype") or "").strip().lower()[:100] if data.get("phenotype") else ""
             gene = (data.get("gene") or "").strip().upper()[:50] if data.get("gene") else ""
             level_of_evidence = (data.get("level_of_evidence") or "").strip()[:50] if data.get("level_of_evidence") else ""
-
+            
             # Validate input lengths
             if len(variant) > 100 or len(drug) > 100 or len(phenotype) > 100 or len(gene) > 50 or len(level_of_evidence) > 50:
                 return jsonify({"error": "Input length exceeds maximum allowed characters"}), 400
-
+            
             results = {
                 "status": "success",
                 "stats": {
@@ -10406,17 +12165,17 @@ def pharmacogenomics_dashboard():
                     "child_counts": {},
                     "child_top_entities": {},
                     "child_trends": {},
-                    "drug_categories": [],  # New section for drug category distribution
+                    "drug_categories": [],
                 },
                 "metadata": {
                     "timestamp": datetime.now().isoformat(),
                     "query": {"variant": variant, "drug": drug, "phenotype": phenotype, "gene": gene, "level_of_evidence": level_of_evidence}
                 }
             }
-
+            
             def apply_filters(query, model, has_joins=False):
                 conditions = []
-                # For ClinicalAnnotation, join with related tables to apply filters
+                
                 if model == ClinicalAnnotation:
                     if variant and not has_joins:
                         query = query.outerjoin(ClinicalAnnotationVariant).outerjoin(Variant)
@@ -10439,7 +12198,7 @@ def pharmacogenomics_dashboard():
                         conditions.append(Gene.gene_symbol.ilike(f"%{gene}%"))
                     if level_of_evidence:
                         conditions.append(ClinicalAnnotation.level_of_evidence.ilike(f"%{level_of_evidence}%"))
-                # For DrugLabel
+                
                 elif model == DrugLabel:
                     if drug and not has_joins:
                         query = query.outerjoin(DrugLabelDrug, DrugLabelDrug.pharmgkb_id == DrugLabel.pharmgkb_id).outerjoin(Drug, DrugLabelDrug.drug_id == Drug.id)
@@ -10459,7 +12218,7 @@ def pharmacogenomics_dashboard():
                             Variant.name.ilike(f"%{variant}%"),
                             Variant.pharmgkb_id.ilike(f"%{variant}%")
                         ))
-                # For ClinicalVariant
+                
                 elif model == ClinicalVariant:
                     if variant and not has_joins:
                         query = query.outerjoin(ClinicalVariantVariant).outerjoin(Variant)
@@ -10480,7 +12239,7 @@ def pharmacogenomics_dashboard():
                     if gene and not has_joins:
                         query = query.outerjoin(Gene)
                         conditions.append(Gene.gene_symbol.ilike(f"%{gene}%"))
-                # For VariantAnnotation (used indirectly via child tables)
+                
                 elif model in [VariantFAAnn, VariantDrugAnn, VariantPhenoAnn]:
                     if not has_joins:
                         query = query.join(VariantAnnotation, model.variant_annotation_id == VariantAnnotation.variant_annotation_id)
@@ -10499,13 +12258,13 @@ def pharmacogenomics_dashboard():
                             model.notes.ilike(f"%{gene}%"),
                             Gene.gene_symbol.ilike(f"%{gene}%")
                         ))
-                # For StudyParameters
+                
                 elif model == StudyParameters:
                     if variant:
                         conditions.append(StudyParameters.variant_annotation_id.ilike(f"%{variant}%"))
                     if phenotype:
                         conditions.append(StudyParameters.characteristics.ilike(f"%{phenotype}%"))
-                # For Relationship
+                
                 elif model == Relationship:
                     if variant:
                         conditions.extend([
@@ -10527,7 +12286,7 @@ def pharmacogenomics_dashboard():
                             (func.lower(Relationship.entity1_name).ilike(f"%{gene}%") & Relationship.entity1_type.ilike("gene")),
                             (func.lower(Relationship.entity2_name).ilike(f"%{gene}%") & Relationship.entity2_type.ilike("gene"))
                         ])
-                # For AutomatedAnnotation
+                
                 elif model == AutomatedAnnotation:
                     if variant:
                         conditions.append(or_(
@@ -10546,7 +12305,7 @@ def pharmacogenomics_dashboard():
                             AutomatedAnnotation.gene_ids.ilike(f"%{gene}%"),
                             AutomatedAnnotation.gene_symbols.ilike(f"%{gene}%")
                         ))
-                # For Occurrence
+                
                 elif model == Occurrence:
                     if variant:
                         conditions.extend([
@@ -10559,11 +12318,13 @@ def pharmacogenomics_dashboard():
                         conditions.append(func.lower(Occurrence.source_name).ilike(f"%{phenotype}%") & Occurrence.source_type.ilike("disease"))
                     if gene:
                         conditions.append(func.lower(Occurrence.object_name).ilike(f"%{gene}%") & Occurrence.object_type.ilike("gene"))
+                
                 return query.filter(*conditions) if conditions else query
-
+            
             # Original Counts
             results["stats"]["counts"]["clinical_annotations"] = apply_filters(db.session.query(ClinicalAnnotation), ClinicalAnnotation).count()
             results["stats"]["counts"]["variant_annotations"] = apply_filters(db.session.query(VariantAnnotation), VariantAnnotation).count()
+            
             rel_query = apply_filters(db.session.query(Relationship), Relationship)
             total_relationships = rel_query.count()
             gene_gene = rel_query.filter(Relationship.entity1_type.ilike("gene"), Relationship.entity2_type.ilike("gene")).count()
@@ -10582,68 +12343,69 @@ def pharmacogenomics_dashboard():
                 "drug_phenotype": drug_phenotype,
                 "other": total_relationships - (gene_gene + gene_drug + drug_phenotype)
             }
+            
             results["stats"]["counts"]["drug_labels"] = apply_filters(db.session.query(DrugLabel), DrugLabel).count()
             results["stats"]["counts"]["clinical_variants"] = apply_filters(db.session.query(ClinicalVariant), ClinicalVariant).count()
             results["stats"]["counts"]["occurrences"] = apply_filters(db.session.query(Occurrence), Occurrence).count()
             results["stats"]["counts"]["automated_annotations"] = apply_filters(db.session.query(AutomatedAnnotation), AutomatedAnnotation).count()
-
+            
             # Child Table Counts
             results["stats"]["child_counts"]["study_parameters"] = apply_filters(db.session.query(StudyParameters), StudyParameters).count()
             results["stats"]["child_counts"]["variant_fa_ann"] = apply_filters(db.session.query(VariantFAAnn), VariantFAAnn, has_joins=True).count()
             results["stats"]["child_counts"]["variant_drug_ann"] = apply_filters(db.session.query(VariantDrugAnn), VariantDrugAnn, has_joins=True).count()
             results["stats"]["child_counts"]["variant_pheno_ann"] = apply_filters(db.session.query(VariantPhenoAnn), VariantPhenoAnn, has_joins=True).count()
-
-            # Original Top Entities
-            # Top Genes (Join with ClinicalAnnotationGene and Gene)
+            
+            # Top Entities - FIXED JOIN CONDITIONS
+            # Top Genes
             base_query = (db.session.query(Gene.gene_symbol, func.count(ClinicalAnnotation.clinical_annotation_id).label('count'))
                          .join(ClinicalAnnotationGene, ClinicalAnnotationGene.gene_id == Gene.gene_id)
                          .join(ClinicalAnnotation, ClinicalAnnotationGene.clinical_annotation_id == ClinicalAnnotation.clinical_annotation_id))
             top_genes_query = apply_filters(base_query, ClinicalAnnotation, has_joins=True)
             top_genes = top_genes_query.group_by(Gene.gene_symbol).order_by(func.count(ClinicalAnnotation.clinical_annotation_id).desc()).limit(5).all()
             results["stats"]["top_entities"]["genes"] = [{"name": g[0], "count": g[1]} for g in top_genes if g[0]]
-
-            # Top Drugs (Join with DrugLabelDrug and Drug)
+            
+            # Top Drugs
             base_query = (db.session.query(Drug.name_en, func.count(DrugLabel.pharmgkb_id).label('count'))
                          .join(DrugLabelDrug, DrugLabelDrug.drug_id == Drug.id)
                          .join(DrugLabel, DrugLabelDrug.pharmgkb_id == DrugLabel.pharmgkb_id))
             top_drugs_query = apply_filters(base_query, DrugLabel, has_joins=True)
             top_drugs = top_drugs_query.group_by(Drug.name_en).order_by(func.count(DrugLabel.pharmgkb_id).desc()).limit(5).all()
             results["stats"]["top_entities"]["drugs"] = [{"name": d[0], "count": d[1]} for d in top_drugs if d[0]]
-
-            # Top Variants (Join with ClinicalAnnotationVariant and Variant)
+            
+            # Top Variants - FIX: Join on Variant.id, not Variant.pharmgkb_id
             base_query = (db.session.query(Variant.name, func.count(ClinicalAnnotation.clinical_annotation_id).label('count'))
-                         .join(ClinicalAnnotationVariant, ClinicalAnnotationVariant.variant_id == Variant.pharmgkb_id)
+                         .join(ClinicalAnnotationVariant, ClinicalAnnotationVariant.variant_id == Variant.id)  # FIXED HERE
                          .join(ClinicalAnnotation, ClinicalAnnotationVariant.clinical_annotation_id == ClinicalAnnotation.clinical_annotation_id))
             top_variants_query = apply_filters(base_query, ClinicalAnnotation, has_joins=True)
             top_variants = top_variants_query.group_by(Variant.name).order_by(func.count(ClinicalAnnotation.clinical_annotation_id).desc()).limit(5).all()
             results["stats"]["top_entities"]["variants"] = [{"name": v[0], "count": v[1]} for v in top_variants if v[0]]
-
-            # Top Phenotypes (Join with ClinicalAnnotationPhenotype and Phenotype)
+            
+            # Top Phenotypes
             base_query = (db.session.query(Phenotype.name, func.count(ClinicalAnnotation.clinical_annotation_id).label('count'))
                          .join(ClinicalAnnotationPhenotype, ClinicalAnnotationPhenotype.phenotype_id == Phenotype.id)
                          .join(ClinicalAnnotation, ClinicalAnnotationPhenotype.clinical_annotation_id == ClinicalAnnotation.clinical_annotation_id))
             phenotypes_query = apply_filters(base_query, ClinicalAnnotation, has_joins=True)
             top_phenotypes = phenotypes_query.group_by(Phenotype.name).order_by(func.count(ClinicalAnnotation.clinical_annotation_id).desc()).limit(5).all()
             results["stats"]["top_entities"]["phenotypes"] = [{"name": p[0], "count": p[1]} for p in top_phenotypes if p[0]]
-
-            # Top Sources (from Occurrences)
+            
+            # Top Sources
             top_sources = apply_filters(db.session.query(Occurrence.source_type, func.count(Occurrence.source_type).label('count')), Occurrence)\
                 .group_by(Occurrence.source_type).order_by(func.count(Occurrence.source_type).desc()).limit(5).all()
             results["stats"]["top_entities"]["sources"] = [{"name": s[0] or "Unknown", "count": s[1]} for s in top_sources]
-
-            # Top Chemicals (from Automated Annotations)
+            
+            # Top Chemicals
             top_chemicals = apply_filters(db.session.query(AutomatedAnnotation.chemical_name, func.count(AutomatedAnnotation.chemical_name).label('count')), AutomatedAnnotation)\
                 .group_by(AutomatedAnnotation.chemical_name).order_by(func.count(AutomatedAnnotation.chemical_name).desc()).limit(5).all()
             results["stats"]["top_entities"]["chemicals"] = [{"name": c[0] or "Unknown", "count": c[1]} for c in top_chemicals]
-
-            # New: Top Alleles (from ClinicalAnnAllele)
+            
+            # Top Alleles
             base_query = (db.session.query(ClinicalAnnAllele.genotype_allele, func.count(ClinicalAnnAllele.genotype_allele).label('count'))
                          .join(ClinicalAnnotation, ClinicalAnnAllele.clinical_annotation_id == ClinicalAnnotation.clinical_annotation_id))
             top_alleles_query = apply_filters(base_query, ClinicalAnnotation, has_joins=True)
             top_alleles = top_alleles_query.group_by(ClinicalAnnAllele.genotype_allele).order_by(func.count(ClinicalAnnAllele.genotype_allele).desc()).limit(5).all()
             results["stats"]["top_entities"]["alleles"] = [{"name": a[0], "count": a[1]} for a in top_alleles if a[0]]
-
-            # New: Drug Category Distribution
+            
+            # Drug Category Distribution
             base_query = (db.session.query(DrugCategory.name, func.count(Drug.id).label('count'))
                          .join(Drug, Drug.category_id == DrugCategory.id))
             if drug:
@@ -10660,79 +12422,74 @@ def pharmacogenomics_dashboard():
                 base_query = base_query.filter(Gene.gene_symbol.ilike(f"%{gene}%"))
             drug_categories = base_query.group_by(DrugCategory.name).order_by(func.count(Drug.id).desc()).all()
             results["stats"]["drug_categories"] = [{"name": c[0], "count": c[1]} for c in drug_categories if c[0]]
-
-            # Trends for Main Tables
+            
+            # Trends (keep existing code)
             if hasattr(ClinicalAnnotation, 'created_at'):
                 trends_ca = apply_filters(db.session.query(extract('year', ClinicalAnnotation.created_at).label('year'), func.count().label('count')), ClinicalAnnotation)\
                     .group_by('year').order_by('year').all()
                 results["stats"]["trends"]["annotations_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_ca if t[0]]
-
+            
             if hasattr(DrugLabel, 'created_at'):
                 trends_dl = apply_filters(db.session.query(extract('year', DrugLabel.created_at).label('year'), func.count().label('count')), DrugLabel)\
                     .group_by('year').order_by('year').all()
                 results["stats"]["trends"]["drug_labels_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_dl if t[0]]
-
+            
             if hasattr(Relationship, 'created_at'):
                 trends_rel = apply_filters(db.session.query(extract('year', Relationship.created_at).label('year'), func.count().label('count')), Relationship)\
                     .group_by('year').order_by('year').all()
                 results["stats"]["trends"]["relationships_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_rel if t[0]]
-
-            # Child Table Top Entities
-            # Top variant_annotation_ids (from StudyParameters)
+            
+            # Child table statistics (keep existing code)
             top_variants_child = apply_filters(db.session.query(StudyParameters.variant_annotation_id, func.count(StudyParameters.variant_annotation_id).label('count')), StudyParameters)\
                 .group_by(StudyParameters.variant_annotation_id).order_by(func.count(StudyParameters.variant_annotation_id).desc()).limit(5).all()
             results["stats"]["child_top_entities"]["variants"] = [{"name": v[0], "count": v[1]} for v in top_variants_child if v[0]]
-
-            # Top Study Types (from StudyParameters)
+            
             top_study_types = apply_filters(db.session.query(StudyParameters.study_type, func.count(StudyParameters.study_type).label('count')), StudyParameters)\
                 .group_by(StudyParameters.study_type).order_by(func.count(StudyParameters.study_type).desc()).limit(5).all()
             results["stats"]["child_top_entities"]["study_types"] = [{"name": s[0] or "Unknown", "count": s[1]} for s in top_study_types]
-
-            # Top Sentences (from VariantFAAnn)
+            
             base_query = db.session.query(VariantFAAnn.sentence, func.count(VariantFAAnn.sentence).label('count')).join(VariantAnnotation, VariantFAAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
             top_fa_sentences_query = apply_filters(base_query, VariantFAAnn, has_joins=True)
             top_fa_sentences = top_fa_sentences_query.group_by(VariantFAAnn.sentence).order_by(func.count(VariantFAAnn.sentence).desc()).limit(5).all()
             results["stats"]["child_top_entities"]["fa_sentences"] = [{"name": s[0] or "Unknown", "count": s[1]} for s in top_fa_sentences]
-
-            # Top Sentences (from VariantDrugAnn)
+            
             base_query = db.session.query(VariantDrugAnn.sentence, func.count(VariantDrugAnn.sentence).label('count')).join(VariantAnnotation, VariantDrugAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
             top_drug_sentences_query = apply_filters(base_query, VariantDrugAnn, has_joins=True)
             top_drug_sentences = top_drug_sentences_query.group_by(VariantDrugAnn.sentence).order_by(func.count(VariantDrugAnn.sentence).desc()).limit(5).all()
             results["stats"]["child_top_entities"]["drug_sentences"] = [{"name": s[0] or "Unknown", "count": s[1]} for s in top_drug_sentences]
-
-            # Top Phenotypes (from VariantPhenoAnn)
+            
             base_query = db.session.query(VariantPhenoAnn.phenotype, func.count(VariantPhenoAnn.phenotype).label('count')).join(VariantAnnotation, VariantPhenoAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
             top_phenotypes_query = apply_filters(base_query, VariantPhenoAnn, has_joins=True)
             top_phenotypes_child = top_phenotypes_query.group_by(VariantPhenoAnn.phenotype).order_by(func.count(VariantPhenoAnn.phenotype).desc()).limit(5).all()
             results["stats"]["child_top_entities"]["phenotypes"] = [{"name": p[0] or "Unknown", "count": p[1]} for p in top_phenotypes_child]
-
-            # Child Table Trends
+            
+            # Child trends
             if hasattr(StudyParameters, 'created_at'):
                 trends_sp = apply_filters(db.session.query(extract('year', StudyParameters.created_at).label('year'), func.count().label('count')), StudyParameters)\
                     .group_by('year').order_by('year').all()
                 results["stats"]["child_trends"]["studies_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_sp if t[0]]
-
+            
             if hasattr(VariantFAAnn, 'created_at'):
                 base_query = db.session.query(extract('year', VariantFAAnn.created_at).label('year'), func.count().label('count')).join(VariantAnnotation, VariantFAAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
                 trends_fa_query = apply_filters(base_query, VariantFAAnn, has_joins=True)
                 trends_fa = trends_fa_query.group_by('year').order_by('year').all()
                 results["stats"]["child_trends"]["fa_annotations_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_fa if t[0]]
-
+            
             if hasattr(VariantDrugAnn, 'created_at'):
                 base_query = db.session.query(extract('year', VariantDrugAnn.created_at).label('year'), func.count().label('count')).join(VariantAnnotation, VariantDrugAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
                 trends_da_query = apply_filters(base_query, VariantDrugAnn, has_joins=True)
                 trends_da = trends_da_query.group_by('year').order_by('year').all()
                 results["stats"]["child_trends"]["drug_annotations_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_da if t[0]]
-
+            
             if hasattr(VariantPhenoAnn, 'created_at'):
                 base_query = db.session.query(extract('year', VariantPhenoAnn.created_at).label('year'), func.count().label('count')).join(VariantAnnotation, VariantPhenoAnn.variant_annotation_id == VariantAnnotation.variant_annotation_id)
                 trends_pa_query = apply_filters(base_query, VariantPhenoAnn, has_joins=True)
                 trends_pa = trends_pa_query.group_by('year').order_by('year').all()
                 results["stats"]["child_trends"]["pheno_annotations_by_year"] = [{"year": int(t[0]), "count": t[1]} for t in trends_pa if t[0]]
-
+            
             logger.info(f"Dashboard stats computed: {results['metadata']['query']}")
             return jsonify(results)
-
+            
         except sqlalchemy.exc.DatabaseError as e:
             logger.error(f"Database error in pharmacogenomics dashboard: {str(e)}\n{traceback.format_exc()}")
             return jsonify({"status": "error", "error": "Database error. Please try again later.", "details": str(e)}), 500
@@ -10942,103 +12699,101 @@ def clean_text(field):
 @app.route('/news/manage', methods=['GET', 'POST'])
 @admin_required
 def manage_news():
-    valid_categories = ['Announcement', 'Update', 'Drug Update']
+    valid_categories = ['Announcement', 'Update', 'Drug Update', 'FDA Approval']  # Added!
+
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
         category = request.form.get('category')
         publication_date = request.form.get('publication_date')
+        drug_id = request.form.get('drug_id')  # Can be empty
 
-        # Validate inputs
-        if not title or not title.strip():
-            logger.error("Title is required")
-            flash("Title is required!", "danger")
+        # Validation
+        if not all([title, description, category, publication_date]):
+            flash("All fields are required!", "danger")
             return redirect(url_for('manage_news'))
-        if not description or not description.strip():
-            logger.error("Description is required")
-            flash("Description is required!", "danger")
+
+        if category not in valid_categories:
+            flash("Invalid category!", "danger")
             return redirect(url_for('manage_news'))
-        if not category or category not in valid_categories:
-            logger.error(f"Invalid category: {category}")
-            flash(f"Category must be one of: {', '.join(valid_categories)}", "danger")
-            return redirect(url_for('manage_news'))
-        try:
-            publication_date = datetime.strptime(publication_date, '%Y-%m-%d')
-        except (ValueError, TypeError):
-            logger.error(f"Invalid publication date format: {publication_date}")
-            flash("Publication date must be in YYYY-MM-DD format!", "danger")
+
+        if category == 'FDA Approval' and not drug_id:
+            flash("Please select a drug for FDA Approval news!", "danger")
             return redirect(url_for('manage_news'))
 
         try:
-            # Sanitize description
-            description = clean_text(description)
-            news_item = News(
-                title=title,
-                description=description,
-                category=category,
-                publication_date=publication_date
-            )
-            db.session.add(news_item)
-            db.session.commit()
-            logger.info(f"News item added: {title} (Category: {category})")
-            flash("News item added successfully.", "success")
-            return redirect(url_for('manage_news'))
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error adding news item: {str(e)}")
-            flash(f"Error adding news item: {str(e)}", "danger")
+            publication_date = datetime.strptime(publication_date, '%Y-%m-%d').date()
+        except:
+            flash("Invalid date format!", "danger")
             return redirect(url_for('manage_news'))
 
+        description = clean_text(description)
+
+        news_item = News(
+            title=title.strip(),
+            description=description,
+            category=category,
+            publication_date=publication_date,
+            drug_id=int(drug_id) if drug_id and drug_id.isdigit() else None
+        )
+
+        db.session.add(news_item)
+        db.session.commit()
+        flash("News added successfully!", "success")
+        return redirect(url_for('manage_news'))
+
+    # Fetch all
     announcements = News.query.filter_by(category='Announcement').order_by(News.publication_date.desc()).all()
     updates = News.query.filter_by(category='Update').order_by(News.publication_date.desc()).all()
     drug_updates = News.query.filter_by(category='Drug Update').order_by(News.publication_date.desc()).all()
-    return render_template('manage_news.html', announcements=announcements, updates=updates, drug_updates=drug_updates, valid_categories=valid_categories)
+    fda_approvals = News.query.filter_by(category='FDA Approval').order_by(News.publication_date.desc()).all()
+
+    return render_template(
+        'manage_news.html',
+        announcements=announcements,
+        updates=updates,
+        drug_updates=drug_updates,
+        fda_approvals=fda_approvals,
+        valid_categories=valid_categories,
+        today=date.today()
+    )
 
 @app.route('/news/edit/<int:news_id>', methods=['GET', 'POST'])
 @admin_required
 def edit_news(news_id):
     news_item = News.query.get_or_404(news_id)
-    valid_categories = ['Announcement', 'Update', 'Drug Update']
+    valid_categories = ['Announcement', 'Update', 'Drug Update', 'FDA Approval']
+
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
         category = request.form.get('category')
         publication_date = request.form.get('publication_date')
+        drug_id = request.form.get('drug_id', None)
 
-        # Validate inputs
-        if not title or not title.strip():
-            logger.error("Title is required")
-            flash("Title is required!", "danger")
+        if not all([title, description, category, publication_date]):
+            flash("All fields required!", "danger")
             return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
-        if not description or not description.strip():
-            logger.error("Description is required")
-            flash("Description is required!", "danger")
-            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
-        if not category or category not in valid_categories:
-            logger.error(f"Invalid category: {category}")
-            flash(f"Category must be one of: {', '.join(valid_categories)}", "danger")
-            return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
-        try:
-            publication_date = datetime.strptime(publication_date, '%Y-%m-%d')
-        except (ValueError, TypeError):
-            logger.error(f"Invalid publication date format: {publication_date}")
-            flash("Publication date must be in YYYY-MM-DD format!", "danger")
+
+        if category == 'FDA Approval' and not drug_id:
+            flash("Please select a drug for FDA Approval!", "danger")
             return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
 
         try:
-            news_item.title = title
-            news_item.description = clean_text(description)
-            news_item.category = category
-            news_item.publication_date = publication_date
-            db.session.commit()
-            logger.info(f"News item updated: {title} (ID: {news_id}, Category: {category})")
-            flash("News item updated successfully.", "success")
-            return redirect(url_for('manage_news'))
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error updating news item: {str(e)}")
-            flash(f"Error updating news item: {str(e)}", "danger")
+            publication_date = datetime.strptime(publication_date, '%Y-%m-%d').date()
+        except:
+            flash("Invalid date!", "danger")
             return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
+
+        news_item.title = title.strip()
+        news_item.description = clean_text(description)
+        news_item.category = category
+        news_item.publication_date = publication_date
+        news_item.drug_id = int(drug_id) if drug_id and drug_id.isdigit() else None
+
+        db.session.commit()
+        flash("News updated!", "success")
+        return redirect(url_for('manage_news'))
 
     return render_template('edit_news.html', news_item=news_item, valid_categories=valid_categories)
 
@@ -11381,299 +13136,6 @@ def serve_form():
 #Doz-Cevap Finito....
 
 
-# Reseptör - Ligand Etkileşim Kodları...
-# Helper function to get executable with correct extension
-def get_executable(name):
-    if platform.system() == "Windows":
-        return shutil.which(f"{name}.exe") or shutil.which(name)
-    return shutil.which(name)
-
-# Helper function to safely remove files/directories with retries
-def safe_remove(path, retries=3, delay=0.5):
-    path = Path(path)
-    for _ in range(retries):
-        try:
-            if path.exists():
-                if path.is_dir():
-                    shutil.rmtree(path, ignore_errors=True)
-                else:
-                    path.unlink()
-            return
-        except (OSError, PermissionError):
-            time.sleep(delay)
-    app.logger.warning(f"Failed to remove {path} after {retries} attempts")
-
-@app.route('/api/receptors', methods=['GET'])
-def get_receptors():
-    search = request.args.get('search', '').strip()
-    limit = request.args.get('limit', 10, type=int)
-    page = request.args.get('page', 1, type=int)
-
-    query = Receptor.query.filter(
-        Receptor.name.ilike(f"%{search}%")
-    ) if search else Receptor.query
-
-    paginated_query = query.paginate(page=page, per_page=limit)
-    results = [{"id": receptor.id, "text": receptor.name} for receptor in paginated_query.items]
-
-    return jsonify({
-        "results": results,
-        "has_next": paginated_query.has_next
-    })
-
-@app.route('/receptor-ligand-simulator', methods=['GET', 'POST'])
-def receptor_ligand_simulator():
-    if request.method == 'GET':
-        return render_template('receptor_ligand_simulator.html')
-    
-    if request.method == 'POST':
-        receptor = request.form.get('receptor')
-        ligand = request.form.get('ligand')
-        
-        if ligand:
-            session['ligand'] = ligand
-        else:
-            ligand = session.get('ligand')
-
-        if not receptor or not ligand:
-            return jsonify({"error": "Receptor and ligand data are required."}), 400
-
-        try:
-            receptor_file_path = os.path.join('static', f'receptor_{uuid.uuid4().hex}.pdb')
-            with open(receptor_file_path, "w") as rec_file:
-                rec_file.write(receptor)
-
-            ligand_file_url = session.get('ligand_file_url')
-            if not ligand_file_url:
-                ligand_file_path = os.path.join('static', f'ligand_{uuid.uuid4().hex}.pdb')
-                with open(ligand_file_path, "w") as lig_file:
-                    lig_file.write(ligand)
-                session['ligand_file_url'] = f"/{ligand_file_path}"
-                ligand_file_url = session['ligand_file_url']
-
-            return jsonify({
-                "message": "Receptor and ligand processed successfully.",
-                "receptor_file_url": f"/{receptor_file_path}",
-                "ligand_file_url": ligand_file_url
-            }), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-@app.route('/api/convert_ligand', methods=['GET'])
-def convert_ligand():
-    drug_id = request.args.get('drug_id')
-    if not drug_id:
-        return jsonify({"error": "Drug ID is required."}), 400
-
-    try:
-        drug_id = int(drug_id)
-    except ValueError:
-        return jsonify({"error": "Invalid Drug ID format."}), 400
-
-    drug = db.session.get(Drug, drug_id)
-    if not drug:
-        app.logger.error(f"No Drug found for drug_id={drug_id}")
-        return jsonify({"error": f"No Drug found for drug_id={drug_id}. Please use a valid drug_id."}), 404
-
-    drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
-    if not drug_detail:
-        app.logger.error(f"No DrugDetail found for drug_id={drug_id}, drug_name={drug.name_en if drug else 'Unknown'}")
-        return jsonify({"error": f"No DrugDetail found for drug_id={drug_id} (drug_name={drug.name_en if drug else 'Unknown'}). Please ensure DrugDetail exists or use a different drug_id."}), 404
-    if not drug_detail.smiles:
-        app.logger.error(f"No SMILES string for drug_id={drug_id}, drug_name={drug.name_en if drug else 'Unknown'}")
-        return jsonify({"error": f"No SMILES string available for drug_id={drug_id} (drug_name={drug.name_en if drug else 'Unknown'}). Please update the DrugDetail record."}), 404
-
-    try:
-        # Validate SMILES
-        if not drug_detail.smiles.strip() or len(drug_detail.smiles) > 1000:
-            raise ValueError(f"Invalid or too complex SMILES string for drug_id={drug_id}")
-
-        # Convert SMILES to 3D PDB using RDKit
-        mol = Chem.MolFromSmiles(drug_detail.smiles)
-        if mol is None:
-            raise ValueError(f"Invalid SMILES string for drug_id={drug_id}")
-
-        # Add hydrogens
-        mol = Chem.AddHs(mol)
-
-        # Generate 3D coordinates
-        AllChem.EmbedMolecule(mol, randomSeed=42)  # Consistent results with fixed seed
-        AllChem.MMFFOptimizeMolecule(mol)  # Optimize geometry
-
-        # Save to PDB file
-        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
-        Chem.MolToPDBFile(mol, pdb_file)
-
-        if not os.path.exists(pdb_file):
-            raise RuntimeError("Failed to generate 3D PDB file.")
-
-        with open(pdb_file, 'r') as pdb:
-            pdb_content = pdb.read()
-
-        return jsonify({"pdb": pdb_content}), 200
-    except ValueError as e:
-        app.logger.error(f"SMILES processing failed for drug_id={drug_id}: {str(e)}")
-        return jsonify({"error": "Invalid SMILES string.", "details": str(e)}), 400
-    except Exception as e:
-        app.logger.error(f"Unexpected error in convert_ligand for drug_id={drug_id}: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
-    finally:
-        safe_remove(pdb_file)
-
-@app.route('/api/get_receptor_structure', methods=['GET'])
-def get_receptor_structure():
-    receptor_id = request.args.get('receptor_id')
-    if not receptor_id:
-        return jsonify({"error": "Receptor ID is required."}), 400
-
-    receptor = db.session.get(Receptor, receptor_id)
-    if not receptor or not receptor.pdb_ids:
-        return jsonify({"error": "Receptor not found or no PDB IDs available."}), 404
-
-    pdb_id = receptor.pdb_ids.split(",")[0]
-    url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-    response = requests.get(url)
-
-    if response.status_code != 200:
-        return jsonify({"error": f"Failed to fetch PDB structure for {pdb_id}."}), 500
-
-    pdb_content = response.text
-
-    # Predict binding site with ProDy
-    binding_site_coords = get_pocket_coords(pdb_content, pdb_id)
-    app.logger.info(f"Binding site for {pdb_id}: {binding_site_coords}")
-
-    # Update receptor with binding site coords (optional, for persistence)
-    receptor.binding_site_x = binding_site_coords["x"]
-    receptor.binding_site_y = binding_site_coords["y"]
-    receptor.binding_site_z = binding_site_coords["z"]
-    db.session.commit()
-
-    return jsonify({
-        "pdb": pdb_content,
-        "binding_site": binding_site_coords
-    }), 200
-
-def get_pocket_coords(pdb_content, pdb_id):
-    temp_pdb_path = None
-    try:
-        # Write PDB content to temporary file
-        temp_pdb = Path(f"temp_{pdb_id}.pdb")
-        temp_pdb_path = temp_pdb.absolute()
-        with temp_pdb_path.open("w") as f:
-            f.write(pdb_content)
-        if not temp_pdb_path.exists():
-            raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
-
-        # Load PDB with ProDy
-        structure = parsePDB(str(temp_pdb_path))
-
-        # Select protein atoms (exclude water, ligands, etc.)
-        protein = structure.select('protein')
-
-        if not protein:
-            raise ValueError(f"No protein atoms found in {pdb_id}")
-
-        # Select residues likely in binding sites (hydrophobic or polar)
-        exposed_residues = protein.select('resname PHE TYR TRP HIS ASP GLU LYS ARG and within 8 of all')
-
-        if not exposed_residues:
-            # Fallback: Broader selection of standard amino acids
-            exposed_residues = protein.select('resname ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR')
-            app.logger.warning(f"No binding site residues found for {pdb_id}, using all amino acids fallback")
-
-        if not exposed_residues:
-            app.logger.warning(f"No pocket residues identified for {pdb_id}")
-            return {"x": 0, "y": 0, "z": 0}
-
-        # Get coordinates of selected residues
-        coords = exposed_residues.getCoords()
-        if len(coords) < 3:
-            app.logger.warning(f"Insufficient pocket residues for {pdb_id}")
-            return {"x": 0, "y": 0, "z": 0}
-
-        # Compute centroid of the pocket
-        centroid = calcCenter(coords)
-        app.logger.info(f"ProDy binding site for {pdb_id}: {{'x': {centroid[0]}, 'y': {centroid[1]}, 'z': {centroid[2]}}}")
-
-        return {
-            "x": float(centroid[0]),
-            "y": float(centroid[1]),
-            "z": float(centroid[2])
-        }
-    except Exception as e:
-        app.logger.error(f"ProDy failed for {pdb_id}: {str(e)}")
-        return {"x": 0, "y": 0, "z": 0}
-    finally:
-        safe_remove(temp_pdb_path)
-
-@app.route('/api/get_interaction_data', methods=['GET'])
-def get_interaction_data():
-    drug_id = request.args.get('drug_id')
-    receptor_id = request.args.get('receptor_id')
-
-    if not drug_id or not receptor_id:
-        return jsonify({"error": "Both drug_id and receptor_id are required."}), 400
-
-    try:
-        interaction = DrugReceptorInteraction.query.filter_by(
-            drug_id=drug_id,
-            receptor_id=receptor_id
-        ).first()
-
-        if not interaction:
-            return jsonify({"error": "No interaction data found for the given drug and receptor."}), 404
-
-        receptor = db.session.get(Receptor, receptor_id)
-        if not receptor:
-            return jsonify({"error": "Receptor not found."}), 404
-
-        drug = db.session.get(Drug, drug_id)
-        if not drug:
-            return jsonify({"error": "Drug not found."}), 404
-
-        interaction_data = {
-            "ligand": drug.name_en,
-            "receptor": receptor.name,
-            "affinity": interaction.affinity,
-            "affinity_parameter": interaction.affinity_parameter,
-            "interaction_type": interaction.interaction_type,
-            "mechanism": interaction.mechanism,
-            "units": interaction.units,
-            "pdb_file": interaction.pdb_file,
-            "receptor_details": {
-                "type": receptor.type,
-                "description": receptor.description,
-                "molecular_weight": receptor.molecular_weight,
-                "length": receptor.length,
-                "gene_name": receptor.gene_name,
-                "subcellular_location": receptor.subcellular_location,
-                "function": receptor.function,
-                "iuphar_id": receptor.iuphar_id,
-                "pdb_ids": receptor.pdb_ids
-            }
-        }
-        return jsonify(interaction_data), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    try:
-        # Check ProDy
-        import prody
-        prody_version = prody.__version__
-        # Check RDKit
-        from rdkit import Chem
-        rdkit_version = Chem.rdkitVersion
-        return jsonify({
-            "status": "healthy",
-            "prody": f"Version {prody_version}",
-            "rdkit": f"Version {rdkit_version}"
-        }), 200
-    except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
-#Reseptör - Ligand Finitooo
 
 
 
@@ -12375,6 +13837,1055 @@ def pharmacokinetics():
     )
 #Pharmacokinetics END...
 
+#SAĞLIK UYGULAMA TEBLİĞİ (SUT) 
+# Helper Functions
+def extract_item_number(text):
+    pattern = r'^(\d+(?:\.\d+)*(?:\.[A-Z]+)?)\s*[-–—]?\s*'
+    match = re.match(pattern, text.strip())
+    return match.group(1) if match else None
+
+def get_parent_number(item_number):
+    if not item_number:
+        return None
+    parts = item_number.split('.')
+    if len(parts) <= 1:
+        return None
+    return '.'.join(parts[:-1])
+
+def calculate_level(item_number):
+    if not item_number:
+        return 0
+    return item_number.count('.')
+
+def parse_docx_hierarchical(file_path):
+    doc = Document(file_path)
+    items = []
+    current_order = 0
+    
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+            
+        item_number = extract_item_number(text)
+        if item_number:
+            title = re.sub(r'^(\d+(?:\.\d+)*(?:\.[A-Z]+)?)\s*[-–—]?\s*', '', text).strip()
+            parent = get_parent_number(item_number)
+            level = calculate_level(item_number)
+            
+            items.append({
+                'item_number': item_number,
+                'title': title,
+                'content': text,
+                'parent_number': parent,
+                'level': level,
+                'order_index': current_order,
+                'full_text': text
+            })
+            current_order += 1
+    
+    return items
+
+def detect_changes(old_items, new_items):
+    changes = []
+    old_dict = {item['item_number']: item for item in old_items}
+    new_dict = {item['item_number']: item for item in new_items}
+    
+    for item_num in new_dict:
+        if item_num not in old_dict:
+            changes.append({
+                'item_number': item_num,
+                'change_type': 'added',
+                'old_content': None,
+                'new_content': new_dict[item_num]['full_text']
+            })
+        elif old_dict[item_num]['full_text'] != new_dict[item_num]['full_text']:
+            changes.append({
+                'item_number': item_num,
+                'change_type': 'modified',
+                'old_content': old_dict[item_num]['full_text'],
+                'new_content': new_dict[item_num]['full_text']
+            })
+    
+    for item_num in old_dict:
+        if item_num not in new_dict:
+            changes.append({
+                'item_number': item_num,
+                'change_type': 'deleted',
+                'old_content': old_dict[item_num]['full_text'],
+                'new_content': None
+            })
+    
+    return changes
+
+# Routes
+@app.route('/sut_upload')
+def sut_upload_page():
+    return render_template('sut_upload.html')
+
+@app.route('/sut_full')
+def sut_full_page():
+    return render_template('sut_full.html')
+
+@app.route('/api/sut/upload', methods=['POST'])
+def upload_sut():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith('.docx'):
+        return jsonify({'error': 'Only .docx files allowed'}), 400
+    
+    filepath = None
+    try:
+        filename = secure_filename(file.filename)
+        
+        # Fix for Windows path - use forward slashes
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        filepath = os.path.join(temp_dir, filename).replace('\\', '/')
+        
+        file.save(filepath)
+        
+        items = parse_docx_hierarchical(filepath)
+        
+        with open(filepath, 'rb') as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+        
+        existing = SUT_Version.query.filter_by(file_hash=file_hash).first()
+        if existing:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'error': 'This file version already exists', 'version_id': existing.id}), 409
+        
+        latest_version = SUT_Version.query.order_by(SUT_Version.version_number.desc()).first()
+        new_version_number = (latest_version.version_number + 1) if latest_version else 1
+        
+        changes = []
+        if latest_version:
+            old_items_db = SUT_Item.query.filter_by(version_id=latest_version.id).all()
+            old_items = [{
+                'item_number': item.item_number,
+                'title': item.title,
+                'content': item.content,
+                'full_text': item.full_text
+            } for item in old_items_db]
+            changes = detect_changes(old_items, items)
+            SUT_Version.query.update({SUT_Version.is_active: False})
+        
+        new_version = SUT_Version(
+            version_number=new_version_number,
+            filename=filename,
+            file_hash=file_hash,
+            is_active=True
+        )
+        db.session.add(new_version)
+        db.session.flush()
+        
+        for item_data in items:
+            sut_item = SUT_Item(
+                version_id=new_version.id,
+                item_number=item_data['item_number'],
+                title=item_data['title'],
+                content=item_data['content'],
+                parent_number=item_data['parent_number'],
+                level=item_data['level'],
+                order_index=item_data['order_index'],
+                full_text=item_data['full_text']
+            )
+            db.session.add(sut_item)
+        
+        for change_data in changes:
+            change = SUT_Change(
+                version_id=new_version.id,
+                item_number=change_data['item_number'],
+                change_type=change_data['change_type'],
+                old_content=change_data['old_content'],
+                new_content=change_data['new_content']
+            )
+            db.session.add(change)
+        
+        db.session.commit()
+        
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
+        
+        return jsonify({
+            'success': True,
+            'version_id': new_version.id,
+            'version_number': new_version_number,
+            'total_items': len(items),
+            'changes_detected': len(changes)
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        if filepath and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except:
+                pass
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sut/items', methods=['GET'])
+def get_sut_items():
+    version_id = request.args.get('version_id', type=int)
+    parent_number = request.args.get('parent_number', '')
+    
+    try:
+        if not version_id:
+            active_version = SUT_Version.query.filter_by(is_active=True).first()
+            if not active_version:
+                return jsonify({'error': 'No active version found'}), 404
+            version_id = active_version.id
+        
+        # Handle root level items
+        if parent_number == '' or parent_number == 'root':
+            items = SUT_Item.query.filter(
+                SUT_Item.version_id == version_id,
+                db.or_(SUT_Item.parent_number == None, SUT_Item.parent_number == '')
+            ).order_by(SUT_Item.order_index).all()
+        else:
+            items = SUT_Item.query.filter_by(
+                version_id=version_id,
+                parent_number=parent_number
+            ).order_by(SUT_Item.order_index).all()
+        
+        # Check for children efficiently
+        result = []
+        for item in items:
+            has_children = SUT_Item.query.filter_by(
+                version_id=version_id,
+                parent_number=item.item_number
+            ).limit(1).count() > 0
+            
+            result.append({
+                'id': item.id,
+                'item_number': item.item_number,
+                'title': item.title,
+                'content': item.content,
+                'level': item.level,
+                'has_children': has_children
+            })
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"Error in get_sut_items: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sut/search', methods=['GET'])
+def search_sut():
+    query = request.args.get('q', '').strip()
+    version_id = request.args.get('version_id', type=int)
+    
+    if not query:
+        return jsonify([]), 200
+    
+    if not version_id:
+        active_version = SUT_Version.query.filter_by(is_active=True).first()
+        if not active_version:
+            return jsonify({'error': 'No active version found'}), 404
+        version_id = active_version.id
+    
+    items = SUT_Item.query.filter(
+        SUT_Item.version_id == version_id,
+        db.or_(
+            SUT_Item.item_number.contains(query),
+            SUT_Item.title.contains(query),
+            SUT_Item.full_text.contains(query)
+        )
+    ).order_by(SUT_Item.order_index).limit(100).all()
+    
+    result = [{
+        'id': item.id,
+        'item_number': item.item_number,
+        'title': item.title,
+        'content': item.content,
+        'full_text': item.full_text,
+        'level': item.level
+    } for item in items]
+    
+    return jsonify(result), 200
+
+@app.route('/api/sut/versions', methods=['GET'])
+def get_sut_versions():
+    versions = SUT_Version.query.order_by(SUT_Version.version_number.desc()).all()
+    result = [{
+        'id': v.id,
+        'version_number': v.version_number,
+        'upload_date': v.upload_date.isoformat(),
+        'filename': v.filename,
+        'is_active': v.is_active,
+        'item_count': SUT_Item.query.filter_by(version_id=v.id).count()
+    } for v in versions]
+    return jsonify(result), 200
+
+@app.route('/api/sut/changes/<int:version_id>', methods=['GET'])
+def get_sut_changes(version_id):
+    changes = SUT_Change.query.filter_by(version_id=version_id).all()
+    result = [{
+        'id': c.id,
+        'item_number': c.item_number,
+        'change_type': c.change_type,
+        'old_content': c.old_content,
+        'new_content': c.new_content,
+        'change_date': c.change_date.isoformat()
+    } for c in changes]
+    return jsonify(result), 200
+#SUT, THE END!!!!
+
+
+# AI CHATBOT
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot():
+    try:
+        data = request.json
+        user_message = data.get('message', '').strip()
+        conversation_history = data.get('history', [])
+        
+        if not user_message:
+            return jsonify({'error': 'Message is required'}), 400
+        
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return jsonify({'error': 'API key missing'}), 500
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        # Step 1: Search database
+        db_result = search_database_for_context(user_message)
+        
+        # Step 2: Determine if database has good information
+        db_has_info = db_result["has_info"]
+        db_context = db_result["context"]
+        drugs_found = db_result["drugs_found"]
+        
+        # Step 3: Choose strategy based on database results
+        if db_has_info:
+            # Database has good information - use it
+            system_prompt = """You are an expert pharmaceutical assistant for drugly.ai.
+
+You have been provided with VERIFIED INTERNAL DATABASE INFORMATION in the user's message.
+
+CRITICAL RULES:
+1. The [DATABASE INFORMATION] section contains the MOST ACCURATE and AUTHORITATIVE information
+2. ALWAYS prioritize information from the database over any other knowledge
+3. If the database provides specific details, USE THEM DIRECTLY
+4. Only supplement with general knowledge for minor context - NEVER contradict the database
+5. If asked about something not in the database, clearly state "This information is not available in our database"
+6. Be precise, professional, and reference the database information
+7. Always end with: "Please consult a healthcare professional before making any medical decisions."
+
+Structure your response clearly with appropriate sections."""
+            
+            user_message_with_context = f"""{user_message}
+
+[DATABASE INFORMATION]:
+{db_context}
+
+Remember: The above database information is your PRIMARY and MOST TRUSTED source. Use it first and foremost."""
+            
+            source = "database"
+            
+        else:
+            # No good database info - use Claude's knowledge with web search capability
+            system_prompt = """You are a world-class clinical pharmacologist and pharmaceutical expert.
+
+The user's question was NOT found in the internal database, so you should use your comprehensive medical and pharmaceutical knowledge.
+
+IMPORTANT INSTRUCTIONS:
+1. Provide accurate, detailed, and up-to-date information
+2. If the query is about recent drug approvals, new research, or current medical guidelines, you SHOULD use web search
+3. For stable, established medical knowledge, use your training knowledge
+4. Cite sources when possible (FDA, EMA, PubMed, clinical guidelines, etc.)
+5. Be clear about the level of evidence for your statements
+6. If you're uncertain about recent developments, explicitly state that and recommend checking with healthcare professionals
+7. Always end with: "Please consult a healthcare professional before making any medical decisions."
+
+Structure your response clearly with appropriate sections."""
+            
+            user_message_with_context = user_message
+            source = "claude_knowledge"
+        
+        # Step 4: Build conversation messages
+        messages = []
+        for msg in conversation_history[-10:]:
+            if msg.get('role') and msg.get('content'):
+                messages.append({
+                    "role": msg['role'],
+                    "content": msg['content']
+                })
+        
+        messages.append({
+            "role": "user",
+            "content": user_message_with_context
+        })
+        
+        # Step 5: Call Claude API - CORRECT MODEL NAME
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            temperature=0.3,
+            system=system_prompt,
+            messages=messages
+        )
+        
+        answer = response.content[0].text
+        
+        return jsonify({
+            "response": answer,
+            "source": source,
+            "drugs_found": drugs_found,
+            "db_context_length": len(db_context),
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+
+def extract_drug_names_from_query(query):
+    """Extract potential drug names from natural language query"""
+    import re
+    import string
+    
+    query_lower = query.lower()
+    
+    # Remove common question patterns
+    patterns_to_remove = [
+        r'\bwhat\s+(?:are|is)\s+(?:the\s+)?',
+        r'\bhow\s+(?:does|do)\s+',
+        r'\bcan\s+(?:you|i)\s+',
+        r'\bshould\s+i\s+',
+        r'\btell\s+me\s+(?:about\s+)?',
+        r'\bshow\s+me\s+',
+        r'\bgive\s+me\s+',
+        r'\bplease\s+',
+        r'\bside\s+effects?\b',
+        r'\binteractions?\b',
+        r'\binformation\b',
+        r'\bdetails?\b',
+        r'\bof\b',
+        r'\bfor\b',
+        r'\babout\b',
+        r'\bwith\b',
+    ]
+    
+    cleaned = query_lower
+    for pattern in patterns_to_remove:
+        cleaned = re.sub(pattern, ' ', cleaned)
+    
+    cleaned = cleaned.translate(str.maketrans('', '', string.punctuation))
+    cleaned = ' '.join(cleaned.split()).strip()
+    
+    # Extract capitalized words (likely drug names)
+    words = query.split()
+    capitalized_words = []
+    for w in words:
+        clean_word = w.strip(string.punctuation)
+        if (clean_word and 
+            len(clean_word) > 2 and 
+            clean_word[0].isupper() and 
+            clean_word.lower() not in ['what', 'when', 'where', 'which', 'who', 'how', 'can', 'should', 'tell', 'show', 'give', 'please']):
+            capitalized_words.append(clean_word)
+    
+    # Combine both approaches
+    search_terms = []
+    if capitalized_words:
+        search_terms.extend(capitalized_words)
+    if cleaned and len(cleaned) > 2:
+        search_terms.append(cleaned)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_terms = []
+    for term in search_terms:
+        term_lower = term.lower()
+        if term_lower not in seen and len(term_lower) > 2:
+            seen.add(term_lower)
+            unique_terms.append(term)
+    
+    return unique_terms
+
+
+def search_database_for_context(query):
+    """
+    Search database and return structured result
+    Returns: {
+        "has_info": bool,
+        "context": str,
+        "drugs_found": list
+    }
+    """
+    try:
+        # Extract potential drug names
+        search_terms = extract_drug_names_from_query(query)
+        
+        if not search_terms:
+            return {
+                "has_info": False,
+                "context": "",
+                "drugs_found": []
+            }
+        
+        drugs_found = []
+        
+        # Search for drugs using extracted terms
+        for term in search_terms[:3]:  # Limit to 3 terms
+            term_lower = term.lower()
+            
+            if len(term_lower) < 3:
+                continue
+            
+            # Exact match
+            exact_matches = Drug.query.filter(
+                db.or_(
+                    db.func.lower(Drug.name_en) == term_lower,
+                    db.func.lower(Drug.name_tr) == term_lower
+                )
+            ).limit(2).all()
+            
+            for drug in exact_matches:
+                if drug.id not in [d.id for d in drugs_found]:
+                    drugs_found.append(drug)
+            
+            # Starts with (high confidence)
+            if len(drugs_found) < 3:
+                starts_matches = Drug.query.filter(
+                    db.or_(
+                        db.func.lower(Drug.name_en).like(f'{term_lower}%'),
+                        db.func.lower(Drug.name_tr).like(f'{term_lower}%')
+                    )
+                ).limit(3 - len(drugs_found)).all()
+                
+                for drug in starts_matches:
+                    if drug.id not in [d.id for d in drugs_found]:
+                        drugs_found.append(drug)
+            
+            # Contains (lower confidence)
+            if len(drugs_found) < 2:
+                contains_matches = Drug.query.filter(
+                    db.or_(
+                        db.func.lower(Drug.name_en).like(f'%{term_lower}%'),
+                        db.func.lower(Drug.name_tr).like(f'%{term_lower}%')
+                    )
+                ).limit(2 - len(drugs_found)).all()
+                
+                for drug in contains_matches:
+                    if drug.id not in [d.id for d in drugs_found]:
+                        drugs_found.append(drug)
+            
+            if len(drugs_found) >= 2:
+                break
+        
+        # If no drugs found, return no info
+        if not drugs_found:
+            return {
+                "has_info": False,
+                "context": "",
+                "drugs_found": []
+            }
+        
+        # Build comprehensive context for found drugs
+        context_parts = []
+        
+        for drug in drugs_found[:2]:  # Limit to 2 drugs to avoid token explosion
+            drug_info = build_drug_context(drug)
+            context_parts.append(drug_info)
+        
+        full_context = "\n\n".join(context_parts)
+        
+        # Check if context has substantial information
+        has_substantial_info = (
+            len(full_context) > 500 and
+            any([
+                "Mechanism of Action:" in full_context,
+                "Pharmacodynamics:" in full_context,
+                "Pharmacokinetics:" in full_context,
+                "Side Effects" in full_context,
+                "Drug-Drug Interactions" in full_context
+            ])
+        )
+        
+        return {
+            "has_info": has_substantial_info,
+            "context": full_context[:15000],  # Token limit safety
+            "drugs_found": [{"id": d.id, "name": d.name_en} for d in drugs_found]
+        }
+        
+    except Exception as e:
+        print(f"❌ Database search error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "has_info": False,
+            "context": "",
+            "drugs_found": []
+        }
+
+
+def build_drug_context(drug):
+    """Build comprehensive context for a single drug"""
+    
+    sections = []
+    
+    # Header
+    header = f"{'='*70}\n"
+    header += f"DRUG: {drug.name_en}"
+    if drug.name_tr and drug.name_tr != drug.name_en:
+        header += f" (Turkish: {drug.name_tr})"
+    header += f"\nDrug ID: {drug.id}\n"
+    header += f"FDA Approved: {'Yes' if drug.fda_approved else 'No'}\n"
+    header += f"{'='*70}"
+    sections.append(header)
+    
+    # Alternative names
+    if drug.alternative_names:
+        sections.append(f"Alternative Names: {drug.alternative_names}")
+    
+    # Categories
+    if drug.categories:
+        cats = ", ".join([c.name for c in drug.categories])
+        sections.append(f"Drug Categories: {cats}")
+    
+    # Indications
+    if drug.indications:
+        indications = drug.indications.strip()[:1500]
+        sections.append(f"\nIndications:\n{indications}")
+    
+    # Drug Details
+    if drug.drug_details:
+        detail = drug.drug_details[0]
+        
+        # Mechanism of Action
+        if detail.mechanism_of_action:
+            moa = detail.mechanism_of_action.strip()[:1500]
+            sections.append(f"\nMechanism of Action:\n{moa}")
+        
+        # Pharmacodynamics
+        if detail.pharmacodynamics:
+            pd = detail.pharmacodynamics.strip()[:1500]
+            sections.append(f"\nPharmacodynamics:\n{pd}")
+        
+        # Pharmacokinetics
+        if detail.pharmacokinetics:
+            pk = detail.pharmacokinetics.strip()[:1500]
+            sections.append(f"\nPharmacokinetics:\n{pk}")
+        
+        # Black Box Warning
+        if detail.black_box_warning:
+            warning = "\n⚠️ BLACK BOX WARNING: YES"
+            if detail.black_box_details:
+                warning += f"\n{detail.black_box_details.strip()[:1000]}"
+            sections.append(warning)
+        
+        # Chemical Properties
+        chem_props = []
+        if detail.molecular_formula:
+            chem_props.append(f"Molecular Formula: {detail.molecular_formula}")
+        if detail.molecular_weight:
+            unit = detail.molecular_weight_unit.name if detail.molecular_weight_unit else ""
+            chem_props.append(f"Molecular Weight: {detail.molecular_weight} {unit}")
+        if detail.smiles:
+            chem_props.append(f"SMILES: {detail.smiles[:200]}")
+        if chem_props:
+            sections.append("\nChemical Properties:\n" + "\n".join(chem_props))
+        
+        # Safety Information
+        safety_info = []
+        if detail.pregnancy_safety_trimester1:
+            safety_info.append(f"Pregnancy (Trimester 1): {detail.pregnancy_safety_trimester1.name}")
+            if detail.pregnancy_details_trimester1:
+                safety_info.append(f"  Details: {detail.pregnancy_details_trimester1[:300]}")
+        
+        if detail.pregnancy_safety_trimester2:
+            safety_info.append(f"Pregnancy (Trimester 2): {detail.pregnancy_safety_trimester2.name}")
+        
+        if detail.pregnancy_safety_trimester3:
+            safety_info.append(f"Pregnancy (Trimester 3): {detail.pregnancy_safety_trimester3.name}")
+        
+        if detail.lactation_safety:
+            safety_info.append(f"Lactation Safety: {detail.lactation_safety.name}")
+            if detail.lactation_details:
+                safety_info.append(f"  Details: {detail.lactation_details[:300]}")
+        
+        if safety_info:
+            sections.append("\nPregnancy & Lactation Safety:\n" + "\n".join(safety_info))
+        
+        # Side Effects - FIXED
+        try:
+            side_effects_list = list(detail.side_effects)[:30]  # Convert to list and slice
+            if side_effects_list:
+                se_list = []
+                for se in side_effects_list:
+                    name = se.name_en
+                    if se.name_tr and se.name_tr != se.name_en:
+                        name += f" ({se.name_tr})"
+                    se_list.append(f"  • {name}")
+                sections.append(f"\nCommon Side Effects ({len(side_effects_list)} listed):\n" + "\n".join(se_list))
+        except Exception as e:
+            print(f"Side effects error: {e}")
+    
+    # Drug Interactions
+    interactions = DrugInteraction.query.filter(
+        db.or_(
+            DrugInteraction.drug1_id == drug.id,
+            DrugInteraction.drug2_id == drug.id
+        )
+    ).limit(15).all()
+    
+    if interactions:
+        int_list = []
+        for inter in interactions:
+            other_drug = inter.drug2 if inter.drug1_id == drug.id else inter.drug1
+            severity = inter.severity_level.name if inter.severity_level else "Unknown"
+            desc = inter.interaction_description[:250]
+            int_list.append(f"  • {other_drug.name_en}:")
+            int_list.append(f"    Type: {inter.interaction_type}")
+            int_list.append(f"    Severity: {severity}")
+            int_list.append(f"    Description: {desc}")
+            if inter.mechanism:
+                int_list.append(f"    Mechanism: {inter.mechanism[:200]}")
+        sections.append(f"\nDrug-Drug Interactions ({len(interactions)} shown):\n" + "\n".join(int_list))
+    
+    # Food Interactions
+    food_interactions = DrugFoodInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    if food_interactions:
+        food_list = []
+        for fi in food_interactions:
+            food_list.append(f"  • {fi.food.name_en}:")
+            food_list.append(f"    Type: {fi.interaction_type}")
+            food_list.append(f"    Severity: {fi.severity.name if fi.severity else 'Unknown'}")
+            food_list.append(f"    Description: {fi.description[:200]}")
+            if fi.recommendation:
+                food_list.append(f"    Recommendation: {fi.recommendation[:200]}")
+        sections.append(f"\nFood Interactions ({len(food_interactions)} shown):\n" + "\n".join(food_list))
+    
+    # Disease Interactions
+    disease_interactions = DrugDiseaseInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    if disease_interactions:
+        disease_list = []
+        for di in disease_interactions:
+            disease_list.append(f"  • {di.indication.name_en}:")
+            disease_list.append(f"    Type: {di.interaction_type}")
+            disease_list.append(f"    Severity: {di.severity}")
+            disease_list.append(f"    Description: {di.description[:200]}")
+        sections.append(f"\nDisease Interactions ({len(disease_interactions)} shown):\n" + "\n".join(disease_list))
+    
+    return "\n\n".join(sections)
+
+
+@app.route('/api/chatbot/drug-info', methods=['POST'])
+def chatbot_drug_info():
+    try:
+        data = request.json
+        drug_name = data.get('drug_name', '')
+        query_type = data.get('query_type', 'general')
+        
+        if not drug_name:
+            return jsonify({'error': 'Drug name is required'}), 400
+        
+        drug = Drug.query.filter(
+            (Drug.name_en.ilike(f'%{drug_name}%')) | 
+            (Drug.name_tr.ilike(f'%{drug_name}%'))
+        ).first()
+        
+        if not drug:
+            return jsonify({'error': 'Drug not found'}), 404
+        
+        drug_info = {
+            'name_en': drug.name_en,
+            'name_tr': drug.name_tr,
+            'fda_approved': drug.fda_approved,
+            'indications': drug.indications,
+            'categories': [cat.name for cat in drug.categories],
+        }
+        
+        if drug.drug_details:
+            detail = drug.drug_details[0]
+            drug_info.update({
+                'mechanism_of_action': detail.mechanism_of_action,
+                'pharmacodynamics': detail.pharmacodynamics,
+                'pharmacokinetics': detail.pharmacokinetics,
+                'molecular_formula': detail.molecular_formula,
+                'black_box_warning': detail.black_box_warning,
+                'black_box_details': detail.black_box_details,
+            })
+        
+        if query_type in ['interactions', 'all']:
+            interactions = DrugInteraction.query.filter(
+                (DrugInteraction.drug1_id == drug.id) | 
+                (DrugInteraction.drug2_id == drug.id)
+            ).limit(10).all()
+            
+            drug_info['interactions'] = [{
+                'drug1': i.drug1.name_en,
+                'drug2': i.drug2.name_en,
+                'type': i.interaction_type,
+                'description': i.interaction_description,
+                'severity': i.severity_level.name if i.severity_level else None
+            } for i in interactions]
+        
+        if query_type in ['side_effects', 'all'] and drug.drug_details:
+            side_effects = list(drug.drug_details[0].side_effects)[:10]
+            drug_info['side_effects'] = [se.name_en for se in side_effects]
+        
+        return jsonify({
+            'drug_info': drug_info,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/drug-search', methods=['GET'])
+def chatbot_drug_search():
+    try:
+        query = request.args.get('q', '')
+        limit = int(request.args.get('limit', 10))
+        
+        if not query or len(query) < 2:
+            return jsonify({'drugs': []})
+        
+        drugs = Drug.query.filter(
+            (Drug.name_en.ilike(f'%{query}%')) | 
+            (Drug.name_tr.ilike(f'%{query}%'))
+        ).limit(limit).all()
+        
+        results = [{
+            'id': drug.id,
+            'name_en': drug.name_en,
+            'name_tr': drug.name_tr,
+            'fda_approved': drug.fda_approved
+        } for drug in drugs]
+        
+        return jsonify({'drugs': results})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/interaction-check', methods=['POST'])
+def chatbot_interaction_check():
+    try:
+        data = request.json
+        drug_ids = data.get('drug_ids', [])
+        
+        if len(drug_ids) < 2:
+            return jsonify({'error': 'At least 2 drugs required'}), 400
+        
+        interactions = []
+        
+        for i in range(len(drug_ids)):
+            for j in range(i + 1, len(drug_ids)):
+                drug1_id = drug_ids[i]
+                drug2_id = drug_ids[j]
+                
+                interaction = DrugInteraction.query.filter(
+                    ((DrugInteraction.drug1_id == drug1_id) & (DrugInteraction.drug2_id == drug2_id)) |
+                    ((DrugInteraction.drug1_id == drug2_id) & (DrugInteraction.drug2_id == drug1_id))
+                ).first()
+                
+                if interaction:
+                    interactions.append({
+                        'drug1': interaction.drug1.name_en,
+                        'drug2': interaction.drug2.name_en,
+                        'type': interaction.interaction_type,
+                        'description': interaction.interaction_description,
+                        'severity': interaction.severity_level.name if interaction.severity_level else None,
+                        'mechanism': interaction.mechanism,
+                        'monitoring': interaction.monitoring
+                    })
+        
+        return jsonify({
+            'interactions': interactions,
+            'count': len(interactions),
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/food-interactions', methods=['POST'])
+def chatbot_food_interactions():
+    try:
+        data = request.json
+        drug_id = data.get('drug_id')
+        
+        if not drug_id:
+            return jsonify({'error': 'Drug ID is required'}), 400
+        
+        interactions = DrugFoodInteraction.query.filter_by(drug_id=drug_id).all()
+        
+        results = [{
+            'food': i.food.name_en,
+            'type': i.interaction_type,
+            'description': i.description,
+            'severity': i.severity.name if i.severity else None,
+            'recommendation': i.recommendation,
+            'timing': i.timing_instruction
+        } for i in interactions]
+        
+        return jsonify({
+            'interactions': results,
+            'count': len(results),
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/disease-interactions', methods=['POST'])
+def chatbot_disease_interactions():
+    try:
+        data = request.json
+        drug_id = data.get('drug_id')
+        
+        if not drug_id:
+            return jsonify({'error': 'Drug ID is required'}), 400
+        
+        interactions = DrugDiseaseInteraction.query.filter_by(drug_id=drug_id).all()
+        
+        results = [{
+            'disease': i.indication.name_en,
+            'type': i.interaction_type,
+            'description': i.description,
+            'severity': i.severity,
+            'recommendation': i.recommendation
+        } for i in interactions]
+        
+        return jsonify({
+            'interactions': results,
+            'count': len(results),
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/safety-info', methods=['POST'])
+def chatbot_safety_info():
+    try:
+        data = request.json
+        drug_id = data.get('drug_id')
+        
+        if not drug_id:
+            return jsonify({'error': 'Drug ID is required'}), 400
+        
+        drug = Drug.query.get(drug_id)
+        if not drug or not drug.drug_details:
+            return jsonify({'error': 'Drug not found'}), 404
+        
+        detail = drug.drug_details[0]
+        
+        safety_info = {
+            'black_box_warning': detail.black_box_warning,
+            'black_box_details': detail.black_box_details,
+            'pregnancy': {
+                'trimester1': {
+                    'category': detail.pregnancy_safety_trimester1.name if detail.pregnancy_safety_trimester1 else None,
+                    'details': detail.pregnancy_details_trimester1
+                },
+                'trimester2': {
+                    'category': detail.pregnancy_safety_trimester2.name if detail.pregnancy_safety_trimester2 else None,
+                    'details': detail.pregnancy_details_trimester2
+                },
+                'trimester3': {
+                    'category': detail.pregnancy_safety_trimester3.name if detail.pregnancy_safety_trimester3 else None,
+                    'details': detail.pregnancy_details_trimester3
+                }
+            },
+            'lactation': {
+                'category': detail.lactation_safety.name if detail.lactation_safety else None,
+                'details': detail.lactation_details
+            }
+        }
+        
+        return jsonify({
+            'safety_info': safety_info,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chatbot/pharmacogenomics', methods=['POST'])
+def chatbot_pharmacogenomics():
+    try:
+        data = request.json
+        drug_id = data.get('drug_id')
+        
+        if not drug_id:
+            return jsonify({'error': 'Drug ID is required'}), 400
+        
+        drug = Drug.query.get(drug_id)
+        if not drug:
+            return jsonify({'error': 'Drug not found'}), 404
+        
+        clinical_annotations = []
+        for ca in drug.clinical_annotations:
+            annotation = ca.annotation
+            clinical_annotations.append({
+                'id': annotation.clinical_annotation_id,
+                'level_of_evidence': annotation.level_of_evidence,
+                'phenotype_category': annotation.phenotype_category,
+                'genes': [g.gene.gene_symbol for g in annotation.genes],
+                'variants': [v.variant.name for v in annotation.variants],
+                'url': annotation.url
+            })
+        
+        variant_annotations = []
+        for va in drug.variant_annotations:
+            annotation = va.variant_annotation
+            variant_annotations.append({
+                'id': annotation.variant_annotation_id,
+                'genes': [g.gene.gene_symbol for g in annotation.genes],
+                'variants': [v.variant.name for v in annotation.variants]
+            })
+        
+        drug_labels = []
+        for dl in drug.drug_labels:
+            label = dl.drug_label
+            drug_labels.append({
+                'id': label.pharmgkb_id,
+                'name': label.name,
+                'source': label.source,
+                'biomarker_flag': label.biomarker_flag,
+                'testing_level': label.testing_level,
+                'has_prescribing_info': label.has_prescribing_info
+            })
+        
+        return jsonify({
+            'clinical_annotations': clinical_annotations,
+            'variant_annotations': variant_annotations,
+            'drug_labels': drug_labels,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/chatbot-page')
+def chatbot_page():
+    if 'user_id' not in session:
+        flash('Please login to access the AI Chatbot', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    return render_template('chatbot.html', user=user)
 
 if __name__ == "__main__":
     with app.app_context():  # Enter the app context

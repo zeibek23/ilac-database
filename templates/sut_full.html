@@ -1,0 +1,354 @@
+<!-- templates/sut_full.html -->
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUT Tam Görünüm</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .search-box {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .tree-item {
+            background: white;
+            margin-bottom: 2px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .tree-header {
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .tree-header:hover {
+            background: #f8f9fa;
+        }
+        .tree-toggle {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: transform 0.3s;
+        }
+        .tree-toggle.expanded {
+            transform: rotate(90deg);
+        }
+        .tree-number {
+            font-weight: bold;
+            color: #667eea;
+            margin-right: 10px;
+            min-width: 80px;
+        }
+        .tree-title {
+            flex: 1;
+            color: #333;
+        }
+        .tree-children {
+            padding-left: 30px;
+            display: none;
+            background: #fafbfc;
+        }
+        .tree-children.visible {
+            display: block;
+        }
+        .level-0 { border-left: 4px solid #667eea; }
+        .level-1 { border-left: 4px solid #764ba2; }
+        .level-2 { border-left: 4px solid #f093fb; }
+        .level-3 { border-left: 4px solid #4facfe; }
+        .no-children {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+        .nav-link:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .loader {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #667eea;
+        }
+        .search-results {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .search-result-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .search-result-item:hover {
+            background: #f8f9fa;
+        }
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>📋 SUT Tam Görünüm</h1>
+            <a href="/sut_upload" class="nav-link">← Upload</a>
+        </div>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Ara... (madde numarası, başlık veya içerik)">
+    </div>
+
+    <div class="container">
+        <div id="searchResults" class="search-results" style="display: none;"></div>
+        <div id="treeContainer" class="loader">Yükleniyor...</div>
+    </div>
+
+<script>
+    let allItems = {};
+    let searchTimeout;
+
+    async function loadRootItems() {
+        const container = document.getElementById('treeContainer');
+        try {
+            console.log('Starting to load root items...');
+            const response = await fetch('/api/sut/items?parent_number=root');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const items = await response.json();
+            console.log('Loaded items:', items.length);
+            
+            if (items.error) {
+                container.innerHTML = `<p style="color: red;">Hata: ${items.error}</p>`;
+                return;
+            }
+            
+            allItems = {};
+            container.innerHTML = '';
+            container.className = 'container';
+            
+            if (items.length === 0) {
+                container.innerHTML = '<p>Henüz veri yüklenmemiş. Lütfen önce bir dosya yükleyin.</p>';
+                return;
+            }
+            
+            items.forEach(item => {
+                allItems[item.item_number] = item;
+                container.appendChild(createTreeItem(item));
+            });
+            
+            console.log('All items rendered successfully');
+        } catch (error) {
+            console.error('Error loading items:', error);
+            container.innerHTML = `<p style="color: red;">Hata: ${error.message}<br><br>Lütfen sayfayı yenileyin veya önce bir dosya yükleyin.</p>`;
+        }
+    }
+
+    function createTreeItem(item) {
+        const div = document.createElement('div');
+        div.className = `tree-item level-${item.level}`;
+        div.dataset.itemNumber = item.item_number;
+        
+        const header = document.createElement('div');
+        header.className = 'tree-header';
+        
+        const toggle = document.createElement('span');
+        toggle.className = `tree-toggle ${item.has_children ? '' : 'no-children'}`;
+        toggle.textContent = '▶';
+        
+        const number = document.createElement('span');
+        number.className = 'tree-number';
+        number.textContent = item.item_number;
+        
+        const title = document.createElement('span');
+        title.className = 'tree-title';
+        title.textContent = item.title;
+        
+        header.appendChild(toggle);
+        header.appendChild(number);
+        header.appendChild(title);
+        
+        const children = document.createElement('div');
+        children.className = 'tree-children';
+        
+        div.appendChild(header);
+        div.appendChild(children);
+        
+        if (item.has_children) {
+            header.addEventListener('click', () => toggleItem(item.item_number, toggle, children));
+        }
+        
+        return div;
+    }
+
+    async function toggleItem(itemNumber, toggle, childrenContainer) {
+        const isExpanded = toggle.classList.contains('expanded');
+        
+        if (isExpanded) {
+            toggle.classList.remove('expanded');
+            childrenContainer.classList.remove('visible');
+            childrenContainer.innerHTML = '';
+        } else {
+            toggle.classList.add('expanded');
+            childrenContainer.innerHTML = '<div style="padding: 10px;">Yükleniyor...</div>';
+            
+            try {
+                console.log('Loading children for:', itemNumber);
+                const response = await fetch(`/api/sut/items?parent_number=${encodeURIComponent(itemNumber)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const items = await response.json();
+                console.log('Loaded children:', items.length);
+                
+                childrenContainer.innerHTML = '';
+                
+                if (items.length === 0) {
+                    childrenContainer.innerHTML = '<div style="padding: 10px; color: #999;">Alt öğe yok</div>';
+                } else {
+                    items.forEach(item => {
+                        allItems[item.item_number] = item;
+                        childrenContainer.appendChild(createTreeItem(item));
+                    });
+                }
+                
+                childrenContainer.classList.add('visible');
+            } catch (error) {
+                console.error('Error loading children:', error);
+                childrenContainer.innerHTML = `<div style="padding: 10px; color: red;">Hata: ${error.message}</div>`;
+            }
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            document.getElementById('searchResults').style.display = 'none';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+    });
+
+    async function performSearch(query) {
+        try {
+            console.log('Searching for:', query);
+            const response = await fetch(`/api/sut/search?q=${encodeURIComponent(query)}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const results = await response.json();
+            console.log('Search results:', results.length);
+            
+            const resultsContainer = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<p>Sonuç bulunamadı.</p>';
+                resultsContainer.style.display = 'block';
+                return;
+            }
+            
+            resultsContainer.innerHTML = '<h3>Arama Sonuçları (' + results.length + ')</h3>';
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'search-result-item';
+                
+                const highlightedText = item.full_text.replace(
+                    new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+                    match => `<span class="highlight">${match}</span>`
+                );
+                
+                div.innerHTML = `
+                    <div><strong>${item.item_number}</strong> - ${item.title}</div>
+                    <div style="margin-top: 5px; color: #666; font-size: 14px;">${highlightedText.substring(0, 200)}...</div>
+                `;
+                
+                resultsContainer.appendChild(div);
+            });
+            
+            resultsContainer.style.display = 'block';
+        } catch (error) {
+            console.error('Arama hatası:', error);
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.innerHTML = `<p style="color: red;">Arama hatası: ${error.message}</p>`;
+            resultsContainer.style.display = 'block';
+        }
+    }
+
+    // Start loading when page is ready
+    console.log('Page loaded, starting to load items...');
+    loadRootItems();
+</script>
+</body>
+</html>

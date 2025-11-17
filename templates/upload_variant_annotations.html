@@ -1,43 +1,594 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Upload Variant Annotations</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Variant Annotations - Drugly.AI</title>
     <style>
-        .success { color: green; }
-        .danger { color: red; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 850px;
+            width: 100%;
+            padding: 40px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #f5576c;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        .messages {
+            margin-bottom: 25px;
+        }
+
+        .message {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-weight: 500;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .message.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        .file-group {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            border: 2px dashed #dee2e6;
+        }
+
+        .file-group:hover {
+            border-color: #f5576c;
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.1);
+        }
+
+        .file-group.has-file {
+            border-color: #28a745;
+            border-style: solid;
+            background: #e8f5e9;
+        }
+
+        .file-label {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.05rem;
+        }
+
+        .file-label .icon {
+            margin-right: 10px;
+            font-size: 1.3rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-button {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            background: white;
+            border: 2px solid #f5576c;
+            color: #f5576c;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .file-button:hover {
+            background: #f5576c;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.3);
+        }
+
+        .file-name {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: #28a745;
+            font-weight: 500;
+            display: none;
+        }
+
+        .file-name.show {
+            display: block;
+        }
+
+        .submit-section {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .submit-button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.3);
+        }
+
+        .submit-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(245, 87, 108, 0.4);
+        }
+
+        .submit-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 80px;
+            height: 80px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #f5576c;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 1.5rem;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .loading-subtext {
+            color: #ccc;
+            font-size: 1rem;
+            margin-top: 10px;
+        }
+
+        .progress-bar-container {
+            width: 300px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #f093fb, #f5576c);
+            width: 0%;
+            animation: progress 3s ease-in-out infinite;
+        }
+
+        @keyframes progress {
+            0%, 100% { width: 0%; }
+            50% { width: 100%; }
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #f5576c;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: #f093fb;
+            transform: translateX(-5px);
+        }
+
+        .info-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .info-box h3 {
+            color: #e65100;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .info-box li {
+            margin: 5px 0;
+        }
+
+        .file-requirements {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.2);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .submit-button {
+                width: 100%;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Upload Variant Annotations (4 files)</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
+    <div class="container">
+        <h1>🧬 Variant Annotations Upload</h1>
+        <p class="subtitle">Functional & Phenotype Association Data</p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">4</div>
+                <div class="stat-label">Required Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">0</div>
+                <div class="stat-label" id="uploadedCount">Uploaded</div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 Required Files</h3>
             <ul>
-                {% for category, msg in messages %}
-                    <li class="{{ category }}">{{ msg }}</li>
-                {% endfor %}
+                <li><strong>study_parameters.tsv</strong> - Study design and statistical data</li>
+                <li><strong>var_fa_ann.tsv</strong> - Functional/assay annotations</li>
+                <li><strong>var_drug_ann.tsv</strong> - Drug-related annotations</li>
+                <li><strong>var_pheno_ann.tsv</strong> - Phenotype annotations</li>
             </ul>
-        {% endif %}
-    {% endwith %}
-    <form method="POST" enctype="multipart/form-data">
-        <p>
-            <label>study_parameters.tsv:</label>
-            <input type="file" name="study_parameters" accept=".tsv,.csv"/>
-        </p>
-        <p>
-            <label>var_fa_ann.tsv:</label>
-            <input type="file" name="var_fa_ann" accept=".tsv,.csv"/>
-        </p>
-        <p>
-            <label>var_drug_ann.tsv:</label>
-            <input type="file" name="var_drug_ann" accept=".tsv,.csv"/>
-        </p>
-        <p>
-            <label>var_pheno_ann.tsv:</label>
-            <input type="file" name="var_pheno_ann" accept=".tsv,.csv"/>
-        </p>
-        <input type="submit" value="Upload"/>
-    </form>
-    <p><a href="/">Go Home</a></p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="messages">
+                    {% for category, msg in messages %}
+                        <div class="message {{ category }}">{{ msg }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+            <div class="file-group" data-file-group="study_parameters">
+                <div class="file-label">
+                    <span class="icon">📊</span>
+                    <span>1. Study Parameters</span>
+                </div>
+                <div class="file-requirements">Study design, case/control data, and statistical parameters</div>
+                <div class="file-input-wrapper">
+                    <input type="file" name="study_parameters" id="study_parameters" accept=".tsv" />
+                    <label for="study_parameters" class="file-button">Choose File</label>
+                </div>
+                <div class="file-name" id="filename_study_parameters"></div>
+            </div>
+
+            <div class="file-group" data-file-group="var_fa_ann">
+                <div class="file-label">
+                    <span class="icon">🔬</span>
+                    <span>2. Functional/Assay Annotations</span>
+                </div>
+                <div class="file-requirements">Functional activity, assay results, and metabolizer data</div>
+                <div class="file-input-wrapper">
+                    <input type="file" name="var_fa_ann" id="var_fa_ann" accept=".tsv" />
+                    <label for="var_fa_ann" class="file-button">Choose File</label>
+                </div>
+                <div class="file-name" id="filename_var_fa_ann"></div>
+            </div>
+
+            <div class="file-group" data-file-group="var_drug_ann">
+                <div class="file-label">
+                    <span class="icon">💊</span>
+                    <span>3. Drug Annotations</span>
+                </div>
+                <div class="file-requirements">Pharmacokinetic/pharmacodynamic relationships with drugs</div>
+                <div class="file-input-wrapper">
+                    <input type="file" name="var_drug_ann" id="var_drug_ann" accept=".tsv" />
+                    <label for="var_drug_ann" class="file-button">Choose File</label>
+                </div>
+                <div class="file-name" id="filename_var_drug_ann"></div>
+            </div>
+
+            <div class="file-group" data-file-group="var_pheno_ann">
+                <div class="file-label">
+                    <span class="icon">🧪</span>
+                    <span>4. Phenotype Annotations</span>
+                </div>
+                <div class="file-requirements">Clinical phenotypes, adverse effects, and efficacy data</div>
+                <div class="file-input-wrapper">
+                    <input type="file" name="var_pheno_ann" id="var_pheno_ann" accept=".tsv" />
+                    <label for="var_pheno_ann" class="file-button">Choose File</label>
+                </div>
+                <div class="file-name" id="filename_var_pheno_ann"></div>
+            </div>
+
+            <div class="submit-section">
+                <button type="submit" class="submit-button" id="submitBtn" disabled>
+                    🚀 Upload All Files
+                </button>
+            </div>
+        </form>
+
+        <div style="text-align: center;">
+            <a href="/" class="back-link">← Back to Home</a>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Processing Variant Annotations...</div>
+        <div class="loading-subtext">This may take several minutes for large datasets</div>
+        <div class="progress-bar-container">
+            <div class="progress-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        // File input handling
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        const submitBtn = document.getElementById('submitBtn');
+        const form = document.getElementById('uploadForm');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const uploadedCountLabel = document.getElementById('uploadedCount');
+
+        fileInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const fileName = this.files[0]?.name;
+                const fileNameDisplay = document.getElementById('filename_' + this.name);
+                const fileGroup = this.closest('.file-group');
+
+                if (fileName) {
+                    fileNameDisplay.textContent = '✅ ' + fileName;
+                    fileNameDisplay.classList.add('show');
+                    fileGroup.classList.add('has-file');
+                } else {
+                    fileNameDisplay.textContent = '';
+                    fileNameDisplay.classList.remove('show');
+                    fileGroup.classList.remove('has-file');
+                }
+
+                updateStats();
+                checkAllFilesSelected();
+            });
+        });
+
+        function updateStats() {
+            let count = 0;
+            fileInputs.forEach(input => {
+                if (input.files && input.files.length > 0) {
+                    count++;
+                }
+            });
+            uploadedCountLabel.textContent = count + ' Uploaded';
+        }
+
+        function checkAllFilesSelected() {
+            let allSelected = true;
+            fileInputs.forEach(input => {
+                if (!input.files || input.files.length === 0) {
+                    allSelected = false;
+                }
+            });
+
+            submitBtn.disabled = !allSelected;
+        }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // Validate all files
+            let hasFiles = false;
+            fileInputs.forEach(input => {
+                if (input.files && input.files.length > 0) {
+                    hasFiles = true;
+                }
+            });
+
+            if (!hasFiles) {
+                alert('❌ Please select at least one file to upload!');
+                return;
+            }
+
+            // Show loading overlay
+            loadingOverlay.classList.add('show');
+            submitBtn.disabled = true;
+
+            // Submit form
+            this.submit();
+        });
+
+        // Prevent multiple submissions
+        let submitted = false;
+        form.addEventListener('submit', function() {
+            if (submitted) {
+                return false;
+            }
+            submitted = true;
+        });
+
+        // Drag and drop support
+        document.querySelectorAll('.file-group').forEach(group => {
+            const input = group.querySelector('input[type="file"]');
+
+            group.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                group.style.borderColor = '#f5576c';
+                group.style.background = '#fff5f7';
+            });
+
+            group.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                if (!group.classList.contains('has-file')) {
+                    group.style.borderColor = '#dee2e6';
+                    group.style.background = '#f8f9fa';
+                }
+            });
+
+            group.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    input.files = files;
+                    input.dispatchEvent(new Event('change'));
+                }
+                group.style.borderColor = '#28a745';
+                group.style.background = '#e8f5e9';
+            });
+        });
+
+        // Auto-hide messages after 5 seconds
+        setTimeout(() => {
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+                msg.style.transition = 'opacity 0.5s ease';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.remove(), 500);
+            });
+        }, 5000);
+    </script>
 </body>
 </html>
