@@ -107,15 +107,18 @@ from pathlib import Path
 # Get the directory where app.py is located
 BASE_DIR = Path(__file__).resolve().parent
 
-# Load .env file from the same directory as app.py
+# Load .env if it exists (local development), otherwise ignore (production)
 dotenv_path = BASE_DIR / '.env'
-load_dotenv(dotenv_path=dotenv_path)
+load_dotenv(dotenv_path=dotenv_path)   # This line is completely safe even if file doesn't exist
 
-# Verify it loaded
-if not dotenv_path.exists():
-    raise FileNotFoundError(f".env file not found at {dotenv_path}")
-
-print(f"✓ Loaded .env from: {dotenv_path}")
+# OPTIONAL: Only show the success message during local development
+import os
+if os.getenv('RENDER'):  # Render sets this env var automatically
+    print("✓ Running on Render – using dashboard environment variables")
+elif dotenv_path.exists():
+    print(f"✓ Loaded .env from: {dotenv_path}")
+else:
+    print("⚠️  No .env file found – relying on system environment variables")
 
 
 # Flask uygulamasını oluştur
