@@ -799,14 +799,19 @@
                                 </span>
                             </div>
                         {% endif %}
-                        <div class="text-muted flex-grow-1">{{ news.description | safe | truncate(200) }}</div>
+                        <div class="text-muted flex-grow-1">{{ news.description | safe | truncate(180) }}</div>
+<div class="mt-3">
+    <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-danger btn-sm">
+        Read Full Announcement →
+    </a>
+</div>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
         <div class="text-center mt-4">
-            <a href="/news" class="btn btn-danger btn-lg px-5">View All FDA Approvals</a>
+            <a href="{{ url_for('public_news') }}" class="btn btn-danger btn-lg px-5">View All FDA Approvals</a>
         </div>
     </div>
     {% endif %}

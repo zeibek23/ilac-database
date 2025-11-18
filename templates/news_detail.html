@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ news.title }} - Drugly News</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            color: #2c3e50;
+        }
+        .navbar { background: #2c3e50 !important; }
+        .article-content {
+            font-size: 1.15rem;
+            line-height: 1.8;
+        }
+        .article-content img {
+            max-width: 100%;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        footer {
+            background: #2c3e50;
+            color: #fff;
+            padding: 40px 0;
+            margin-top: 100px;
+        }
+        footer a { color: #00b4d8; text-decoration: none; }
+        footer a:hover { color: #fff; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/">Drugly</a>
+            <a href="{{ url_for('public_news') }}" class="btn btn-outline-light ms-auto">← All News</a>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <a href="{{ url_for('public_news') }}" class="text-muted mb-4 d-inline-block">
+                    ← Back to all news
+                </a>
+
+                {% if news.category == 'FDA Approval' %}
+                <div class="text-center mb-4">
+                    <span class="badge bg-danger fs-5 px-5 py-3">FDA APPROVED</span>
+                </div>
+                {% endif %}
+
+                <h1 class="display-5 fw-bold mt-4">{{ news.title }}</h1>
+
+                <p class="text-muted fs-5 mb-5">
+                    Published on {{ news.publication_date.strftime('%d %B %Y') }}
+                    {% if news.drug %}
+                    • <strong>Related Drug:</strong>
+                    <a href="{{ url_for('drug_detail', drug_id=news.drug.id) }}" class="badge bg-primary text-decoration-none fs-6">
+                        {{ news.drug.name_en }}{% if news.drug.name_tr %} ({{ news.drug.name_tr }}){% endif %}
+                    </a>
+                    {% endif %}
+                </p>
+
+                <hr class="my-5">
+
+                <article class="article-content bg-white p-5 rounded shadow">
+                    {{ news.description | safe }}
+                </article>
+
+                <div class="mt-5 text-center">
+                    <a href="{{ url_for('public_news') }}" class="btn btn-lg btn-outline-primary px-5">
+                        ← Back to All News
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center">
+        <p>© 2025 Drugly. All rights reserved.</p>
+        <a href="/">Home</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latest News & FDA Approvals - Drugly</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            color: #2c3e50;
+            min-height: 100vh;
+        }
+        .navbar {
+            background: #2c3e50 !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .news-card {
+            transition: all 0.3s ease;
+            border-radius: 15px;
+            overflow: hidden;
+            background: white;
+        }
+        .news-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.15) !important;
+        }
+        .badge.fda { background: #dc3545; }
+        .badge.announcement { background: #28a745; }
+        .badge.update { background: #ffc107; color: #212529; }
+        .badge.drug-update { background: #007bff; }
+        footer {
+            background: #2c3e50;
+            color: #fff;
+            padding: 30px 0;
+            margin-top: 80px;
+        }
+        footer a { color: #00b4d8; text-decoration: none; }
+        footer a:hover { color: #fff; }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/">Drugly</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <h1 class="display-4 fw-bold text-center mb-5">Drugly News Center</h1>
+
+        <!-- FDA Approvals Section -->
+        {% if fda_approvals %}
+        <section class="mb-5">
+            <h2 class="text-danger mb-4 text-center">
+                <img src="{{ url_for('static', filename='images/fda_logo.png') }}" height="50" class="me-3" alt="FDA">
+                Latest FDA Drug Approvals
+            </h2>
+            <div class="row g-4">
+                {% for news in fda_approvals %}
+                <div class="col-lg-6">
+                    <div class="card h-100 shadow border-0 news-card" style="border-left: 6px solid #dc3545;">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="badge fda fs-6 px-3 py-2">FDA APPROVED</span>
+                                <small class="text-muted">{{ news.publication_date.strftime('%d %B %Y') }}</small>
+                            </div>
+                            <h4 class="card-title fw-bold">{{ news.title }}</h4>
+                            {% if news.drug %}
+                            <p class="mb-3">
+                                <strong>Drug:</strong>
+                                <span class="badge bg-primary fs-6">{{ news.drug.name_en }}</span>
+                                {% if news.drug.name_tr %} ({{ news.drug.name_tr }}){% endif %}
+                            </p>
+                            {% endif %}
+                            <div class="text-muted flex-grow-1 mb-3">
+                                {{ news.description | safe | truncate(320) }}
+                            </div>
+                            <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-danger mt-auto">
+                                Read Full Announcement →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Other News -->
+        {% if other_news %}
+        <section>
+            <h2 class="mb-4 text-center">Platform Updates & Announcements</h2>
+            <div class="row g-4">
+                {% for news in other_news %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow news-card">
+                        <div class="card-body d-flex flex-column">
+                            <span class="badge {{ 'announcement' if news.category == 'Announcement' else 'update' if news.category == 'Update' else 'drug-update' }} mb-2">
+                                {{ news.category }}
+                            </span>
+                            <h5 class="card-title mt-2">{{ news.title }}</h5>
+                            <p class="text-muted flex-grow-1">{{ news.description | safe | truncate(180) }}</p>
+                            <small class="text-muted mb-3">{{ news.publication_date.strftime('%d %B %Y') }}</small>
+                            <div>
+                                <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-primary btn-sm">
+                                    Read More →
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if not all_news %}
+        <div class="text-center py-5">
+            <p class="fs-3 text-muted">No news available yet. Check back soon!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <footer class="text-center">
+        <p>© 2025 Drugly. All rights reserved.</p>
+        <p>
+            <a href="/">Home</a> |
+            <a href="/contact">Contact</a> |
+            <a href="/about">About</a>
+        </p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
