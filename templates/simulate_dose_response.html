@@ -4,203 +4,363 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dose-Response Simulator</title>
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Chart.js UMD Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.js"></script>
-    <!-- Chart.js Zoom Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-    <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         :root {
             --primary-color: #5e72e4;
+            --primary-dark: #4c63d2;
             --secondary-color: #6c757d;
             --success-color: #2dce89;
             --info-color: #11cdef;
+            --warning-color: #fb6340;
             --home-color: #ff9f43;
             --error-color: #dc3545;
-            --background-light: rgba(255, 255, 255, 0.95);
+            --background-light: rgba(255, 255, 255, 0.98);
             --background-dark: #f1f3f5;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.15);
+            --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.2);
+            --border-radius: 12px;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #333;
-            transition: all 0.3s ease;
+            padding-bottom: 3rem;
         }
 
         .container {
-            max-width: 900px;
-            margin: 2rem auto;
-            padding: 0 15px;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 1.5rem 0;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
 
         .card {
             background: var(--background-light);
             border: none;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease, opacity 0.3s ease;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            animation: fadeInUp 0.5s ease-out;
         }
 
-        .card.fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+            transition: all var(--transition-speed) ease;
         }
 
         .card-header {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
-            border-radius: 15px 15px 0 0;
             padding: 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.2);
         }
 
-        .card-header h1, .card-header h2 {
+        .card-header h1,
+        .card-header h2 {
             margin: 0;
-            font-size: 1.8rem;
+            font-size: clamp(1.25rem, 3vw, 1.75rem);
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-header-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .card-header-actions i {
+            cursor: pointer;
+            font-size: 1.25rem;
+            transition: transform var(--transition-speed) ease;
+        }
+
+        .card-header-actions i:hover {
+            transform: scale(1.2);
         }
 
         .form-section {
             padding: 2rem;
         }
 
-        .form-group {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-
-        .form-control {
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            padding: 0.75rem;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .form-control:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.2rem rgba(94, 114, 228, 0.25);
-        }
-
-        .form-control.is-invalid {
-            border-color: var(--error-color);
-        }
-
-        .error {
-            color: var(--error-color);
-            font-size: 0.85rem;
-            margin-top: 0.25rem;
-            display: none;
-        }
-
-        .param-description {
-            font-size: 0.9rem;
-            color: var(--secondary-color);
-            font-style: italic;
-            margin-top: 0.25rem;
-        }
-
-        .btn-modern {
-            border-radius: 8px;
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn-modern:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-primary { background: var(--primary-color); border: none; }
-        .btn-secondary { background: var(--secondary-color); border: none; }
-        .btn-info { background: var(--info-color); border: none; }
-        .btn-success { background: var(--success-color); border: none; }
-        .btn-home { background: var(--home-color); border: none; }
-
-        #results {
-            margin-top: 2rem;
-        }
-
-        #chart-container {
-            background: white;
-            border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        .section-divider {
+            border: 0;
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--primary-color), transparent);
+            margin: 2rem 0;
         }
 
         .collapsible-header {
             cursor: pointer;
-            padding: 1rem;
+            padding: 1rem 1.25rem;
             background: var(--background-dark);
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            transition: background 0.3s ease;
+            transition: all var(--transition-speed) ease;
+            border: 2px solid transparent;
+            user-select: none;
+        }
+
+        .collapsible-header:hover {
+            background: #e9ecef;
+            border-color: var(--primary-color);
+            transform: translateX(3px);
+        }
+
+        .collapsible-header:focus {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        .collapsible-header span {
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .collapsible-header i.toggle-icon {
+            transition: transform var(--transition-speed) ease;
+            color: var(--primary-color);
+        }
+
+        .collapsible-header[aria-expanded="true"] i.toggle-icon {
+            transform: rotate(180deg);
         }
 
         .collapsible-content {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.3s ease;
+            transition: max-height var(--transition-speed) ease, padding var(--transition-speed) ease;
+            padding: 0 1rem;
         }
 
         .collapsible-content.active {
-            max-height: 600px; /* Increased for better content fit */
+            max-height: 1000px;
+            padding: 1rem;
         }
 
-        .tooltip {
-            position: relative;
+        .form-group {
+            margin-bottom: 1.5rem;
+            animation: slideIn 0.3s ease-out;
         }
 
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 220px;
-            background: #333;
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #495057;
+        }
+
+        .form-label i {
+            color: var(--primary-color);
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            padding: 0.75rem;
+            transition: all var(--transition-speed) ease;
+            font-size: 0.95rem;
+        }
+
+        .form-control:hover,
+        .form-select:hover {
+            border-color: #c0c0c0;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(94, 114, 228, 0.15);
+            outline: none;
+        }
+
+        .form-control.is-invalid,
+        .form-select.is-invalid {
+            border-color: var(--error-color);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right calc(0.375em + 0.1875rem) center;
+            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+            padding-right: calc(1.5em + 0.75rem);
+        }
+
+        .form-control.is-valid,
+        .form-select.is-valid {
+            border-color: var(--success-color);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%232dce89' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right calc(0.375em + 0.1875rem) center;
+            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+            padding-right: calc(1.5em + 0.75rem);
+        }
+
+        .param-description {
+            font-size: 0.875rem;
+            color: var(--secondary-color);
+            font-style: italic;
+            margin-top: 0.375rem;
+            line-height: 1.4;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            font-size: 0.875rem;
+            margin-top: 0.375rem;
+            display: none;
+            animation: shake 0.3s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .error-message::before {
+            content: "⚠ ";
+        }
+
+        .btn-modern {
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all var(--transition-speed) ease;
+            box-shadow: var(--shadow-sm);
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+
+        .btn-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-modern:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-modern:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
             color: white;
-            text-align: center;
-            border-radius: 6px;
-            padding: 0.5rem;
-            position: absolute;
-            z-index: 10;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
         }
 
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-info {
+            background: var(--info-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-home {
+            background: var(--home-color);
+            color: white;
+        }
+
+        .btn-group-modern {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
         }
 
         .progress-spinner {
             display: none;
-            margin: 1rem auto;
-            width: 40px;
-            height: 40px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary-color);
+            margin: 2rem auto;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
@@ -208,239 +368,595 @@
             100% { transform: rotate(360deg); }
         }
 
-        .label-with-icon {
+        .loading-text {
+            text-align: center;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        #chart-container {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            margin-top: 1.5rem;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, rgba(17, 205, 239, 0.1), rgba(17, 205, 239, 0.05));
+            border-left: 4px solid var(--info-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-heading {
+            color: var(--info-color);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metadata-item {
+            background: white;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary-color);
+        }
+
+        .metadata-item strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .tooltip-custom {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip-custom .tooltiptext {
+            visibility: hidden;
+            width: 240px;
+            background: #333;
+            color: white;
+            text-align: center;
+            border-radius: 8px;
+            padding: 0.75rem;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity var(--transition-speed) ease;
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+
+        .tooltip-custom .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .tooltip-custom:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .recent-simulations-container {
+            max-width: 300px;
+            position: relative;
+        }
+
+        .recent-simulations-container::before {
+            content: "\f02e";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--primary-color);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .recent-simulations-container select {
+            padding-left: 2.5rem;
+        }
+
+        .modal-content {
+            border-radius: var(--border-radius);
+            border: none;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            border-bottom: none;
+        }
+
+        .modal-title {
+            font-weight: 700;
+        }
+
+        .btn-close {
+            filter: brightness(0) invert(1);
+        }
+
+        .badge-custom {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.875em;
+            font-weight: 600;
+            line-height: 1;
+            color: white;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 6px;
+        }
+
+        .badge-primary {
+            background: var(--primary-color);
+        }
+
+        .badge-success {
+            background: var(--success-color);
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .recent-simulations-container {
+                max-width: 100%;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .card-header-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            .btn-group-modern {
+                flex-direction: column;
+            }
+
+            .btn-modern {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .metadata-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-section {
+                padding: 1.25rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-indicator.active {
+            background: var(--success-color);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .input-group-icon {
+            position: relative;
+        }
+
+        .input-group-icon i {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--secondary-color);
+            pointer-events: none;
+        }
+
+        .input-group-icon .form-control {
+            padding-left: 2.5rem;
+        }
+
+        #results {
+            display: none;
+        }
+
+        #results.active {
+            display: block;
+        }
+
+        .chart-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .chart-zoom-info {
+            font-size: 0.875rem;
+            color: var(--secondary-color);
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
 
-        .label-with-icon i {
-            color: var(--primary-color);
-        }
-
-        .homepage-btn-container {
-            max-width: 900px;
-            margin: 1rem auto 0;
-            padding: 0 15px;
+        .export-buttons {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        #recent-simulations {
-            max-width: 300px;
-        }
-
-        @media (max-width: 768px) {
-            .card-header h1, .card-header h2 {
-                font-size: 1.5rem;
-            }
-            .btn-modern {
-                padding: 0.5rem 1rem;
-            }
-            .param-description {
-                font-size: 0.85rem;
-            }
-            .homepage-btn-container {
-                flex-direction: column;
-                gap: 1rem;
-                align-items: center;
-            }
-            #recent-simulations {
-                max-width: 100%;
-            }
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
     </style>
 </head>
 <body>
-    <!-- Homepage Button and Recent Simulations -->
-    <div class="homepage-btn-container">
-        <a href="/" class="btn btn-home btn-modern">
-            <i class="fas fa-home me-2"></i>Back to Homepage
-        </a>
-        <select id="recent-simulations" class="form-control" aria-label="Recent Simulations">
-            <option value="">Load Recent Simulation</option>
-        </select>
-    </div>
-
     <div class="container">
-        <div class="card fade-in">
+        <div class="page-header">
+            <a href="/" class="btn btn-home btn-modern">
+                <i class="fas fa-home"></i>
+                <span>Back to Homepage</span>
+            </a>
+            <div class="recent-simulations-container">
+                <select id="recent-simulations" class="form-select" aria-label="Load Recent Simulation">
+                    <option value="">Recent Simulations</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-header">
-                <h1><i class="fas fa-vial me-2"></i>Dose-Response Simulator</h1>
-                <div>
-                    <i class="fas fa-info-circle me-2" data-bs-toggle="tooltip" title="Simulate dose-response curves using the Hill equation."></i>
-                    <i class="fas fa-question-circle" id="help-btn" role="button" aria-label="Open Help" title="Help"></i>
+                <h1>
+                    <i class="fas fa-vial"></i>
+                    Dose-Response Simulator
+                </h1>
+                <div class="card-header-actions">
+                    <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Advanced pharmacological dose-response modeling" role="button"></i>
+                    <i class="fas fa-question-circle" id="help-btn" role="button" aria-label="Open Help Guide" title="Help Guide"></i>
                 </div>
             </div>
+
             <div class="form-section">
-                <form id="simulation-form" aria-label="Dose-Response Simulation Form">
-                    <!-- Parameters Section -->
+                <form id="simulation-form" aria-label="Dose-Response Simulation Form" novalidate>
+                    
                     <div class="collapsible-header" data-toggle="parameters" role="button" tabindex="0" aria-expanded="true">
-                        <span><i class="fas fa-cogs me-2"></i>Model Parameters</span>
-                        <i class="fas fa-chevron-down"></i>
+                        <span>
+                            <i class="fas fa-sliders-h"></i>
+                            Model Parameters
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
                     <div class="collapsible-content active" id="parameters-content">
                         <div class="form-group">
-                            <label for="emax" class="label-with-icon tooltip">
-                                <span>Emax</span>
-                                <i class="fas fa-question-circle" aria-hidden="true"></i>
-                                <span class="tooltiptext">Maximum effect a drug can produce (0.1 to 1000).</span>
+                            <label for="emax" class="form-label tooltip-custom">
+                                <i class="fas fa-arrow-up"></i>
+                                <span>Emax (Maximum Effect)</span>
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltiptext">The maximum effect that the drug can produce. This represents the plateau of the dose-response curve. Range: 0.1 to 1000.</span>
                             </label>
-                            <input type="number" class="form-control" id="emax" name="emax" step="0.1" min="0.1" max="1000" required aria-describedby="emax-error">
-                            <div class="param-description">The maximum effect, representing the plateau of the curve.</div>
-                            <div id="emax-error" class="error"></div>
+                            <input type="number" class="form-control" id="emax" name="emax" step="0.1" min="0.1" max="1000" placeholder="e.g., 100" required aria-describedby="emax-error">
+                            <div class="param-description">Maximum achievable effect - the upper asymptote of the curve</div>
+                            <div id="emax-error" class="error-message"></div>
                         </div>
+
                         <div class="form-group">
-                            <label for="ec50" class="label-with-icon tooltip">
-                                <span>EC50</span>
-                                <i class="fas fa-question-circle" aria-hidden="true"></i>
-                                <span class="tooltiptext">Concentration producing 50% of Emax (0.1 to 10000).</span>
+                            <label for="ec50" class="form-label tooltip-custom">
+                                <i class="fas fa-bullseye"></i>
+                                <span>EC50 (Potency)</span>
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltiptext">The concentration that produces 50% of the maximum effect. Lower values indicate higher potency. Range: 0.1 to 10000.</span>
                             </label>
-                            <input type="number" class="form-control" id="ec50" name="ec50" step="0.1" min="0.1" max="10000" required aria-describedby="ec50-error">
-                            <div class="param-description">Concentration at 50% of maximum effect, a measure of potency.</div>
-                            <div id="ec50-error" class="error"></div>
+                            <input type="number" class="form-control" id="ec50" name="ec50" step="0.1" min="0.1" max="10000" placeholder="e.g., 10" required aria-describedby="ec50-error">
+                            <div class="param-description">Concentration at half-maximal effect - a key measure of drug potency</div>
+                            <div id="ec50-error" class="error-message"></div>
                         </div>
+
                         <div class="form-group">
-                            <label for="n" class="label-with-icon tooltip">
-                                <span>Hill Coefficient</span>
-                                <i class="fas fa-question-circle" aria-hidden="true"></i>
-                                <span class="tooltiptext">Steepness of the curve (0.1 to 10).</span>
+                            <label for="n" class="form-label tooltip-custom">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Hill Coefficient (Slope)</span>
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltiptext">Determines the steepness of the dose-response curve. Values > 1 indicate positive cooperativity. Range: 0.1 to 10.</span>
                             </label>
-                            <input type="number" class="form-control" id="n" name="n" step="0.1" min="0.1" max="10" required aria-describedby="n-error">
-                            <div class="param-description">Determines how quickly the effect changes with concentration.</div>
-                            <div id="n-error" class="error"></div>
+                            <input type="number" class="form-control" id="n" name="n" step="0.1" min="0.1" max="10" placeholder="e.g., 1" required aria-describedby="n-error">
+                            <div class="param-description">Controls curve steepness and cooperativity of binding</div>
+                            <div id="n-error" class="error-message"></div>
                         </div>
+
                         <div class="form-group">
-                            <label for="e0" class="label-with-icon tooltip">
-                                <span>Baseline Effect (E0)</span>
-                                <i class="fas fa-question-circle" aria-hidden="true"></i>
-                                <span class="tooltiptext">Effect at zero concentration (0 to 1000).</span>
+                            <label for="e0" class="form-label tooltip-custom">
+                                <i class="fas fa-level-down-alt"></i>
+                                <span>E0 (Baseline Effect)</span>
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltiptext">The effect observed at zero drug concentration. This is the baseline response. Range: 0 to 1000.</span>
                             </label>
-                            <input type="number" class="form-control" id="e0" name="e0" step="0.1" min="0" max="1000" value="0" aria-describedby="e0-error">
-                            <div class="param-description">Effect when no drug is present, the baseline of the curve.</div>
-                            <div id="e0-error" class="error"></div>
+                            <input type="number" class="form-control" id="e0" name="e0" step="0.1" min="0" max="1000" value="0" placeholder="e.g., 0" aria-describedby="e0-error">
+                            <div class="param-description">Baseline response in the absence of drug</div>
+                            <div id="e0-error" class="error-message"></div>
                         </div>
                     </div>
 
-                    <!-- Dosing Regimen Section -->
+                    <hr class="section-divider">
+
                     <div class="collapsible-header" data-toggle="dosing" role="button" tabindex="0" aria-expanded="false">
-                        <span><i class="fas fa-syringe me-2"></i>Dosing Regimen</span>
-                        <i class="fas fa-chevron-down"></i>
+                        <span>
+                            <i class="fas fa-syringe"></i>
+                            Dosing Regimen
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
                     <div class="collapsible-content" id="dosing-content">
                         <div class="form-group">
-                            <label for="dosing_regimen">Dosing Regimen</label>
-                            <select class="form-control" id="dosing_regimen" name="dosing_regimen" aria-label="Dosing Regimen">
-                                <option value="single">Single Dose</option>
-                                <option value="multiple">Multiple Doses</option>
+                            <label for="dosing_regimen" class="form-label">
+                                <i class="fas fa-pills"></i>
+                                <span>Regimen Type</span>
+                            </label>
+                            <select class="form-select" id="dosing_regimen" name="dosing_regimen" aria-label="Select Dosing Regimen">
+                                <option value="single">Single Dose (Standard Curve)</option>
+                                <option value="multiple">Multiple Doses (Time-Dependent)</option>
                             </select>
                         </div>
+
                         <div id="multiple-dosing" style="display: none;">
                             <div class="form-group">
-                                <label for="doses">Doses (comma-separated)</label>
-                                <input type="text" class="form-control" id="doses" name="doses" placeholder="e.g., 100,100,100" aria-describedby="doses-error">
-                                <div id="doses-error" class="error"></div>
+                                <label for="doses" class="form-label tooltip-custom">
+                                    <i class="fas fa-prescription-bottle"></i>
+                                    <span>Dose Amounts</span>
+                                    <i class="fas fa-info-circle"></i>
+                                    <span class="tooltiptext">Enter dose amounts separated by commas. Each value represents a single dose administration.</span>
+                                </label>
+                                <input type="text" class="form-control" id="doses" name="doses" placeholder="e.g., 100, 100, 100" aria-describedby="doses-error">
+                                <div class="param-description">Comma-separated dose amounts for each administration</div>
+                                <div id="doses-error" class="error-message"></div>
                             </div>
+
                             <div class="form-group">
-                                <label for="intervals">Intervals (hours, comma-separated)</label>
-                                <input type="text" class="form-control" id="intervals" name="intervals" placeholder="e.g., 12,12" aria-describedby="intervals-error">
-                                <div id="intervals-error" class="error"></div>
+                                <label for="intervals" class="form-label tooltip-custom">
+                                    <i class="fas fa-clock"></i>
+                                    <span>Dosing Intervals (hours)</span>
+                                    <i class="fas fa-info-circle"></i>
+                                    <span class="tooltiptext">Time intervals between doses in hours. Number of intervals should be one less than the number of doses.</span>
+                                </label>
+                                <input type="text" class="form-control" id="intervals" name="intervals" placeholder="e.g., 12, 12" aria-describedby="intervals-error">
+                                <div class="param-description">Time between doses (must be n-1 intervals for n doses)</div>
+                                <div id="intervals-error" class="error-message"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="elimination_rate" class="form-label tooltip-custom">
+                                    <i class="fas fa-tint-slash"></i>
+                                    <span>Elimination Rate Constant</span>
+                                    <i class="fas fa-info-circle"></i>
+                                    <span class="tooltiptext">First-order elimination rate constant (ke). Higher values indicate faster drug clearance. Range: 0 to 1.</span>
+                                </label>
+                                <input type="number" class="form-control" id="elimination_rate" name="elimination_rate" step="0.01" min="0" max="1" value="0.1" placeholder="e.g., 0.1" aria-describedby="elimination_rate-error">
+                                <div class="param-description">Rate of drug elimination (first-order kinetics)</div>
+                                <div id="elimination_rate-error" class="error-message"></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Concentrations Section -->
+                    <hr class="section-divider">
+
                     <div class="collapsible-header" data-toggle="concentrations" role="button" tabindex="0" aria-expanded="false">
-                        <span><i class="fas fa-flask me-2"></i>Concentrations</span>
-                        <i class="fas fa-chevron-down"></i>
+                        <span>
+                            <i class="fas fa-flask"></i>
+                            Concentration Settings
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
                     <div class="collapsible-content" id="concentrations-content">
                         <div class="form-group">
-                            <label for="concentration_type">Concentration Input</label>
-                            <select class="form-control" id="concentration_type" aria-label="Concentration Input Type">
-                                <option value="list">Enter Concentrations</option>
-                                <option value="range">Logarithmic Range</option>
+                            <label for="concentration_type" class="form-label">
+                                <i class="fas fa-list-ul"></i>
+                                <span>Input Method</span>
+                            </label>
+                            <select class="form-select" id="concentration_type" aria-label="Concentration Input Type">
+                                <option value="list">Manual Entry (Comma-Separated)</option>
+                                <option value="range">Logarithmic Range (Auto-Generate)</option>
                             </select>
                         </div>
+
                         <div id="concentration_list" class="form-group">
-                            <label for="concentrations">Concentrations (comma-separated)</label>
-                            <input type="text" class="form-control" id="concentrations" name="concentrations" placeholder="e.g., 0.1,1,10,100" aria-describedby="concentrations-error">
-                            <div id="concentrations-error" class="error"></div>
+                            <label for="concentrations" class="form-label">
+                                <i class="fas fa-vials"></i>
+                                <span>Concentration Values</span>
+                            </label>
+                            <input type="text" class="form-control" id="concentrations" name="concentrations" placeholder="e.g., 0.1, 1, 10, 100" aria-describedby="concentrations-error">
+                            <div class="param-description">Enter specific concentration values separated by commas</div>
+                            <div id="concentrations-error" class="error-message"></div>
                         </div>
-                        <div id="log_range" class="form-group" style="display: none;">
-                            <label for="log_start">Start Concentration</label>
-                            <input type="number" class="form-control" id="log_start" name="log_start" step="0.1" min="0.1" aria-describedby="log_start-error">
-                            <div id="log_start-error" class="error"></div>
-                            <label for="log_stop">Stop Concentration</label>
-                            <input type="number" class="form-control" id="log_stop" name="log_stop" step="0.1" min="0.1" aria-describedby="log_stop-error">
-                            <div id="log_stop-error" class="error"></div>
-                            <label for="log_num">Number of Points</label>
-                            <input type="number" class="form-control" id="log_num" name="log_num" min="10" aria-describedby="log_num-error">
-                            <div id="log_num-error" class="error"></div>
+
+                        <div id="log_range" style="display: none;">
+                            <div class="form-group">
+                                <label for="log_start" class="form-label">
+                                    <i class="fas fa-play"></i>
+                                    <span>Starting Concentration</span>
+                                </label>
+                                <input type="number" class="form-control" id="log_start" name="log_start" step="0.1" min="0.1" placeholder="e.g., 0.1" aria-describedby="log_start-error">
+                                <div class="param-description">Lowest concentration in the range</div>
+                                <div id="log_start-error" class="error-message"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="log_stop" class="form-label">
+                                    <i class="fas fa-stop"></i>
+                                    <span>Ending Concentration</span>
+                                </label>
+                                <input type="number" class="form-control" id="log_stop" name="log_stop" step="0.1" min="0.1" placeholder="e.g., 1000" aria-describedby="log_stop-error">
+                                <div class="param-description">Highest concentration in the range</div>
+                                <div id="log_stop-error" class="error-message"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="log_num" class="form-label">
+                                    <i class="fas fa-hashtag"></i>
+                                    <span>Number of Points</span>
+                                </label>
+                                <input type="number" class="form-control" id="log_num" name="log_num" min="10" placeholder="e.g., 50" aria-describedby="log_num-error">
+                                <div class="param-description">Total data points (minimum 10 recommended)</div>
+                                <div id="log_num-error" class="error-message"></div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Units Section -->
+                    <hr class="section-divider">
+
                     <div class="collapsible-header" data-toggle="units" role="button" tabindex="0" aria-expanded="false">
-                        <span><i class="fas fa-ruler me-2"></i>Units</span>
-                        <i class="fas fa-chevron-down"></i>
+                        <span>
+                            <i class="fas fa-ruler"></i>
+                            Units of Measurement
+                        </span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
                     </div>
                     <div class="collapsible-content" id="units-content">
                         <div class="form-group">
-                            <label for="concentration_unit">Concentration Unit</label>
-                            <select class="form-control" id="concentration_unit" name="concentration_unit" aria-label="Concentration Unit">
-                                <option value="µM">µM</option>
-                                <option value="nM">nM</option>
-                                <option value="mg/L">mg/L</option>
+                            <label for="concentration_unit" class="form-label">
+                                <i class="fas fa-flask"></i>
+                                <span>Concentration Unit</span>
+                            </label>
+                            <select class="form-select" id="concentration_unit" name="concentration_unit" aria-label="Select Concentration Unit">
+                                <option value="µM">Micromolar (µM)</option>
+                                <option value="nM">Nanomolar (nM)</option>
+                                <option value="mg/L">Milligrams per Liter (mg/L)</option>
+                                <option value="µg/mL">Micrograms per Milliliter (µg/mL)</option>
                             </select>
                         </div>
+
                         <div class="form-group">
-                            <label for="effect_unit">Effect Unit</label>
-                            <select class="form-control" id="effect_unit" name="effect_unit" aria-label="Effect Unit">
-                                <option value="%">%</option>
-                                <option value="mV">mV</option>
-                                <option value="units">Units</option>
+                            <label for="effect_unit" class="form-label">
+                                <i class="fas fa-percentage"></i>
+                                <span>Effect Unit</span>
+                            </label>
+                            <select class="form-select" id="effect_unit" name="effect_unit" aria-label="Select Effect Unit">
+                                <option value="%">Percentage (%)</option>
+                                <option value="mV">Millivolts (mV)</option>
+                                <option value="units">Arbitrary Units</option>
+                                <option value="µM">Micromolar (µM)</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Form Actions -->
-                    <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
+                    <div class="btn-group-modern">
                         <button type="submit" class="btn btn-primary btn-modern">
-                            <i class="fas fa-play me-2"></i>Simulate
+                            <i class="fas fa-play-circle"></i>
+                            <span>Run Simulation</span>
                         </button>
                         <button type="button" class="btn btn-secondary btn-modern" id="reset-btn">
-                            <i class="fas fa-undo me-2"></i>Reset
+                            <i class="fas fa-redo"></i>
+                            <span>Reset Form</span>
                         </button>
                         <button type="button" class="btn btn-info btn-modern" id="save-btn">
-                            <i class="fas fa-save me-2"></i>Save
+                            <i class="fas fa-save"></i>
+                            <span>Save Parameters</span>
                         </button>
                         <button type="button" class="btn btn-info btn-modern" id="load-btn">
-                            <i class="fas fa-folder-open me-2"></i>Load
+                            <i class="fas fa-folder-open"></i>
+                            <span>Load Saved</span>
                         </button>
                     </div>
                 </form>
+
                 <div class="progress-spinner" id="loading-spinner"></div>
+                <div class="loading-text" id="loading-text">
+                    <span class="status-indicator active"></span>
+                    Calculating dose-response curve...
+                </div>
             </div>
         </div>
 
-        <!-- Results Section -->
-        <div id="results" class="mt-4">
-            <div class="card fade-in">
+        <div id="results">
+            <div class="card">
                 <div class="card-header">
-                    <h2><i class="fas fa-chart-line me-2"></i>Simulation Results</h2>
+                    <h2>
+                        <i class="fas fa-chart-area"></i>
+                        Simulation Results
+                    </h2>
+                    <div class="card-header-actions">
+                        <span class="badge-custom badge-success">
+                            <i class="fas fa-check-circle"></i> Complete
+                        </span>
+                    </div>
                 </div>
+
                 <div class="form-section">
                     <div id="metadata"></div>
+
                     <div id="chart-container">
-                        <canvas id="doseResponseChart" aria-label="Dose-Response Chart"></canvas>
+                        <div class="chart-controls">
+                            <div class="chart-zoom-info">
+                                <i class="fas fa-search-plus"></i>
+                                <span>Scroll to zoom • Drag to pan</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-secondary" id="reset-zoom-btn" style="display: none;">
+                                <i class="fas fa-compress"></i>
+                                Reset Zoom
+                            </button>
+                        </div>
+                        <canvas id="doseResponseChart" aria-label="Dose-Response Visualization Chart"></canvas>
                     </div>
-                    <div class="d-flex justify-content-end mt-3 gap-2">
+
+                    <div class="export-buttons" style="margin-top: 1.5rem;">
                         <button id="export-btn" class="btn btn-success btn-modern" style="display: none;">
-                            <i class="fas fa-download me-2"></i>Export as CSV
+                            <i class="fas fa-file-csv"></i>
+                            <span>Export CSV</span>
                         </button>
                         <button id="download-chart-btn" class="btn btn-info btn-modern" style="display: none;">
-                            <i class="fas fa-image me-2"></i>Download Chart
+                            <i class="fas fa-image"></i>
+                            <span>Download Chart</span>
+                        </button>
+                        <button id="copy-data-btn" class="btn btn-warning btn-modern" style="display: none;">
+                            <i class="fas fa-copy"></i>
+                            <span>Copy Data</span>
                         </button>
                     </div>
                 </div>
@@ -448,200 +964,204 @@
         </div>
     </div>
 
-    <!-- Help Modal -->
     <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="helpModalLabel">Dose-Response Simulator Help</h5>
+                    <h5 class="modal-title" id="helpModalLabel">
+                        <i class="fas fa-book-medical me-2"></i>
+                        Dose-Response Simulator Guide
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <h6>Overview</h6>
-                    <p>This tool simulates dose-response curves using the Hill equation for single or multiple dosing regimens.</p>
-                    <h6>Model Parameters</h6>
-                    <ul>
-                        <li><strong>Emax:</strong> Maximum drug effect (0.1 to 1000).</li>
-                        <li><strong>EC50:</strong> Concentration for 50% of Emax (0.1 to 10000).</li>
-                        <li><strong>Hill Coefficient:</strong> Curve steepness (0.1 to 10).</li>
-                        <li><strong>E0:</strong> Baseline effect at zero concentration (0 to 1000).</li>
+                    <h6><i class="fas fa-info-circle text-primary me-2"></i>Overview</h6>
+                    <p>This advanced pharmacological tool simulates dose-response relationships using the Hill equation (also known as the Hill-Langmuir equation). It supports both single-dose and multiple-dose regimens with pharmacokinetic modeling.</p>
+                    
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-sliders-h text-primary me-2"></i>Model Parameters</h6>
+                    <ul class="list-unstyled ms-3">
+                        <li class="mb-2"><strong>Emax:</strong> The maximum effect achievable by the drug, representing the plateau of the dose-response curve. Typical range: 0.1 to 1000.</li>
+                        <li class="mb-2"><strong>EC50:</strong> The concentration producing 50% of Emax. This is a critical measure of drug potency - lower values indicate higher potency. Range: 0.1 to 10000.</li>
+                        <li class="mb-2"><strong>Hill Coefficient (n):</strong> Determines the steepness of the dose-response curve. Values > 1 suggest positive cooperativity, while values < 1 suggest negative cooperativity. Range: 0.1 to 10.</li>
+                        <li class="mb-2"><strong>E0:</strong> The baseline effect observed at zero drug concentration. This represents the system's response without drug intervention. Range: 0 to 1000.</li>
                     </ul>
-                    <h6>Dosing Regimen</h6>
-                    <p>Choose <strong>Single Dose</strong> for a standard curve or <strong>Multiple Doses</strong> to simulate effects over time with specified doses and intervals.</p>
-                    <h6>Concentrations</h6>
-                    <p>Enter a comma-separated list of concentrations or define a logarithmic range with start, stop, and number of points.</p>
-                    <h6>Units</h6>
-                    <p>Select units for concentration (µM, nM, mg/L) and effect (%, mV, Units).</p>
-                    <h6>Actions</h6>
+                    
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-syringe text-primary me-2"></i>Dosing Regimens</h6>
+                    <p><strong>Single Dose:</strong> Generates a standard dose-response curve showing effect vs. concentration.</p>
+                    <p><strong>Multiple Doses:</strong> Simulates repeated drug administrations over time, modeling drug accumulation and elimination using first-order kinetics. Requires specification of dose amounts, intervals, and elimination rate.</p>
+                    
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-flask text-primary me-2"></i>Concentration Input</h6>
+                    <p><strong>Manual Entry:</strong> Enter specific concentration values separated by commas.</p>
+                    <p><strong>Logarithmic Range:</strong> Automatically generate evenly-spaced concentrations on a log scale. Ideal for spanning multiple orders of magnitude.</p>
+                    
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-chart-line text-primary me-2"></i>Interpreting Results</h6>
+                    <ul class="list-unstyled ms-3">
+                        <li class="mb-2"><strong>Pseudo R²:</strong> Indicates model fit quality (closer to 1.0 is better)</li>
+                        <li class="mb-2"><strong>Interactive Chart:</strong> Zoom with mouse wheel, pan by dragging</li>
+                        <li class="mb-2"><strong>Export Options:</strong> Download data as CSV or save chart as PNG image</li>
+                    </ul>
+                    
+                    <hr class="my-4">
+                    
+                    <h6><i class="fas fa-lightbulb text-warning me-2"></i>Best Practices</h6>
                     <ul>
-                        <li><strong>Simulate:</strong> Run the simulation and view results.</li>
-                        <li><strong>Reset:</strong> Clear all inputs and results.</li>
-                        <li><strong>Save:</strong> Store parameters locally.</li>
-                        <li><strong>Load:</strong> Retrieve saved parameters.</li>
-                        <li><strong>Export as CSV:</strong> Download results as a CSV file.</li>
-                        <li><strong>Download Chart:</strong> Save the chart as a PNG image.</li>
+                        <li>Use logarithmic concentration ranges for comprehensive curve characterization</li>
+                        <li>Include concentrations both well below and well above the expected EC50</li>
+                        <li>For multiple dosing, ensure elimination rate reflects physiological half-life</li>
+                        <li>Save parameter sets for reproducibility and comparison</li>
                     </ul>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Register the zoom plugin with Chart.js
-        if (typeof Chart !== 'undefined' && typeof Chart.register === 'function') {
+        if (typeof Chart !== 'undefined' && typeof ChartZoom !== 'undefined') {
             Chart.register(ChartZoom);
         } else {
-            console.error('Chart.js or ChartZoom plugin not loaded properly.');
+            console.error('Chart.js or Zoom plugin failed to load');
         }
 
         let chartInstance = null;
+        let currentSimulationData = null;
         const helpModal = new bootstrap.Modal(document.getElementById('helpModal'));
 
-        // Debounce function for live validation
         function debounce(func, wait) {
             let timeout;
             return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
                 clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
+                timeout = setTimeout(() => func.apply(this, args), wait);
             };
         }
 
-        // Initialize Bootstrap Tooltips
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            new bootstrap.Tooltip(el);
+        });
 
-        // Collapsible Sections with keyboard support
         document.querySelectorAll('.collapsible-header').forEach(header => {
             header.addEventListener('click', toggleCollapsible);
             header.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    toggleCollapsible(e);
+                    toggleCollapsible.call(header, e);
                 }
             });
         });
 
         function toggleCollapsible(e) {
-            const header = e.currentTarget;
-            const content = document.getElementById(`${header.dataset.toggle}-content`);
-            const icon = header.querySelector('.fas');
+            const header = e.currentTarget || this;
+            const contentId = header.dataset.toggle + '-content';
+            const content = document.getElementById(contentId);
+            const icon = header.querySelector('.toggle-icon');
             const isExpanded = content.classList.toggle('active');
-            icon.classList.toggle('fa-chevron-down', !isExpanded);
-            icon.classList.toggle('fa-chevron-up', isExpanded);
+            
+            if (icon) {
+                icon.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
             header.setAttribute('aria-expanded', isExpanded);
         }
 
-        // Concentration Type Toggle
         document.getElementById('concentration_type').addEventListener('change', function() {
             const isList = this.value === 'list';
             document.getElementById('concentration_list').style.display = isList ? 'block' : 'none';
             document.getElementById('log_range').style.display = isList ? 'none' : 'block';
         });
 
-        // Dosing Regimen Toggle
         document.getElementById('dosing_regimen').addEventListener('change', function() {
             const isMultiple = this.value === 'multiple';
             document.getElementById('multiple-dosing').style.display = isMultiple ? 'block' : 'none';
         });
 
-        // Help Modal
-        document.getElementById('help-btn').addEventListener('click', () => {
-            helpModal.show();
-        });
+        document.getElementById('help-btn').addEventListener('click', () => helpModal.show());
 
-        // Recent Simulations
         function updateRecentSimulations() {
             const recent = JSON.parse(localStorage.getItem('recentSimulations') || '[]');
             const select = document.getElementById('recent-simulations');
-            select.innerHTML = '<option value="">Load Recent Simulation</option>';
+            select.innerHTML = '<option value="">Recent Simulations</option>';
+            
             recent.forEach((sim, index) => {
                 const option = document.createElement('option');
                 option.value = index;
-                option.textContent = `Simulation ${index + 1}: Emax=${sim.emax}, EC50=${sim.ec50}`;
+                option.textContent = `Sim ${index + 1}: Emax=${sim.emax}, EC50=${sim.ec50}, n=${sim.n}`;
                 select.appendChild(option);
             });
         }
 
         document.getElementById('recent-simulations').addEventListener('change', function() {
-            if (this.value === '') return;
+            if (!this.value) return;
+            
             const recent = JSON.parse(localStorage.getItem('recentSimulations') || '[]');
             const params = recent[parseInt(this.value)];
+            
             if (params) {
                 loadFormData(params);
                 this.value = '';
+                showNotification('Parameters loaded successfully', 'success');
             }
         });
 
-        // Reset Form
         document.getElementById('reset-btn').addEventListener('click', function() {
-            const form = document.getElementById('simulation-form');
-            form.reset();
+            if (!confirm('Are you sure you want to reset all fields?')) return;
+            
+            document.getElementById('simulation-form').reset();
             document.getElementById('concentration_list').style.display = 'block';
             document.getElementById('log_range').style.display = 'none';
             document.getElementById('multiple-dosing').style.display = 'none';
-            document.getElementById('results').innerHTML = `
-                <div class="card fade-in">
-                    <div class="card-header">
-                        <h2><i class="fas fa-chart-line me-2"></i>Simulation Results</h2>
-                    </div>
-                    <div class="form-section">
-                        <div id="metadata"></div>
-                        <div id="chart-container">
-                            <canvas id="doseResponseChart" aria-label="Dose-Response Chart"></canvas>
-                        </div>
-                        <div class="d-flex justify-content-end mt-3 gap-2">
-                            <button id="export-btn" class="btn btn-success btn-modern" style="display: none;">
-                                <i class="fas fa-download me-2"></i>Export as CSV
-                            </button>
-                            <button id="download-chart-btn" class="btn btn-info btn-modern" style="display: none;">
-                                <i class="fas fa-image me-2"></i>Download Chart
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            document.getElementById('results').classList.remove('active');
+            
             if (chartInstance) {
                 chartInstance.destroy();
                 chartInstance = null;
             }
+            
             clearErrors();
+            showNotification('Form reset successfully', 'info');
         });
 
-        // Save Parameters
         document.getElementById('save-btn').addEventListener('click', function() {
             const formData = getFormData();
-            if (validateForm(formData)) {
-                localStorage.setItem('doseResponseParams', JSON.stringify(formData));
-                const recent = JSON.parse(localStorage.getItem('recentSimulations') || '[]');
-                recent.unshift(formData);
-                if (recent.length > 5) recent.pop(); // Keep only last 5
-                localStorage.setItem('recentSimulations', JSON.stringify(recent));
-                updateRecentSimulations();
-                alert('Parameters saved successfully!');
-            } else {
-                alert('Please fix form errors before saving.');
+            
+            if (!validateForm(formData)) {
+                showNotification('Please fix validation errors before saving', 'error');
+                return;
             }
+            
+            localStorage.setItem('doseResponseParams', JSON.stringify(formData));
+            
+            const recent = JSON.parse(localStorage.getItem('recentSimulations') || '[]');
+            recent.unshift(formData);
+            if (recent.length > 10) recent.pop();
+            localStorage.setItem('recentSimulations', JSON.stringify(recent));
+            
+            updateRecentSimulations();
+            showNotification('Parameters saved successfully!', 'success');
         });
 
-        // Load Parameters
         document.getElementById('load-btn').addEventListener('click', function() {
             const saved = localStorage.getItem('doseResponseParams');
-            if (saved) {
-                const params = JSON.parse(saved);
-                loadFormData(params);
-                alert('Parameters loaded successfully!');
-            } else {
-                alert('No saved parameters found.');
+            
+            if (!saved) {
+                showNotification('No saved parameters found', 'warning');
+                return;
             }
+            
+            const params = JSON.parse(saved);
+            loadFormData(params);
+            showNotification('Parameters loaded successfully!', 'success');
         });
 
         function loadFormData(params) {
@@ -650,66 +1170,101 @@
             document.getElementById('n').value = params.n || '';
             document.getElementById('e0').value = params.e0 || 0;
             document.getElementById('dosing_regimen').value = params.dosing_regimen || 'single';
-            document.getElementById('multiple-dosing').style.display = params.dosing_regimen === 'multiple' ? 'block' : 'none';
-            document.getElementById('doses').value = params.doses?.join(',') || '';
-            document.getElementById('intervals').value = params.intervals?.join(',') || '';
+            
+            const isMultiple = params.dosing_regimen === 'multiple';
+            document.getElementById('multiple-dosing').style.display = isMultiple ? 'block' : 'none';
+            
+            if (isMultiple) {
+                document.getElementById('doses').value = params.doses?.join(', ') || '';
+                document.getElementById('intervals').value = params.intervals?.join(', ') || '';
+                document.getElementById('elimination_rate').value = params.elimination_rate || 0.1;
+            }
+            
             document.getElementById('concentration_type').value = params.concentration_type || 'list';
-            document.getElementById('concentrations').value = params.concentrations?.join(',') || '';
-            document.getElementById('log_start').value = params.log_range?.start || '';
-            document.getElementById('log_stop').value = params.log_range?.stop || '';
-            document.getElementById('log_num').value = params.log_range?.num || '';
-            document.getElementById('concentration_list').style.display = params.concentration_type === 'list' ? 'block' : 'none';
-            document.getElementById('log_range').style.display = params.concentration_type === 'list' ? 'none' : 'block';
+            const isList = params.concentration_type === 'list';
+            document.getElementById('concentration_list').style.display = isList ? 'block' : 'none';
+            document.getElementById('log_range').style.display = isList ? 'none' : 'block';
+            
+            if (isList) {
+                document.getElementById('concentrations').value = params.concentrations?.join(', ') || '';
+            } else {
+                document.getElementById('log_start').value = params.log_range?.start || '';
+                document.getElementById('log_stop').value = params.log_range?.stop || '';
+                document.getElementById('log_num').value = params.log_range?.num || '';
+            }
+            
             document.getElementById('concentration_unit').value = params.concentration_unit || 'µM';
             document.getElementById('effect_unit').value = params.effect_unit || '%';
         }
 
-        // Form Submission
-        document.getElementById('simulation-form').addEventListener('submit', function(e) {
+        document.getElementById('simulation-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             clearErrors();
+            
             const spinner = document.getElementById('loading-spinner');
+            const loadingText = document.getElementById('loading-text');
             spinner.style.display = 'block';
-
+            loadingText.style.display = 'block';
+            
             const formData = getFormData();
+            
             if (!validateForm(formData)) {
                 spinner.style.display = 'none';
+                loadingText.style.display = 'none';
+                showNotification('Please fix validation errors', 'error');
                 return;
             }
-
-            fetch('/simulate-dose-response', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            })
-            .then(response => response.json())
-            .then(data => {
+            
+            try {
+                const response = await fetch('/simulate-dose-response', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
                 spinner.style.display = 'none';
+                loadingText.style.display = 'none';
+                
                 if (data.error) {
                     displayErrors(data.details || [{ message: data.error }]);
+                    showNotification(data.error, 'error');
                     return;
                 }
+                
+                currentSimulationData = data;
                 displayResults(data);
-            })
-            .catch(error => {
+                showNotification('Simulation completed successfully!', 'success');
+                
+            } catch (error) {
                 spinner.style.display = 'none';
-                console.error('Error:', error);
-                document.getElementById('metadata').innerHTML += '<p class="error">Failed to fetch results. Please try again.</p>';
-            });
+                loadingText.style.display = 'none';
+                console.error('Simulation error:', error);
+                showNotification('Failed to run simulation. Please try again.', 'error');
+            }
         });
 
-        // Live Validation
-        const inputs = document.querySelectorAll('#simulation-form input, #simulation-form select');
-        inputs.forEach(input => {
+        const formInputs = document.querySelectorAll('#simulation-form input, #simulation-form select');
+        formInputs.forEach(input => {
             input.addEventListener('input', debounce(() => {
-                const formData = getFormData();
-                validateForm(formData);
-            }, 300));
+                const fieldId = input.id;
+                const errorElement = document.getElementById(fieldId + '-error');
+                
+                if (input.checkValidity()) {
+                    input.classList.remove('is-invalid');
+                    input.classList.add('is-valid');
+                    if (errorElement) errorElement.style.display = 'none';
+                } else {
+                    input.classList.remove('is-valid');
+                }
+            }, 500));
         });
 
         function getFormData() {
             const concentrationType = document.getElementById('concentration_type').value;
             const dosingRegimen = document.getElementById('dosing_regimen').value;
+            
             const data = {
                 emax: parseFloat(document.getElementById('emax').value) || null,
                 ec50: parseFloat(document.getElementById('ec50').value) || null,
@@ -720,19 +1275,20 @@
                 effect_unit: document.getElementById('effect_unit').value,
                 concentration_type: concentrationType
             };
+            
             if (dosingRegimen === 'multiple') {
-                data.doses = document.getElementById('doses').value.split(',')
-                    .map(Number)
-                    .filter(n => !isNaN(n) && n > 0);
-                data.intervals = document.getElementById('intervals').value.split(',')
-                    .map(Number)
-                    .filter(n => !isNaN(n) && n > 0);
+                const dosesInput = document.getElementById('doses').value;
+                const intervalsInput = document.getElementById('intervals').value;
+                const eliminationRate = parseFloat(document.getElementById('elimination_rate').value) || 0.1;
+                
+                data.doses = dosesInput.split(',').map(d => parseFloat(d.trim())).filter(n => !isNaN(n) && n > 0);
+                data.intervals = intervalsInput.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n) && n > 0);
+                data.elimination_rate = eliminationRate;
             }
+            
             if (concentrationType === 'list') {
-                data.concentrations = document.getElementById('concentrations').value
-                    .split(',')
-                    .map(Number)
-                    .filter(n => !isNaN(n) && n > 0);
+                const concInput = document.getElementById('concentrations').value;
+                data.concentrations = concInput.split(',').map(c => parseFloat(c.trim())).filter(n => !isNaN(n) && n > 0);
             } else {
                 data.log_range = {
                     start: parseFloat(document.getElementById('log_start').value) || null,
@@ -740,199 +1296,296 @@
                     num: parseInt(document.getElementById('log_num').value) || null
                 };
             }
+            
             return data;
         }
 
         function validateForm(data) {
             let isValid = true;
-            clearErrors();
-
-            const validateField = (field, value, errorId, message) => {
-                if (!value || value <= 0 || (field === 'emax' && value > 1000) || 
-                    (field === 'ec50' && value > 10000) || (field === 'n' && value > 10)) {
-                    document.getElementById(errorId).textContent = message;
-                    document.getElementById(errorId).style.display = 'block';
-                    document.getElementById(field).classList.add('is-invalid');
+            
+            const validateField = (field, value, min, max, errorMsg) => {
+                const errorEl = document.getElementById(field + '-error');
+                const inputEl = document.getElementById(field);
+                
+                if (!value || value < min || value > max) {
+                    if (errorEl) {
+                        errorEl.textContent = errorMsg;
+                        errorEl.style.display = 'block';
+                    }
+                    if (inputEl) inputEl.classList.add('is-invalid');
                     return false;
                 }
-                document.getElementById(field).classList.remove('is-invalid');
+                
+                if (inputEl) inputEl.classList.remove('is-invalid');
+                if (errorEl) errorEl.style.display = 'none';
                 return true;
             };
-
-            isValid &= validateField('emax', data.emax, 'emax-error', 'Emax must be between 0.1 and 1000.');
-            isValid &= validateField('ec50', data.ec50, 'ec50-error', 'EC50 must be between 0.1 and 10000.');
-            isValid &= validateField('n', data.n, 'n-error', 'Hill coefficient must be between 0.1 and 10.');
-            if (data.e0 < 0 || data.e0 > 1000) {
-                document.getElementById('e0-error').textContent = 'Baseline effect must be between 0 and 1000.';
-                document.getElementById('e0-error').style.display = 'block';
-                document.getElementById('e0').classList.add('is-invalid');
-                isValid = false;
-            } else {
-                document.getElementById('e0').classList.remove('is-invalid');
-            }
-
+            
+            isValid &= validateField('emax', data.emax, 0.1, 1000, 'Emax must be between 0.1 and 1000');
+            isValid &= validateField('ec50', data.ec50, 0.1, 10000, 'EC50 must be between 0.1 and 10000');
+            isValid &= validateField('n', data.n, 0.1, 10, 'Hill coefficient must be between 0.1 and 10');
+            isValid &= validateField('e0', data.e0, 0, 1000, 'E0 must be between 0 and 1000');
+            
             if (data.dosing_regimen === 'multiple') {
-                if (!data.doses || data.doses.length === 0 || data.doses.some(d => d <= 0)) {
-                    document.getElementById('doses-error').textContent = 'Enter valid positive doses.';
-                    document.getElementById('doses-error').style.display = 'block';
+                if (!data.doses || data.doses.length === 0) {
+                    const errorEl = document.getElementById('doses-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Please enter valid positive doses';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('doses').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('doses').classList.remove('is-invalid');
                 }
-                if (!data.intervals || data.intervals.length === 0 || data.intervals.some(i => i <= 0)) {
-                    document.getElementById('intervals-error').textContent = 'Enter valid positive intervals.';
-                    document.getElementById('intervals-error').style.display = 'block';
+                
+                if (!data.intervals || data.intervals.length === 0) {
+                    const errorEl = document.getElementById('intervals-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Please enter valid positive intervals';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('intervals').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('intervals').classList.remove('is-invalid');
+                }
+                
+                if (data.doses && data.intervals && data.intervals.length !== data.doses.length - 1) {
+                    const errorEl = document.getElementById('intervals-error');
+                    if (errorEl) {
+                        errorEl.textContent = `Need ${data.doses.length - 1} intervals for ${data.doses.length} doses`;
+                        errorEl.style.display = 'block';
+                    }
+                    document.getElementById('intervals').classList.add('is-invalid');
+                    isValid = false;
                 }
             }
-
-            if (data.concentrations) {
-                if (data.concentrations.length === 0 || data.concentrations.some(c => c <= 0)) {
-                    document.getElementById('concentrations-error').textContent = 'Enter valid positive concentrations.';
-                    document.getElementById('concentrations-error').style.display = 'block';
+            
+            if (data.concentrations !== undefined) {
+                if (!data.concentrations || data.concentrations.length === 0) {
+                    const errorEl = document.getElementById('concentrations-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Please enter valid positive concentrations';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('concentrations').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('concentrations').classList.remove('is-invalid');
                 }
             } else if (data.log_range) {
                 if (!data.log_range.start || data.log_range.start <= 0) {
-                    document.getElementById('log_start-error').textContent = 'Start must be positive.';
-                    document.getElementById('log_start-error').style.display = 'block';
+                    const errorEl = document.getElementById('log_start-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Start must be positive';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('log_start').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('log_start').classList.remove('is-invalid');
                 }
-                if (!data.log_range.stop || data.log_range.stop <= data.log_range.start) {
-                    document.getElementById('log_stop-error').textContent = 'Stop must be greater than start.';
-                    document.getElementById('log_stop-error').style.display = 'block';
+                
+                if (!data.log_range.stop || data.log_range.stop <= (data.log_range.start || 0)) {
+                    const errorEl = document.getElementById('log_stop-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Stop must be greater than start';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('log_stop').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('log_stop').classList.remove('is-invalid');
                 }
+                
                 if (!data.log_range.num || data.log_range.num < 10) {
-                    document.getElementById('log_num-error').textContent = 'Number of points must be at least 10.';
-                    document.getElementById('log_num-error').style.display = 'block';
+                    const errorEl = document.getElementById('log_num-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Minimum 10 points required';
+                        errorEl.style.display = 'block';
+                    }
                     document.getElementById('log_num').classList.add('is-invalid');
                     isValid = false;
-                } else {
-                    document.getElementById('log_num').classList.remove('is-invalid');
                 }
             }
-
-            return isValid;
+            
+            return Boolean(isValid);
         }
 
         function clearErrors() {
-            document.querySelectorAll('.error').forEach(el => {
+            document.querySelectorAll('.error-message').forEach(el => {
                 el.textContent = '';
                 el.style.display = 'none';
             });
-            document.querySelectorAll('.form-control').forEach(el => el.classList.remove('is-invalid'));
+            document.querySelectorAll('.form-control, .form-select').forEach(el => {
+                el.classList.remove('is-invalid', 'is-valid');
+            });
         }
 
         function displayErrors(errors) {
+            if (!Array.isArray(errors)) return;
+            
             errors.forEach(err => {
-                const field = err.loc ? err.loc.join('-') : err.message.toLowerCase().replace(/\s+/g, '-');
-                const errorEl = document.getElementById(`${field}-error`);
-                if (errorEl) {
-                    errorEl.textContent = err.message;
-                    errorEl.style.display = 'block';
-                    const inputEl = document.getElementById(field);
+                const fieldName = err.loc ? err.loc[err.loc.length - 1] : null;
+                if (fieldName) {
+                    const errorEl = document.getElementById(fieldName + '-error');
+                    const inputEl = document.getElementById(fieldName);
+                    
+                    if (errorEl) {
+                        errorEl.textContent = err.msg || err.message || 'Invalid value';
+                        errorEl.style.display = 'block';
+                    }
                     if (inputEl) inputEl.classList.add('is-invalid');
                 }
             });
         }
 
         function displayResults(data) {
-            const metadataDiv = document.getElementById('metadata');
+            const resultsSection = document.getElementById('results');
+            resultsSection.classList.add('active');
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
             const metadata = data.metadata;
+            const metadataDiv = document.getElementById('metadata');
+            
             metadataDiv.innerHTML = `
-                <div class="alert alert-info fade-in">
-                    <h4 class="alert-heading">Simulation Details</h4>
-                    <p><strong>ID:</strong> ${metadata.simulation_id}</p>
-                    <p><strong>Model:</strong> ${metadata.model}</p>
-                    <p><strong>Emax:</strong> ${metadata.parameters.Emax} ${metadata.units.effect}</p>
-                    <p><strong>EC50:</strong> ${metadata.parameters.EC50} ${metadata.units.concentration}</p>
-                    <p><strong>Hill Coefficient:</strong> ${metadata.parameters.Hill_Coefficient}</p>
-                    <p><strong>Baseline Effect (E0):</strong> ${metadata.parameters.E0} ${metadata.units.effect}</p>
-                    <p><strong>Dosing Regimen:</strong> ${metadata.parameters.Dosing_Regimen}</p>
-                    ${metadata.parameters.Doses ? `<p><strong>Doses:</strong> ${metadata.parameters.Doses.join(', ')}</p>` : ''}
-                    ${metadata.parameters.Intervals ? `<p><strong>Intervals:</strong> ${metadata.parameters.Intervals.join(', ')} hours</p>` : ''}
-                    <p><strong>Concentration Range:</strong> ${metadata.concentration_range.min} to ${metadata.concentration_range.max} ${metadata.units.concentration}</p>
-                    ${metadata.pseudo_r2 !== null ? `<p><strong>Pseudo R²:</strong> ${metadata.pseudo_r2}</p>` : ''}
-                    <p><strong>Points:</strong> ${metadata.point_count}</p>
+                <div class="alert-info">
+                    <h4 class="alert-heading">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Simulation Summary
+                    </h4>
+                    <div class="metadata-grid">
+                        <div class="metadata-item">
+                            <strong>Simulation ID</strong>
+                            <span>${metadata.simulation_id}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Model</strong>
+                            <span>${metadata.model}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Emax</strong>
+                            <span>${metadata.parameters.Emax} ${metadata.units.effect}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>EC50</strong>
+                            <span>${metadata.parameters.EC50} ${metadata.units.concentration}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Hill Coefficient</strong>
+                            <span>${metadata.parameters.Hill_Coefficient}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Baseline (E0)</strong>
+                            <span>${metadata.parameters.E0} ${metadata.units.effect}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <strong>Regimen</strong>
+                            <span>${metadata.parameters.Dosing_Regimen}</span>
+                        </div>
+                        ${metadata.parameters.Doses ? `
+                        <div class="metadata-item">
+                            <strong>Doses</strong>
+                            <span>${metadata.parameters.Doses.join(', ')}</span>
+                        </div>` : ''}
+                        ${metadata.parameters.Intervals ? `
+                        <div class="metadata-item">
+                            <strong>Intervals (h)</strong>
+                            <span>${metadata.parameters.Intervals.join(', ')}</span>
+                        </div>` : ''}
+                        <div class="metadata-item">
+                            <strong>Concentration Range</strong>
+                            <span>${metadata.concentration_range.min.toExponential(2)} to ${metadata.concentration_range.max.toExponential(2)} ${metadata.units.concentration}</span>
+                        </div>
+                        ${metadata.pseudo_r2 !== null ? `
+                        <div class="metadata-item">
+                            <strong>Pseudo R²</strong>
+                            <span>${metadata.pseudo_r2}</span>
+                        </div>` : ''}
+                        <div class="metadata-item">
+                            <strong>Data Points</strong>
+                            <span>${metadata.point_count}</span>
+                        </div>
+                    </div>
                 </div>
             `;
-
-            // Update Chart
+            
             const ctx = document.getElementById('doseResponseChart').getContext('2d');
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
+            if (chartInstance) chartInstance.destroy();
+            
             const isSingleDose = metadata.parameters.Dosing_Regimen === 'single';
+            
             const datasets = isSingleDose ? [{
-                label: `Effect (${metadata.units.effect}) vs Concentration (${metadata.units.concentration})`,
+                label: `Effect (${metadata.units.effect})`,
                 data: data.data.map(d => ({ x: d.concentration, y: d.effect })),
-                borderColor: 'var(--primary-color)',
+                borderColor: '#5e72e4',
                 backgroundColor: 'rgba(94, 114, 228, 0.1)',
+                borderWidth: 3,
                 fill: false,
                 tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 6
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointBackgroundColor: '#5e72e4',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
             }] : [{
-                label: `Effect (${metadata.units.effect}) vs Time (hours)`,
+                label: `Effect (${metadata.units.effect})`,
                 data: data.data.map(d => ({ x: d.time, y: d.effect })),
-                borderColor: 'var(--primary-color)',
+                borderColor: '#5e72e4',
                 backgroundColor: 'rgba(94, 114, 228, 0.1)',
+                borderWidth: 3,
                 fill: false,
                 tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 6
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                yAxisID: 'y'
             }, {
-                label: `Concentration (${metadata.units.concentration}) vs Time (hours)`,
+                label: `Concentration (${metadata.units.concentration})`,
                 data: data.data.map(d => ({ x: d.time, y: d.concentration })),
-                borderColor: 'var(--success-color)',
+                borderColor: '#2dce89',
                 backgroundColor: 'rgba(45, 206, 137, 0.1)',
+                borderWidth: 3,
                 fill: false,
                 tension: 0.4,
-                pointRadius: 4,
-                pointHoverRadius: 6
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                yAxisID: 'y'
             }];
-
+            
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: { datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
                     plugins: {
                         tooltip: {
                             mode: 'index',
                             intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#5e72e4',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
                             callbacks: {
-                                label: context => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
+                                label: context => `${context.dataset.label}: ${context.parsed.y.toFixed(3)}`
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                padding: 15,
+                                font: { size: 13, weight: '600' },
+                                usePointStyle: true
                             }
                         },
                         zoom: {
                             zoom: {
-                                wheel: { enabled: true },
+                                wheel: { enabled: true, speed: 0.1 },
                                 pinch: { enabled: true },
-                                mode: 'xy'
+                                mode: 'xy',
+                                onZoomComplete: () => {
+                                    document.getElementById('reset-zoom-btn').style.display = 'inline-block';
+                                }
                             },
                             pan: {
                                 enabled: true,
                                 mode: 'xy'
                             }
-                        },
-                        legend: {
-                            position: 'top'
                         }
                     },
                     scales: {
@@ -940,19 +1593,37 @@
                             type: isSingleDose ? 'logarithmic' : 'linear',
                             title: {
                                 display: true,
-                                text: isSingleDose ? `Concentration (${metadata.units.concentration})` : 'Time (hours)'
+                                text: isSingleDose ? `Concentration (${metadata.units.concentration})` : 'Time (hours)',
+                                font: { size: 14, weight: 'bold' },
+                                color: '#495057'
                             },
-                            min: isSingleDose ? Math.min(...data.data.map(d => d.concentration)) / 10 : undefined,
-                            max: isSingleDose ? Math.max(...data.data.map(d => d.concentration)) * 10 : undefined,
-                            grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                drawBorder: true,
+                                borderColor: '#dee2e6'
+                            },
+                            ticks: {
+                                color: '#6c757d',
+                                font: { size: 12 }
+                            }
                         },
                         y: {
                             title: {
                                 display: true,
-                                text: isSingleDose ? `Effect (${metadata.units.effect})` : 'Value'
+                                text: isSingleDose ? `Effect (${metadata.units.effect})` : 'Value',
+                                font: { size: 14, weight: 'bold' },
+                                color: '#495057'
                             },
                             beginAtZero: true,
-                            grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                drawBorder: true,
+                                borderColor: '#dee2e6'
+                            },
+                            ticks: {
+                                color: '#6c757d',
+                                font: { size: 12 }
+                            }
                         }
                     },
                     interaction: {
@@ -962,26 +1633,110 @@
                     }
                 }
             });
-
-            // Show Export and Download Chart Buttons
+            
+            document.getElementById('reset-zoom-btn').addEventListener('click', () => {
+                chartInstance.resetZoom();
+                document.getElementById('reset-zoom-btn').style.display = 'none';
+            });
+            
             const exportBtn = document.getElementById('export-btn');
-            exportBtn.style.display = 'block';
+            exportBtn.style.display = 'inline-flex';
             exportBtn.onclick = () => {
                 window.location.href = `/simulate-dose-response/export/${metadata.simulation_id}`;
             };
-
+            
             const downloadChartBtn = document.getElementById('download-chart-btn');
-            downloadChartBtn.style.display = 'block';
+            downloadChartBtn.style.display = 'inline-flex';
             downloadChartBtn.onclick = () => {
                 const link = document.createElement('a');
-                link.href = chartInstance.toBase64Image();
-                link.download = `dose_response_chart_${metadata.simulation_id}.png`;
+                link.href = chartInstance.toBase64Image('image/png', 1);
+                link.download = `dose_response_${metadata.simulation_id}.png`;
                 link.click();
+            };
+            
+            const copyDataBtn = document.getElementById('copy-data-btn');
+            copyDataBtn.style.display = 'inline-flex';
+            copyDataBtn.onclick = () => {
+                const csvContent = generateCSV(data.data, isSingleDose);
+                navigator.clipboard.writeText(csvContent).then(() => {
+                    showNotification('Data copied to clipboard!', 'success');
+                }).catch(() => {
+                    showNotification('Failed to copy data', 'error');
+                });
             };
         }
 
-        // Initialize recent simulations
+        function generateCSV(data, isSingleDose) {
+            if (isSingleDose) {
+                let csv = 'Concentration,Effect\n';
+                data.forEach(d => {
+                    csv += `${d.concentration},${d.effect}\n`;
+                });
+                return csv;
+            } else {
+                let csv = 'Time,Concentration,Effect\n';
+                data.forEach(d => {
+                    csv += `${d.time},${d.concentration},${d.effect}\n`;
+                });
+                return csv;
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const colors = {
+                success: '#2dce89',
+                error: '#dc3545',
+                warning: '#fb6340',
+                info: '#11cdef'
+            };
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                background: ${colors[type] || colors.info};
+                color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 9999;
+                font-weight: 600;
+                animation: slideInRight 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOutRight 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOutRight {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
         updateRecentSimulations();
+
+        window.addEventListener('load', () => {
+            const saved = localStorage.getItem('doseResponseParams');
+            if (saved) {
+                const autoLoad = confirm('Would you like to load your last saved parameters?');
+                if (autoLoad) {
+                    loadFormData(JSON.parse(saved));
+                }
+            }
+        });
     </script>
 </body>
 </html>

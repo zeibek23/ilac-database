@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app, send_file
+from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -86,7 +86,7 @@ from io import BytesIO
 from Bio import Entrez
 from flask_login import UserMixin
 from flask_login import current_user, login_required
-from pydantic import BaseModel, field_validator, ValidationError
+from pydantic import BaseModel, field_validator, ValidationError, model_validator
 from typing import List, Optional
 from http import HTTPStatus
 from Bio.PDB import PDBParser, PDBIO
@@ -1336,21 +1336,20 @@ class DoseResponseSimulation(db.Model):
     __tablename__ = 'dose_response_simulation'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     
-    id = db.Column(db.String(36), primary_key=True)
-    emax = db.Column(db.Float, nullable=False)
-    ec50 = db.Column(db.Float, nullable=False)
-    n = db.Column(db.Float, nullable=False)
-    e0 = db.Column(db.Float, nullable=False, default=0.0)
-    concentrations = db.Column(db.JSON, nullable=False)
-    dosing_regimen = db.Column(db.String(50), nullable=False, default='single')
-    doses = db.Column(db.JSON, nullable=True)
-    intervals = db.Column(db.JSON, nullable=True)
-    elimination_rate = db.Column(db.Float, nullable=True, default=0.1)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, nullable=True)
-    concentration_unit = db.Column(db.String(20), default='µM')
-    effect_unit = db.Column(db.String(20), default='%')
-
+    id = Column(String(36), primary_key=True)
+    emax = Column(Float, nullable=False)
+    ec50 = Column(Float, nullable=False)
+    n = Column(Float, nullable=False)
+    e0 = Column(Float, nullable=False, default=0.0)
+    concentrations = Column(JSON, nullable=False)
+    dosing_regimen = Column(String(50), nullable=False, default='single')
+    doses = Column(JSON, nullable=True)
+    intervals = Column(JSON, nullable=True)
+    elimination_rate = Column(Float, nullable=True, default=0.1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, nullable=True)
+    concentration_unit = Column(String(20), default='µM')
+    effect_unit = Column(String(20), default='%')
 
 
 # DATABASE MODELS
@@ -12964,48 +12963,54 @@ def news_detail(news_id):
 class DoseResponseRequest(BaseModel):
     emax: float
     ec50: float
-    n: float  # Hill coefficient
-    e0: float = 0.0  # Baseline effect
+    n: float
+    e0: float = 0.0
     concentrations: list[float] | None = None
     log_range: dict | None = None
-    dosing_regimen: str = 'single'  # single or multiple
-    doses: list[float] | None = None  # For multiple dosing
-    intervals: list[float] | None = None  # Dosing intervals in hours
-    elimination_rate: float = 0.1  # Elimination rate for multiple dosing
+    dosing_regimen: str = 'single'
+    doses: list[float] | None = None
+    intervals: list[float] | None = None
+    elimination_rate: float = 0.1
     concentration_unit: str = 'µM'
     effect_unit: str = '%'
 
     @field_validator('emax')
+    @classmethod
     def check_emax(cls, v):
         if not 0 < v <= 1000:
             raise ValueError("Emax must be between 0 and 1000")
         return v
 
     @field_validator('ec50')
+    @classmethod
     def check_ec50(cls, v):
         if not 0 < v <= 10000:
             raise ValueError("EC50 must be between 0 and 10000")
         return v
 
     @field_validator('n')
+    @classmethod
     def check_hill(cls, v):
         if not 0 < v <= 10:
             raise ValueError("Hill coefficient must be between 0 and 10")
         return v
 
     @field_validator('e0')
+    @classmethod
     def check_e0(cls, v):
         if not 0 <= v <= 1000:
             raise ValueError("Baseline effect (E0) must be between 0 and 1000")
         return v
 
     @field_validator('elimination_rate')
-    def check_elimination_rate(cls, v, values):
-        if values.get('dosing_regimen') == 'multiple' and not 0 < v <= 1:
-            raise ValueError("Elimination rate must be between 0 and 1 for multiple dosing")
+    @classmethod
+    def check_elimination_rate(cls, v):
+        if v is not None and not 0 < v <= 1:
+            raise ValueError("Elimination rate must be between 0 and 1")
         return v
 
     @field_validator('concentrations')
+    @classmethod
     def check_concentrations(cls, v):
         if v is None:
             return v
@@ -13018,6 +13023,7 @@ class DoseResponseRequest(BaseModel):
         return sorted(v)
 
     @field_validator('log_range')
+    @classmethod
     def check_log_range(cls, v):
         if v is None:
             return v
@@ -13025,89 +13031,188 @@ class DoseResponseRequest(BaseModel):
         if not all(k in v for k in required_keys):
             raise ValueError("log_range must include start, stop, and num")
         if not (0 < v['start'] < v['stop'] and v['num'] >= 10):
-            raise ValueError("Invalid log_range: start and stop must be positive, num >= 10")
+            raise ValueError("Invalid log_range: start must be less than stop, both positive, num >= 10")
         return v
 
     @field_validator('dosing_regimen')
+    @classmethod
     def check_dosing_regimen(cls, v):
         if v not in ['single', 'multiple']:
             raise ValueError("Dosing regimen must be 'single' or 'multiple'")
         return v
 
     @field_validator('doses')
-    def check_doses(cls, v, values):
-        if values.get('dosing_regimen') == 'multiple' and (v is None or not v):
-            raise ValueError("Doses are required for multiple dosing")
+    @classmethod
+    def check_doses(cls, v):
         if v and any(d <= 0 for d in v):
             raise ValueError("Doses must be positive")
         return v
 
     @field_validator('intervals')
-    def check_intervals(cls, v, values):
-        if values.get('dosing_regimen') == 'multiple' and (v is None or not v):
-            raise ValueError("Intervals are required for multiple dosing")
+    @classmethod
+    def check_intervals(cls, v):
         if v and any(i <= 0 for i in v):
             raise ValueError("Intervals must be positive")
-        if v and values.get('doses') and len(v) != len(values.get('doses')) - 1:
-            raise ValueError("Intervals length must be one less than doses length")
         return v
 
-    @classmethod
-    def validate_exclusive(cls, values):
-        concentrations = values.get('concentrations')
-        log_range = values.get('log_range')
-        if concentrations is not None and log_range is not None:
+    @model_validator(mode='after')
+    def validate_requirements(self):
+        if self.concentrations is not None and self.log_range is not None:
             raise ValueError("Provide either concentrations or log_range, not both")
-        if concentrations is None and log_range is None:
+        if self.concentrations is None and self.log_range is None:
             raise ValueError("Must provide either concentrations or log_range")
-        return values
+        if self.dosing_regimen == 'multiple':
+            if not self.doses:
+                raise ValueError("Doses are required for multiple dosing")
+            if not self.intervals:
+                raise ValueError("Intervals are required for multiple dosing")
+            if len(self.intervals) != len(self.doses) - 1:
+                raise ValueError("Intervals length must be one less than doses length")
+        return self
+
 
 class DoseResponsePoint(BaseModel):
     concentration: float
     effect: float
-    time: float | None = None  # For multiple dosing
+    time: float | None = None
+
 
 class DoseResponseResponse(BaseModel):
     data: list[DoseResponsePoint]
     metadata: dict
 
+
+def calculate_hill_effect(concentration: float, emax: float, ec50: float, n: float, e0: float) -> float:
+    """Calculate effect using Hill equation."""
+    if concentration <= 0:
+        return e0
+    effect = e0 + (emax * (concentration ** n)) / ((ec50 ** n) + (concentration ** n))
+    return max(min(effect, emax + e0), e0)
+
+
 @lru_cache(maxsize=100)
 def simulate_single_dose(emax: float, ec50: float, n: float, e0: float, concentrations: tuple) -> list:
     """Simulate single-dose response using Hill equation."""
-    concentrations = list(concentrations)
-    effects = [
-        e0 + (emax * (c ** n)) / ((ec50 ** n) + (c ** n))
-        for c in concentrations
-    ]
-    effects = [min(max(e, e0), emax + e0) for e in effects]
-    return [(c, e) for c, e in zip(concentrations, effects)]
+    results = []
+    for c in concentrations:
+        effect = calculate_hill_effect(c, emax, ec50, n, e0)
+        results.append((c, effect))
+    return results
 
-def simulate_multiple_dose(emax: float, ec50: float, n: float, e0: float, doses: list, intervals: list, elimination_rate: float) -> list:
+
+def simulate_multiple_dose(emax: float, ec50: float, n: float, e0: float, 
+                          doses: list, intervals: list, elimination_rate: float) -> list:
     """Simulate multiple-dose response with accumulation and elimination."""
     dose_times = np.cumsum([0] + intervals)
-    total_time = dose_times[-1] + max(intervals or [24])  # Extend beyond last dose
-    time_points = np.linspace(0, total_time, 500)  # More points for smoother curve
-    effects = []
-    current_concentration = 0.0
-    dt = time_points[1] - time_points[0] if len(time_points) > 1 else 0
+    total_time = dose_times[-1] + max(intervals, default=24)
+    time_points = np.linspace(0, total_time, 500)
     
+    results = []
+    current_concentration = 0.0
+    dt = time_points[1] - time_points[0] if len(time_points) > 1 else 0.1
+    
+    dose_index = 0
     for t in time_points:
-        # Apply doses at specified times
-        for i, dose_time in enumerate(dose_times):
-            if i < len(doses) and abs(t - dose_time) < dt / 2:
-                current_concentration += doses[i]
+        # Apply dose if at dose time
+        if dose_index < len(doses) and dose_index < len(dose_times):
+            if abs(t - dose_times[dose_index]) < dt / 2:
+                current_concentration += doses[dose_index]
+                dose_index += 1
         
-        # Calculate effect using Hill equation
-        effect = e0 + (emax * (current_concentration ** n)) / ((ec50 ** n) + (current_concentration ** n)) if current_concentration > 0 else e0
-        effect = min(max(effect, e0), emax + e0)
+        # Calculate effect
+        effect = calculate_hill_effect(current_concentration, emax, ec50, n, e0)
+        results.append((current_concentration, effect, float(t)))
         
-        effects.append((current_concentration, effect, t))
-        
-        # Apply first-order elimination
+        # Apply elimination
         current_concentration *= np.exp(-elimination_rate * dt)
         current_concentration = max(current_concentration, 0)
     
-    return effects
+    return results
+
+
+def calculate_pseudo_r2(effects: list[float], concentrations: list[float], 
+                       emax: float, ec50: float, n: float, e0: float) -> float:
+    """Calculate pseudo R-squared for model fit."""
+    if not effects or len(effects) < 2:
+        return 1.0
+    
+    mean_effect = np.mean(effects)
+    ss_tot = np.sum((np.array(effects) - mean_effect) ** 2)
+    
+    if ss_tot == 0:
+        return 1.0
+    
+    predicted_effects = [calculate_hill_effect(c, emax, ec50, n, e0) for c in concentrations if c > 0]
+    actual_effects = effects[:len(predicted_effects)]
+    
+    if len(actual_effects) != len(predicted_effects):
+        return 1.0
+    
+    ss_res = np.sum((np.array(actual_effects) - np.array(predicted_effects)) ** 2)
+    return max(0.0, 1 - (ss_res / ss_tot))
+
+
+def generate_concentrations(log_range: dict) -> list[float]:
+    """Generate concentration array from log range specification."""
+    return np.logspace(
+        np.log10(log_range['start']),
+        np.log10(log_range['stop']),
+        int(log_range['num'])
+    ).tolist()
+
+
+def create_simulation_metadata(simulation_id: str, input_data: DoseResponseRequest, 
+                              results: list, concentrations_used: list[float], 
+                              pseudo_r2: float) -> dict:
+    """Create metadata dictionary for simulation response."""
+    return {
+        "simulation_id": simulation_id,
+        "model": "Hill Equation",
+        "parameters": {
+            "Emax": input_data.emax,
+            "EC50": input_data.ec50,
+            "Hill_Coefficient": input_data.n,
+            "E0": input_data.e0,
+            "Dosing_Regimen": input_data.dosing_regimen,
+            "Doses": input_data.doses if input_data.dosing_regimen == 'multiple' else None,
+            "Intervals": input_data.intervals if input_data.dosing_regimen == 'multiple' else None,
+            "Elimination_Rate": input_data.elimination_rate if input_data.dosing_regimen == 'multiple' else None
+        },
+        "units": {
+            "concentration": input_data.concentration_unit,
+            "effect": input_data.effect_unit
+        },
+        "concentration_range": {
+            "min": min(concentrations_used) if concentrations_used else 0,
+            "max": max(concentrations_used) if concentrations_used else 0
+        },
+        "pseudo_r2": round(pseudo_r2, 4),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "point_count": len(results)
+    }
+
+
+def save_simulation_to_db(simulation_id: str, input_data: DoseResponseRequest, 
+                         concentrations: list[float]) -> None:
+    """Save simulation to database."""
+    simulation = DoseResponseSimulation(
+        id=simulation_id,
+        emax=input_data.emax,
+        ec50=input_data.ec50,
+        n=input_data.n,
+        e0=input_data.e0,
+        concentrations=concentrations,
+        dosing_regimen=input_data.dosing_regimen,
+        doses=input_data.doses,
+        intervals=input_data.intervals,
+        elimination_rate=input_data.elimination_rate,
+        user_id=session.get('user_id'),
+        concentration_unit=input_data.concentration_unit,
+        effect_unit=input_data.effect_unit
+    )
+    db.session.add(simulation)
+    db.session.commit()
+
 
 @app.route('/simulate-dose-response', methods=['POST'])
 def simulate_dose_response():
@@ -13119,31 +13224,25 @@ def simulate_dose_response():
 
         # Validate input
         input_data = DoseResponseRequest.model_validate(request_data)
-        logger.info(f"Received valid request: {input_data.dict()}")
+        logger.info(f"Received valid request with dosing regimen: {input_data.dosing_regimen}")
 
-        # Generate concentrations if log_range
-        if input_data.log_range:
-            concentrations = np.logspace(
-                np.log10(input_data.log_range['start']),
-                np.log10(input_data.log_range['stop']),
-                int(input_data.log_range['num'])
-            ).tolist()
-        else:
-            concentrations = input_data.concentrations or []
+        # Generate or use provided concentrations
+        concentrations = (generate_concentrations(input_data.log_range) 
+                         if input_data.log_range else input_data.concentrations)
 
-        # Generate unique simulation ID
         simulation_id = str(uuid.uuid4())
 
-        # Simulate dose-response
+        # Run simulation
         if input_data.dosing_regimen == 'single':
             result_pairs = simulate_single_dose(
-                input_data.emax, input_data.ec50, input_data.n, input_data.e0, tuple(concentrations)
+                input_data.emax, input_data.ec50, input_data.n, input_data.e0, 
+                tuple(concentrations)
             )
             results = [
                 DoseResponsePoint(concentration=c, effect=e)
                 for c, e in result_pairs
             ]
-        else:  # multiple
+        else:
             result_triples = simulate_multiple_dose(
                 input_data.emax, input_data.ec50, input_data.n, input_data.e0,
                 input_data.doses, input_data.intervals, input_data.elimination_rate
@@ -13153,75 +13252,33 @@ def simulate_dose_response():
                 for c, e, t in result_triples
             ]
 
-        # Compute pseudo-R²
+        # Calculate pseudo R-squared
         effects = [r.effect for r in results]
         concentrations_used = [r.concentration for r in results]
-        mean_effect = np.mean(effects)
-        ss_tot = np.sum((np.array(effects) - mean_effect) ** 2)
-        predicted_effects = [
-            input_data.e0 + (input_data.emax * (c ** input_data.n)) / ((input_data.ec50 ** input_data.n) + (c ** input_data.n))
-            for c in concentrations_used if c > 0
-        ]
-        actual_effects = effects[:len(predicted_effects)]  # Align lengths
-        ss_res = np.sum((np.array(actual_effects) - np.array(predicted_effects)) ** 2)
-        pseudo_r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
+        pseudo_r2 = calculate_pseudo_r2(effects, concentrations_used, 
+                                       input_data.emax, input_data.ec50, 
+                                       input_data.n, input_data.e0)
 
-        # Metadata
-        metadata = {
-            "simulation_id": simulation_id,
-            "model": "Hill Equation",
-            "parameters": {
-                "Emax": input_data.emax,
-                "EC50": input_data.ec50,
-                "Hill_Coefficient": input_data.n,
-                "E0": input_data.e0,
-                "Dosing_Regimen": input_data.dosing_regimen,
-                "Doses": input_data.doses,
-                "Intervals": input_data.intervals,
-                "Elimination_Rate": input_data.elimination_rate if input_data.dosing_regimen == 'multiple' else None
-            },
-            "units": {
-                "concentration": input_data.concentration_unit,
-                "effect": input_data.effect_unit
-            },
-            "concentration_range": {
-                "min": min(concentrations_used),
-                "max": max(concentrations_used)
-            },
-            "pseudo_r2": round(pseudo_r2, 4),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "point_count": len(results)
-        }
+        # Create metadata
+        metadata = create_simulation_metadata(simulation_id, input_data, results, 
+                                             concentrations_used, pseudo_r2)
 
         # Save to database
-        simulation = DoseResponseSimulation(
-            id=simulation_id,
-            emax=input_data.emax,
-            ec50=input_data.ec50,
-            n=input_data.n,
-            e0=input_data.e0,
-            concentrations=concentrations,
-            dosing_regimen=input_data.dosing_regimen,
-            doses=input_data.doses,
-            intervals=input_data.intervals,
-            elimination_rate=input_data.elimination_rate,
-            user_id=session.get('user_id'),
-            concentration_unit=input_data.concentration_unit,
-            effect_unit=input_data.effect_unit
-        )
-        db.session.add(simulation)
-        db.session.commit()
+        save_simulation_to_db(simulation_id, input_data, concentrations)
 
         response = DoseResponseResponse(data=results, metadata=metadata)
         logger.info(f"Simulation completed successfully: ID {simulation_id}")
-        return jsonify(response.dict()), HTTPStatus.OK
+        
+        return jsonify(response.model_dump()), HTTPStatus.OK
 
     except ValidationError as ve:
         logger.error(f"Validation error: {ve.errors()}")
         return jsonify({"error": "Invalid input", "details": ve.errors()}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         logger.exception(f"Unexpected error: {str(e)}")
+        db.session.rollback()
         return jsonify({"error": "Internal server error", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
 
 @app.route('/simulate-dose-response/export/<simulation_id>', methods=['GET'])
 def export_simulation(simulation_id):
@@ -13230,10 +13287,11 @@ def export_simulation(simulation_id):
         if not simulation:
             return jsonify({"error": "Simulation not found"}), HTTPStatus.NOT_FOUND
 
-        # Re-run simulation to get results
+        # Re-run simulation
         if simulation.dosing_regimen == 'single':
             result_pairs = simulate_single_dose(
-                simulation.emax, simulation.ec50, simulation.n, simulation.e0, tuple(simulation.concentrations)
+                simulation.emax, simulation.ec50, simulation.n, simulation.e0, 
+                tuple(simulation.concentrations)
             )
             results = [
                 {"Concentration": c, "Effect": e}
@@ -13258,16 +13316,17 @@ def export_simulation(simulation_id):
         writer.writerows(results)
 
         logger.info(f"Exported simulation: ID {simulation_id}")
-        response = Response(
+
+        return Response(
             output.getvalue(),
             mimetype='text/csv',
             headers={"Content-Disposition": f"attachment;filename=simulation_{simulation_id}.csv"}
         )
-        return response
 
     except Exception as e:
         logger.exception(f"Export error: {str(e)}")
         return jsonify({"error": "Failed to export simulation", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
 
 @app.route('/simulate-dose-response', methods=['GET'])
 def serve_form():
