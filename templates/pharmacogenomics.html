@@ -1,172 +1,166 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharmacogenomics Predictor</title>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.blockUI/2.70/jquery.blockUI.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/ScrollTrigger.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        .select2-container--default .select2-selection--single { 
-            border-radius: 4px; 
-            border: 1px solid #d1d5db; 
-            height: 38px; 
-        }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { 
-            line-height: 36px; 
-        }
-        .select2-dropdown { border-radius: 4px; }
-        .loading { color: #999; padding: 8px; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 1000; }
-        .confidence-bar { height: 12px; background-color: #e5e7eb; border-radius: 6px; overflow: hidden; }
-        .confidence-fill { height: 100%; background: linear-gradient(to right, #ef4444, #facc15, #4CAF50); transition: width 0.5s ease; }
-        .result-card, .evidence-card { 
-            transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s; 
-            transform: perspective(1000px) rotateX(0deg) rotateY(0deg); 
-            position: relative; 
-            opacity: 1; 
-        }
-        .result-card:hover, .evidence-card:hover { 
-            transform: perspective(1000px) rotateX(2deg) rotateY(2deg); 
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); 
-            opacity: 0.95; 
-        }
-        .result-card::before, .evidence-card::before { 
-            content: ''; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: linear-gradient(45deg, rgba(255, 235, 59, 0.1), rgba(76, 175, 80, 0.1)); 
-            border-radius: 4px; 
-            z-index: 0; 
-        }
-        .result-card > *, .evidence-card > * { position: relative; z-index: 1; }
-        .details, .evidence-details { 
-            display: none; 
-            max-height: 400px; 
-            overflow-y: auto; 
-            background-color: #fff3cd; 
-            padding: 1.5rem; 
-            border-radius: 4px; 
-            border: 1px solid #ffeeba; 
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); 
-        }
-        .details-open .details, .evidence-open .evidence-details { 
-            display: block; 
-            animation: slideDown 0.3s ease-out; 
-        }
-        .evidence-card { 
-            background-color: #fff3cd; 
-            border-left: 4px solid #4CAF50; 
-            padding: 1rem; 
-            border-radius: 4px; 
-            margin-bottom: 0.75rem; 
-        }
-        .footer { 
-            background-color: #FFEB3B; 
-            color: #2E7D32; 
-            padding: 1rem 0; 
-            text-align: center; 
-            font-size: 0.875rem; 
-            position: sticky; 
-            bottom: 0; 
-            z-index: 1000; 
-        }
-        .truncate { 
-            max-width: 100%; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-        }
-        .tooltip { 
-            position: relative; 
-            display: inline-block; 
-            cursor: help; 
-        }
-        .tooltip .tooltiptext { 
-            visibility: hidden; 
-            width: 140px; 
-            background-color: #2E7D32; 
-            color: #fff; 
-            text-align: center; 
-            border-radius: 6px; 
-            padding: 5px; 
-            position: absolute; 
-            z-index: 1; 
-            bottom: 125%; 
-            left: 50%; 
-            margin-left: -70px; 
-            opacity: 0; 
-            transition: opacity 0.3s; 
-        }
-        .tooltip:hover .tooltiptext { 
-            visibility: visible; 
-            opacity: 0.9; 
-        }
-        .tooltip .tooltiptext::after { 
-            content: ""; 
-            position: absolute; 
-            top: 100%; 
-            left: 50%; 
-            margin-left: -5px; 
-            border-width: 5px; 
-            border-style: solid; 
-            border-color: #2E7D32 transparent transparent transparent; 
-        }
-        .dark-mode { 
-            background-color: #1f2937; 
-            color: #e5e7eb; 
-        }
-        .dark-mode .bg-white { background-color: #374151; }
-        .dark-mode .bg-gray-50 { background-color: #111827; }
-        .dark-mode .text-gray-600 { color: #d1d5db; }
-        .dark-mode .text-gray-700 { color: #e5e7eb; }
-        .dark-mode .bg-green-600 { background-color: #15803d; }
-        .dark-mode .text-green-700 { color: #22c55e; }
-        .dark-mode .border-gray-300 { border-color: #4b5563; }
-        .dark-mode .evidence-card, .dark-mode .details { 
-            background-color: #4b5563; 
-            border-color: #6b7280; 
-        }
-        .dark-mode .confidence-bar { background-color: #4b5563; }
-        .recent-query { 
-            transition: transform 0.3s; 
-            cursor: pointer; 
-        }
-        .recent-query:hover { 
-            transform: scale(1.05); 
-        }
-        @keyframes slideDown { 
-            from { opacity: 0; transform: translateY(-10px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-        @keyframes pulse { 
-            0% { transform: scale(1); } 
-            50% { transform: scale(1.05); } 
-            100% { transform: scale(1); } 
-        }
-        .pulse { animation: pulse 2s infinite; }
-        .animate-slideUp { animation: slideUp 0.5s ease-out; }
-        @keyframes slideUp { 
-            from { opacity: 0; transform: translateY(20px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-        .animate-fadeIn { animation: fadeIn 1s ease-out; }
-        @keyframes fadeIn { 
-            from { opacity: 0; } 
-            to { opacity: 1; } 
-        }
-        .alert-error { background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
-    </style>
-</head>
+{% extends "base.html" %}
+
+{% block title %}Pharmacogenomics Predictor - Drugly{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container--default .select2-selection--single { 
+        border-radius: 4px; 
+        border: 1px solid #d1d5db; 
+        height: 38px; 
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered { 
+        line-height: 36px; 
+    }
+    .select2-dropdown { border-radius: 4px; }
+    .loading { color: #999; padding: 8px; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; z-index: 1000; }
+    .confidence-bar { height: 12px; background-color: #e5e7eb; border-radius: 6px; overflow: hidden; }
+    .confidence-fill { height: 100%; background: linear-gradient(to right, #ef4444, #facc15, #4CAF50); transition: width 0.5s ease; }
+    .result-card, .evidence-card { 
+        transition: transform 0.3s, box-shadow 0.3s, opacity 0.3s; 
+        transform: perspective(1000px) rotateX(0deg) rotateY(0deg); 
+        position: relative; 
+        opacity: 1; 
+    }
+    .result-card:hover, .evidence-card:hover { 
+        transform: perspective(1000px) rotateX(2deg) rotateY(2deg); 
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); 
+        opacity: 0.95; 
+    }
+    .result-card::before, .evidence-card::before { 
+        content: ''; 
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        background: linear-gradient(45deg, rgba(255, 235, 59, 0.1), rgba(76, 175, 80, 0.1)); 
+        border-radius: 4px; 
+        z-index: 0; 
+    }
+    .result-card > *, .evidence-card > * { position: relative; z-index: 1; }
+    .details, .evidence-details { 
+        display: none; 
+        max-height: 400px; 
+        overflow-y: auto; 
+        background-color: #fff3cd; 
+        padding: 1.5rem; 
+        border-radius: 4px; 
+        border: 1px solid #ffeeba; 
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); 
+    }
+    .details-open .details, .evidence-open .evidence-details { 
+        display: block; 
+        animation: slideDown 0.3s ease-out; 
+    }
+    .evidence-card { 
+        background-color: #fff3cd; 
+        border-left: 4px solid #4CAF50; 
+        padding: 1rem; 
+        border-radius: 4px; 
+        margin-bottom: 0.75rem; 
+    }
+    .footer { 
+        background-color: #FFEB3B; 
+        color: #2E7D32; 
+        padding: 1rem 0; 
+        text-align: center; 
+        font-size: 0.875rem; 
+        position: sticky; 
+        bottom: 0; 
+        z-index: 1000; 
+    }
+    .truncate { 
+        max-width: 100%; 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+    }
+    .tooltip { 
+        position: relative; 
+        display: inline-block; 
+        cursor: help; 
+    }
+    .tooltip .tooltiptext { 
+        visibility: hidden; 
+        width: 140px; 
+        background-color: #2E7D32; 
+        color: #fff; 
+        text-align: center; 
+        border-radius: 6px; 
+        padding: 5px; 
+        position: absolute; 
+        z-index: 1; 
+        bottom: 125%; 
+        left: 50%; 
+        margin-left: -70px; 
+        opacity: 0; 
+        transition: opacity 0.3s; 
+    }
+    .tooltip:hover .tooltiptext { 
+        visibility: visible; 
+        opacity: 0.9; 
+    }
+    .tooltip .tooltiptext::after { 
+        content: ""; 
+        position: absolute; 
+        top: 100%; 
+        left: 50%; 
+        margin-left: -5px; 
+        border-width: 5px; 
+        border-style: solid; 
+        border-color: #2E7D32 transparent transparent transparent; 
+    }
+    .dark-mode { 
+        background-color: #1f2937; 
+        color: #e5e7eb; 
+    }
+    .dark-mode .bg-white { background-color: #374151; }
+    .dark-mode .bg-gray-50 { background-color: #111827; }
+    .dark-mode .text-gray-600 { color: #d1d5db; }
+    .dark-mode .text-gray-700 { color: #e5e7eb; }
+    .dark-mode .bg-green-600 { background-color: #15803d; }
+    .dark-mode .text-green-700 { color: #22c55e; }
+    .dark-mode .border-gray-300 { border-color: #4b5563; }
+    .dark-mode .evidence-card, .dark-mode .details { 
+        background-color: #4b5563; 
+        border-color: #6b7280; 
+    }
+    .dark-mode .confidence-bar { background-color: #4b5563; }
+    .recent-query { 
+        transition: transform 0.3s; 
+        cursor: pointer; 
+    }
+    .recent-query:hover { 
+        transform: scale(1.05); 
+    }
+    @keyframes slideDown { 
+        from { opacity: 0; transform: translateY(-10px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+    @keyframes pulse { 
+        0% { transform: scale(1); } 
+        50% { transform: scale(1.05); } 
+        100% { transform: scale(1); } 
+    }
+    .pulse { animation: pulse 2s infinite; }
+    .animate-slideUp { animation: slideUp 0.5s ease-out; }
+    @keyframes slideUp { 
+        from { opacity: 0; transform: translateY(20px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+    .animate-fadeIn { animation: fadeIn 1s ease-out; }
+    @keyframes fadeIn { 
+        from { opacity: 0; } 
+        to { opacity: 1; } 
+    }
+    .alert-error { background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
 <body class="min-h-screen bg-gray-50">
     <nav class="bg-green-600 p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center">
@@ -208,17 +202,14 @@
             </form>
             <div id="error" class="alert-error hidden mt-4"></div>
         </div>
-
         <div id="recent-queries" class="mt-6 hidden">
             <h3 class="text-xl font-semibold text-green-700 mb-4">Recent Queries</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="recent-queries-list"></div>
         </div>
-
         <div id="summary" class="mt-6 bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-400 animate-slideUp hidden">
             <h3 class="text-xl font-semibold text-green-700 mb-2 pulse">Key Insight</h3>
             <p id="summary-content" class="text-gray-700"></p>
         </div>
-
         <div id="results" class="mt-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-bold text-green-700 pulse">Pharmacogenomics Insights</h2>
@@ -265,396 +256,185 @@
     <footer class="footer mt-8">
         <p>Powered by DruglyAI © 2025</p>
     </footer>
+</body>
+{% endblock %}
 
-    <script>
-        // Global variable to store Chart.js instance
-        let confidenceChart = null;
-
-        // Global variables for evidence rendering
-        let evidenceData = [];
-        let currentQuery = {};
-        const itemsPerPage = 3;
-
-        // Recent Queries (Global Scope)
-        let recentQueries = JSON.parse(localStorage.getItem('recentQueries') || '[]');
-        function updateRecentQueries(query) {
-            if (!query.variant && !query.drug && !query.phenotype && !query.gene) return;
-            recentQueries = recentQueries.filter(q => JSON.stringify(q) !== JSON.stringify(query)).slice(0, 4);
-            recentQueries.unshift(query);
-            localStorage.setItem('recentQueries', JSON.stringify(recentQueries));
-            renderRecentQueries();
-        }
-        function renderRecentQueries() {
-            const list = $('#recent-queries-list');
-            list.empty();
-            if (recentQueries.length) {
-                $('#recent-queries').removeClass('hidden');
-                recentQueries.forEach(q => {
-                    list.append(`
-                        <div class="recent-query bg-white p-4 rounded-lg shadow-md border-l-4 border-green-500" onclick="predict(${JSON.stringify(q)})">
-                            <p class="text-gray-700 text-sm">${q.variant || q.drug || q.phenotype || q.gene}</p>
-                            <p class="text-gray-500 text-xs">${Object.entries(q).filter(([k, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
-                        </div>
-                    `);
-                });
-            }
-        }
-
-        // Global renderEvidence function
-        function renderEvidence(page) {
-            const evidenceList = $('#evidence-list');
-            const evidencePagination = $('#evidence-pagination');
-            evidenceList.empty();
-            const start = (page - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-            evidenceData.slice(start, end).forEach(e => {
-                const text = e.text && typeof e.text === 'string' ? e.text : 'No evidence text';
-                const highlightedText = text.replace(
-                    new RegExp(`(${currentQuery.variant || currentQuery.drug || currentQuery.phenotype || currentQuery.gene || ''})`, 'gi'),
-                    '<span class="bg-yellow-200">$1</span>'
-                );
-                evidenceList.append(`
-                    <div class="evidence-card cursor-pointer" role="button" tabindex="0" aria-expanded="false" onclick="toggleEvidence(this)" onkeydown="if(event.key === 'Enter') toggleEvidence(this)">
-                        <p class="text-gray-700 text-sm">${highlightedText} (Source: ${e.source || 'Unknown'})</p>
-                        <div class="evidence-details mt-2 text-sm text-gray-600">
-                            <p><strong>Full Text:</strong> ${text}</p>
-                            <p><strong>Source:</strong> ${e.source || 'Unknown'}</p>
-                            ${displayEvidenceDetails(e)}
-                        </div>
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.blockUI/2.70/jquery.blockUI.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/ScrollTrigger.min.js"></script>
+<script>
+    let confidenceChart = null;
+    let evidenceData = [];
+    let currentQuery = {};
+    const itemsPerPage = 3;
+    let recentQueries = JSON.parse(localStorage.getItem('recentQueries') || '[]');
+    function updateRecentQueries(query) {
+        if (!query.variant && !query.drug && !query.phenotype && !query.gene) return;
+        recentQueries = recentQueries.filter(q => JSON.stringify(q) !== JSON.stringify(query)).slice(0, 4);
+        recentQueries.unshift(query);
+        localStorage.setItem('recentQueries', JSON.stringify(recentQueries));
+        renderRecentQueries();
+    }
+    function renderRecentQueries() {
+        const list = $('#recent-queries-list');
+        list.empty();
+        if (recentQueries.length) {
+            $('#recent-queries').removeClass('hidden');
+            recentQueries.forEach(q => {
+                list.append(`
+                    <div class="recent-query bg-white p-4 rounded-lg shadow-md border-l-4 border-green-500" onclick="predict(${JSON.stringify(q)})">
+                        <p class="text-gray-700 text-sm">${q.variant || q.drug || q.phenotype || q.gene}</p>
+                        <p class="text-gray-500 text-xs">${Object.entries(q).filter(([k, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
                     </div>
                 `);
             });
-
-            evidencePagination.empty();
-            const totalPages = Math.ceil(evidenceData.length / itemsPerPage);
-            for (let i = 1; i <= totalPages; i++) {
-                evidencePagination.append(`
-                    <button class="px-3 py-1 rounded-md ${i === page ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}" onclick="renderEvidence(${i})" aria-label="Go to evidence page ${i}">${i}</button>
-                `);
-            }
         }
-
-        $(document).ready(function() {
-            // Initialize Select2 for autocomplete with enhanced error handling
-            function initializeSelect2(field, url, placeholder) {
-                $('#' + field).select2({
-                    ajax: {
-                        url: url,
-                        dataType: 'json',
-                        delay: 250,
-                        data: params => {
-                            console.log(`${field} request: ${url}?q=${params.term || ''}&limit=10&page=${params.page || 1}`);
-                            return { q: params.term || '', limit: 10, page: params.page || 1 };
-                        },
-                        processResults: (data, params) => {
-                            console.log(`${field} response:`, data);
-                            if (!data || !data.results) {
-                                console.warn(`${field} empty or invalid response`);
-                                return { results: [], pagination: { more: false } };
-                            }
-                            return {
-                                results: data.results.map(item => ({
-                                    id: item.id,
-                                    text: item.text
-                                })),
-                                pagination: { more: data.pagination?.more || data.pagination?.has_next || false }
-                            };
-                        },
-                        cache: true,
-                        error: (xhr, status, error) => {
-                            console.error(`${field} AJAX error: ${status}, ${error}, Status Code: ${xhr.status}`);
-                            $('#error').text(`Failed to load ${field} suggestions: ${error}. Please try again.`).removeClass('hidden');
-                        }
-                    },
-                    placeholder: placeholder,
-                    minimumInputLength: 1,
-                    allowClear: true,
-                    width: '100%',
-                    templateResult: item => item.loading ? item.text : $('<span>' + item.text + '</span>'),
-                    templateSelection: item => item.text || item.id
-                }).on('select2:open', () => $('.select2-search__field').focus())
-                  .on('select2:close', () => { if (!$('#' + field).val()) $('#' + field).val(null).trigger('change'); })
-                  .on('select2:opening', () => $('#' + field).siblings('.loading').show())
-                  .on('select2:closing', () => $('#' + field).siblings('.loading').hide());
-            }
-
-            initializeSelect2('variant', '/search_variants', 'e.g., rs9923231');
-            initializeSelect2('drug', '/api/active_ingredients', 'e.g., Warfarin');
-            initializeSelect2('phenotype', '/search_phenotypes', 'e.g., Anticoagulation');
-            initializeSelect2('gene', '/search_genes', 'e.g., CYP2C19');
-
-            // Form validation and submission
-            $('#pharma-form').submit(function(e) {
-                e.preventDefault();
-                $('#error').addClass('hidden');
-                const variant = $('#variant').val() || "";
-                const drug = $('#drug').select2('data')[0]?.text.split(' (')[0] || "";
-                const phenotype = $('#phenotype').val() || "";
-                const gene = $('#gene').val() || "";
-                const query = { variant, drug, phenotype, gene };
-                console.log('Submitting query:', query);
-                if (!variant && !drug && !phenotype && !gene) {
-                    $('#error').text('Please provide at least one field: variant, drug, phenotype, or gene.').removeClass('hidden');
-                    return;
-                }
-                predict(query);
-            });
-
-            // Clear All Button
-            $('#clear-all').on('click', function() {
-                ['variant', 'drug', 'phenotype', 'gene'].forEach(field => $('#' + field).val(null).trigger('change'));
-                $('#results, #summary, #recent-queries, #error').addClass('hidden');
-            });
-
-            // Dark Mode Toggle
-            $('#toggle-dark-mode').on('click', function() {
-                $('body').toggleClass('dark-mode');
-                $(this).text($('body').hasClass('dark-mode') ? 'Light Mode' : 'Dark Mode');
-            });
-
-            // Initial render of recent queries
-            renderRecentQueries();
+    }
+    function renderEvidence(page) {
+        const evidenceList = $('#evidence-list');
+        const evidencePagination = $('#evidence-pagination');
+        evidenceList.empty();
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        evidenceData.slice(start, end).forEach(e => {
+            const text = e.text && typeof e.text === 'string' ? e.text : 'No evidence text';
+            const highlightedText = text.replace(
+                new RegExp(`(${currentQuery.variant || currentQuery.drug || currentQuery.phenotype || currentQuery.gene || ''})`, 'gi'),
+                '<span class="bg-yellow-200">$1</span>'
+            );
+            evidenceList.append(`
+                <div class="evidence-card cursor-pointer" role="button" tabindex="0" aria-expanded="false" onclick="toggleEvidence(this)" onkeydown="if(event.key === 'Enter') toggleEvidence(this)">
+                    <p class="text-gray-700 text-sm">${highlightedText} (Source: ${e.source || 'Unknown'})</p>
+                    <div class="evidence-details mt-2 text-sm text-gray-600">
+                        <p><strong>Full Text:</strong> ${text}</p>
+                        <p><strong>Source:</strong> ${e.source || 'Unknown'}</p>
+                        ${displayEvidenceDetails(e)}
+                    </div>
+                </div>
+            `);
         });
-
-        // Function to check if a prediction has meaningful data
-        function hasMeaningfulData(prediction) {
-            const fields = [prediction.drug, prediction.phenotype, prediction.gene, prediction.variant];
-            return fields.some(field => field && field !== "N/A");
+        evidencePagination.empty();
+        const totalPages = Math.ceil(evidenceData.length / itemsPerPage);
+        for (let i = 1; i <= totalPages; i++) {
+            evidencePagination.append(`
+                <button class="px-3 py-1 rounded-md ${i === page ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}" onclick="renderEvidence(${i})" aria-label="Go to evidence page ${i}">${i}</button>
+            `);
         }
-
-        async function predict(query) {
-            $.blockUI({ 
-                message: '<div class="loading text-center text-green-700">Analyzing pharmacogenomics data...</div>', 
-                css: { border: 'none', backgroundColor: '#fff', color: '#333', padding: '20px', borderRadius: '8px' } 
-            });
-            try {
-                const response = await fetch('/pharmacogenomics', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(query)
-                });
-                const data = await response.json();
-                console.log('Pharmacogenomics response:', data);
-                if (data.error) {
-                    $('#error').text(`${data.error}${data.details ? ': ' + data.details : ''}. Try adjusting your query (e.g., check spelling or use partial names) or contact support.`).removeClass('hidden');
-                    $('#results').addClass('hidden');
-                    return;
-                }
-                if (!data.predictions || !Array.isArray(data.predictions)) {
-                    console.warn('Invalid predictions format:', data.predictions);
-                    $('#error').text('Invalid response from server. Please try again.').removeClass('hidden');
-                    $('#results').addClass('hidden');
-                    return;
-                }
-
-                // Update recent queries
-                updateRecentQueries(query);
-
-                // Display summary
-                $('#summary-content').text(data.summary || 'No key insights available.');
-                $('#summary').removeClass('hidden');
-
-                // Render results
-                const resultsGrid = $('#results-grid');
-                resultsGrid.empty();
-                const predictions = data.predictions || [];
-                let renderedCards = 0;
-                if (predictions.length) {
-                    predictions.forEach((p, index) => {
-                        try {
-                            // Skip rendering if the prediction has no meaningful data
-                            if (!hasMeaningfulData(p)) {
-                                console.log(`Skipping prediction card ${index} with no meaningful data:`, p);
-                                return;
-                            }
-                            resultsGrid.append(`
-                                <div class="result-card bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 relative overflow-hidden" role="button" tabindex="0" aria-expanded="false" onclick="toggleDetails(this)" onkeydown="if(event.key === 'Enter') toggleDetails(this)">
-                                    <div class="flex justify-between items-center">
-                                        <div class="tooltip">
-                                            <p class="text-green-800 font-medium truncate">${p.effect && typeof p.effect === 'string' && p.effect.length > 50 ? p.effect.substring(0, 50) + '...' : p.effect || 'No effect specified'}</p>
-                                            <span class="tooltiptext">${p.effect || 'No effect specified'}</span>
-                                        </div>
-                                        <span class="text-gray-500 text-sm flex items-center">
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                            </svg>
-                                            ${p.source || 'Unknown'}
-                                        </span>
-                                    </div>
-                                    <p class="text-gray-600 text-sm mt-2">Drug: ${p.drug || 'None'} | Phenotype: ${p.phenotype || 'None'} | Gene: ${p.gene || 'None'} | Variant: ${p.variant || 'None'}</p>
-                                    <div class="confidence-bar mt-2">
-                                        <div class="confidence-fill" style="width: ${p.confidence && typeof p.confidence === 'number' ? p.confidence * 100 : 0}%;"></div>
-                                    </div>
-                                    <div class="details mt-2 text-sm text-gray-600">
-                                        <p><strong>Full Prediction:</strong> ${p.effect || 'No effect specified'}</p>
-                                        <p><strong>Drug:</strong> ${p.drug || 'None'}</p>
-                                        <p><strong>Phenotype:</strong> ${p.phenotype || 'None'}</p>
-                                        <p><strong>Gene:</strong> ${p.gene || 'None'}</p>
-                                        <p><strong>Variant:</strong> ${p.variant || 'None'}</p>
-                                        <p><strong>Source:</strong> ${p.source || 'Unknown'}</p>
-                                        <p><strong>Confidence:</strong> ${p.confidence && typeof p.confidence === 'number' ? (p.confidence * 100).toFixed(1) : '0'}%</p>
-                                        <p><strong>Evidence Link:</strong> <a href="${p.evidence_link || '#'}" target="_blank" class="text-green-600 hover:underline">${p.evidence_link || 'N/A'}</a></p>
-                                        ${displayDetails(p)}
-                                    </div>
-                                </div>
-                            `);
-                            renderedCards++;
-                        } catch (error) {
-                            console.error(`Error rendering prediction card ${index}:`, error, p);
+    }
+    $(document).ready(function() {
+        function initializeSelect2(field, url, placeholder) {
+            $('#' + field).select2({
+                ajax: {
+                    url: url,
+                    dataType: 'json',
+                    delay: 250,
+                    data: params => {
+                        console.log(`${field} request: ${url}?q=${params.term || ''}&limit=10&page=${params.page || 1}`);
+                        return { q: params.term || '', limit: 10, page: params.page || 1 };
+                    },
+                    processResults: (data, params) => {
+                        console.log(`${field} response:`, data);
+                        if (!data || !data.results) {
+                            console.warn(`${field} empty or invalid response`);
+                            return { results: [], pagination: { more: false } };
                         }
-                    });
-                    console.log(`Rendered ${renderedCards} prediction cards out of ${predictions.length}`);
-                } else {
-                    resultsGrid.html('<p class="text-gray-600 text-center">No predictions found. Try broadening your search terms (e.g., use partial drug or gene names, or check spelling).</p>');
-                }
-
-                // Sort and filter results
-                $('#sort-results').off('change').on('change', function() {
-                    sortResults(predictions);
-                });
-                $('#filter-source').off('change').on('change', function() {
-                    sortResults(predictions);
-                });
-                sortResults(predictions);
-
-                // Confidence chart
-                const ctx = document.getElementById('chart-canvas').getContext('2d');
-                // Destroy previous chart instance if it exists
-                if (confidenceChart) {
-                    confidenceChart.destroy();
-                    confidenceChart = null;
-                }
-                // Calculate sourceCounts from predictions
-                const sourceCounts = predictions.reduce((acc, p) => {
-                    acc[p.source] = (acc[p.source] || 0) + (p.confidence && typeof p.confidence === 'number' ? p.confidence : 0);
-                    return acc;
-                }, {});
-                try {
-                    if (Object.keys(sourceCounts).length > 0) {
-                        confidenceChart = new Chart(ctx, {
-                            type: 'bar',
-                            data: {
-                                labels: Object.keys(sourceCounts),
-                                datasets: [{
-                                    label: 'Confidence Contribution',
-                                    data: Object.values(sourceCounts),
-                                    backgroundColor: '#4CAF50',
-                                    borderColor: '#2E7D32',
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: {
-                                scales: {
-                                    y: { beginAtZero: true, title: { display: true, text: 'Confidence Score' } },
-                                    x: { title: { display: true, text: 'Source' } }
-                                },
-                                plugins: { legend: { display: false } }
-                            }
-                        });
-                        $('#confidence-chart').removeClass('hidden');
-                    } else {
-                        console.warn('No data for confidence chart');
-                        $('#confidence-chart').addClass('hidden');
+                        return {
+                            results: data.results.map(item => ({
+                                id: item.id,
+                                text: item.text
+                            })),
+                            pagination: { more: data.pagination?.more || data.pagination?.has_next || false }
+                        };
+                    },
+                    cache: true,
+                    error: (xhr, status, error) => {
+                        console.error(`${field} AJAX error: ${status}, ${error}, Status Code: ${xhr.status}`);
+                        $('#error').text(`Failed to load ${field} suggestions: ${error}. Please try again.`).removeClass('hidden');
                     }
-                } catch (error) {
-                    console.error('Chart creation error:', error);
-                    $('#error').text('Failed to render confidence chart. Results are still available below.').removeClass('hidden');
-                    $('#confidence-chart').addClass('hidden');
-                }
-
-                // Render evidence with pagination
-                evidenceData = data.evidence || [];
-                currentQuery = query;
-                console.log('Evidence data:', evidenceData); // Debug evidence items
-                let currentPage = 1;
-                if (evidenceData.length) renderEvidence(1);
-
-                // Full report
-                const fullReport = $('#full-report-content');
-                fullReport.empty();
-                if (predictions.length || evidenceData.length) {
-                    fullReport.append(`
-                        <h4 class="text-xl font-semibold text-green-700">Predictions</h4>
-                        ${predictions.length ? predictions.map(p => `
-                            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 mb-4">
-                                <p><strong>Effect:</strong> ${p.effect || 'No effect specified'}</p>
-                                <p><strong>Drug:</strong> ${p.drug || 'None'}</p>
-                                <p><strong>Phenotype:</strong> ${p.phenotype || 'None'}</p>
-                                <p><strong>Gene:</strong> ${p.gene || 'None'}</p>
-                                <p><strong>Variant:</strong> ${p.variant || 'None'}</p>
-                                <p><strong>Source:</strong> ${p.source || 'Unknown'}</p>
-                                <p><strong>Confidence:</strong> ${p.confidence && typeof p.confidence === 'number' ? (p.confidence * 100).toFixed(1) : '0'}%</p>
-                                <p><strong>Evidence Link:</strong> <a href="${p.evidence_link || '#'}" target="_blank" class="text-green-600 hover:underline">${p.evidence_link || 'N/A'}</a></p>
-                                ${displayDetails(p)}
-                            </div>
-                        `).join('') : '<p class="text-gray-600">No predictions available.</p>'}
-                        <h4 class="mt-4 text-xl font-semibold text-green-700">Evidence</h4>
-                        ${evidenceData.length ? evidenceData.map(e => `
-                            <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 mb-4">
-                                <p><strong>Text:</strong> ${e.text && typeof e.text === 'string' ? e.text : 'No evidence text'}</p>
-                                <p><strong>Source:</strong> ${e.source || 'Unknown'}</p>
-                                ${displayEvidenceDetails(e)}
-                            </div>
-                        `).join('') : '<p class="text-gray-600">No evidence available.</p>'}
-                    `);
-                    $('#full-report-toggle').removeClass('hidden');
-                }
-
-                // GSAP animations (optimized)
-                const resultCards = gsap.utils.toArray(".result-card");
-                resultCards.forEach((element, i) => {
-                    gsap.fromTo(
-                        element,
-                        { opacity: 0, y: 20 },
-                        { duration: 0.5, opacity: 1, y: 0, delay: i * 0.1, overwrite: 'auto', onComplete: () => {
-                            element.style.opacity = '1'; // Ensure visibility
-                        }}
-                    );
-                });
-                const evidenceCards = gsap.utils.toArray(".evidence-card");
-                evidenceCards.forEach((element, i) => {
-                    gsap.fromTo(
-                        element,
-                        { opacity: 0, y: 20 },
-                        { duration: 0.5, opacity: 1, y: 0, delay: i * 0.1, overwrite: 'auto', onComplete: () => {
-                            element.style.opacity = '1'; // Ensure visibility
-                        }}
-                    );
-                });
-
-                $('#results').removeClass('hidden');
-            } catch (error) {
-                $('#error').text(`Prediction failed: ${error.message}. Please refresh and try again.`).removeClass('hidden');
-                $('#results').addClass('hidden');
-                console.error('Prediction error:', error);
-            } finally {
-                $.unblockUI();
-            }
+                },
+                placeholder: placeholder,
+                minimumInputLength: 1,
+                allowClear: true,
+                width: '100%',
+                templateResult: item => item.loading ? item.text : $('<span>' + item.text + '</span>'),
+                templateSelection: item => item.text || item.id
+            }).on('select2:open', () => $('.select2-search__field').focus())
+              .on('select2:close', () => { if (!$('#' + field).val()) $('#' + field).val(null).trigger('change'); })
+              .on('select2:opening', () => $('#' + field).siblings('.loading').show())
+              .on('select2:closing', () => $('#' + field).siblings('.loading').hide());
         }
-
-        function sortResults(predictions) {
-            const sortBy = $('#sort-results').val();
-            const filterSource = $('#filter-source').val();
-            let sorted = [...predictions];
-            if (filterSource) {
-                sorted = sorted.filter(p => p.source === filterSource);
+        initializeSelect2('variant', '/search_variants', 'e.g., rs9923231');
+        initializeSelect2('drug', '/api/active_ingredients', 'e.g., Warfarin');
+        initializeSelect2('phenotype', '/search_phenotypes', 'e.g., Anticoagulation');
+        initializeSelect2('gene', '/search_genes', 'e.g., CYP2C19');
+        $('#pharma-form').submit(function(e) {
+            e.preventDefault();
+            $('#error').addClass('hidden');
+            const variant = $('#variant').val() || "";
+            const drug = $('#drug').select2('data')[0]?.text.split(' (')[0] || "";
+            const phenotype = $('#phenotype').val() || "";
+            const gene = $('#gene').val() || "";
+            const query = { variant, drug, phenotype, gene };
+            console.log('Submitting query:', query);
+            if (!variant && !drug && !phenotype && !gene) {
+                $('#error').text('Please provide at least one field: variant, drug, phenotype, or gene.').removeClass('hidden');
+                return;
             }
-            if (sortBy === 'confidence-desc') {
-                sorted.sort((a, b) => b.confidence - a.confidence);
-            } else if (sortBy === 'confidence-asc') {
-                sorted.sort((a, b) => a.confidence - b.confidence);
-            } else if (sortBy === 'source') {
-                sorted.sort((a, b) => a.source.localeCompare(b.source));
+            predict(query);
+        });
+        $('#clear-all').on('click', function() {
+            ['variant', 'drug', 'phenotype', 'gene'].forEach(field => $('#' + field).val(null).trigger('change'));
+            $('#results, #summary, #recent-queries, #error').addClass('hidden');
+        });
+        $('#toggle-dark-mode').on('click', function() {
+            $('body').toggleClass('dark-mode');
+            $(this).text($('body').hasClass('dark-mode') ? 'Light Mode' : 'Dark Mode');
+        });
+        renderRecentQueries();
+    });
+    function hasMeaningfulData(prediction) {
+        const fields = [prediction.drug, prediction.phenotype, prediction.gene, prediction.variant];
+        return fields.some(field => field && field !== "N/A");
+    }
+    async function predict(query) {
+        $.blockUI({ 
+            message: '<div class="loading text-center text-green-700">Analyzing pharmacogenomics data...</div>', 
+            css: { border: 'none', backgroundColor: '#fff', color: '#333', padding: '20px', borderRadius: '8px' } 
+        });
+        try {
+            const response = await fetch('/pharmacogenomics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(query)
+            });
+            const data = await response.json();
+            console.log('Pharmacogenomics response:', data);
+            if (data.error) {
+                $('#error').text(`${data.error}${data.details ? ': ' + data.details : ''}. Try adjusting your query (e.g., check spelling or use partial names) or contact support.`).removeClass('hidden');
+                $('#results').addClass('hidden');
+                return;
             }
+            if (!data.predictions || !Array.isArray(data.predictions)) {
+                console.warn('Invalid predictions format:', data.predictions);
+                $('#error').text('Invalid response from server. Please try again.').removeClass('hidden');
+                $('#results').addClass('hidden');
+                return;
+            }
+            updateRecentQueries(query);
+            $('#summary-content').text(data.summary || 'No key insights available.');
+            $('#summary').removeClass('hidden');
             const resultsGrid = $('#results-grid');
             resultsGrid.empty();
+            const predictions = data.predictions || [];
             let renderedCards = 0;
-            if (sorted.length) {
-                sorted.forEach((p, index) => {
+            if (predictions.length) {
+                predictions.forEach((p, index) => {
                     try {
-                        // Skip rendering if the prediction has no meaningful data
                         if (!hasMeaningfulData(p)) {
-                            console.log(`Skipping prediction card in sortResults ${index} with no meaningful data:`, p);
+                            console.log(`Skipping prediction card ${index} with no meaningful data:`, p);
                             return;
                         }
                         resultsGrid.append(`
@@ -690,136 +470,305 @@
                         `);
                         renderedCards++;
                     } catch (error) {
-                        console.error(`Error rendering prediction card in sortResults ${index}:`, error, p);
+                        console.error(`Error rendering prediction card ${index}:`, error, p);
                     }
                 });
-                console.log(`sortResults rendered ${renderedCards} prediction cards out of ${sorted.length}`);
+                console.log(`Rendered ${renderedCards} prediction cards out of ${predictions.length}`);
             } else {
-                resultsGrid.html('<p class="text-gray-600 text-center">No predictions match the selected filter.</p>');
+                resultsGrid.html('<p class="text-gray-600 text-center">No predictions found. Try broadening your search terms (e.g., use partial drug or gene names, or check spelling).</p>');
             }
-
-            // Reapply GSAP animations for sorted results
+            $('#sort-results').off('change').on('change', function() {
+                sortResults(predictions);
+            });
+            $('#filter-source').off('change').on('change', function() {
+                sortResults(predictions);
+            });
+            sortResults(predictions);
+            const ctx = document.getElementById('chart-canvas').getContext('2d');
+            if (confidenceChart) {
+                confidenceChart.destroy();
+                confidenceChart = null;
+            }
+            const sourceCounts = predictions.reduce((acc, p) => {
+                acc[p.source] = (acc[p.source] || 0) + (p.confidence && typeof p.confidence === 'number' ? p.confidence : 0);
+                return acc;
+            }, {});
+            try {
+                if (Object.keys(sourceCounts).length > 0) {
+                    confidenceChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: Object.keys(sourceCounts),
+                            datasets: [{
+                                label: 'Confidence Contribution',
+                                data: Object.values(sourceCounts),
+                                backgroundColor: '#4CAF50',
+                                borderColor: '#2E7D32',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: { beginAtZero: true, title: { display: true, text: 'Confidence Score' } },
+                                x: { title: { display: true, text: 'Source' } }
+                            },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                    $('#confidence-chart').removeClass('hidden');
+                } else {
+                    console.warn('No data for confidence chart');
+                    $('#confidence-chart').addClass('hidden');
+                }
+            } catch (error) {
+                console.error('Chart creation error:', error);
+                $('#error').text('Failed to render confidence chart. Results are still available below.').removeClass('hidden');
+                $('#confidence-chart').addClass('hidden');
+            }
+            evidenceData = data.evidence || [];
+            currentQuery = query;
+            console.log('Evidence data:', evidenceData);
+            let currentPage = 1;
+            if (evidenceData.length) renderEvidence(1);
+            const fullReport = $('#full-report-content');
+            fullReport.empty();
+            if (predictions.length || evidenceData.length) {
+                fullReport.append(`
+                    <h4 class="text-xl font-semibold text-green-700">Predictions</h4>
+                    ${predictions.length ? predictions.map(p => `
+                        <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 mb-4">
+                            <p><strong>Effect:</strong> ${p.effect || 'No effect specified'}</p>
+                            <p><strong>Drug:</strong> ${p.drug || 'None'}</p>
+                            <p><strong>Phenotype:</strong> ${p.phenotype || 'None'}</p>
+                            <p><strong>Gene:</strong> ${p.gene || 'None'}</p>
+                            <p><strong>Variant:</strong> ${p.variant || 'None'}</p>
+                            <p><strong>Source:</strong> ${p.source || 'Unknown'}</p>
+                            <p><strong>Confidence:</strong> ${p.confidence && typeof p.confidence === 'number' ? (p.confidence * 100).toFixed(1) : '0'}%</p>
+                            <p><strong>Evidence Link:</strong> <a href="${p.evidence_link || '#'}" target="_blank" class="text-green-600 hover:underline">${p.evidence_link || 'N/A'}</a></p>
+                            ${displayDetails(p)}
+                        </div>
+                    `).join('') : '<p class="text-gray-600">No predictions available.</p>'}
+                    <h4 class="mt-4 text-xl font-semibold text-green-700">Evidence</h4>
+                    ${evidenceData.length ? evidenceData.map(e => `
+                        <div class="bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 mb-4">
+                            <p><strong>Text:</strong> ${e.text && typeof e.text === 'string' ? e.text : 'No evidence text'}</p>
+                            <p><strong>Source:</strong> ${e.source || 'Unknown'}</p>
+                            ${displayEvidenceDetails(e)}
+                        </div>
+                    `).join('') : '<p class="text-gray-600">No evidence available.</p>'}
+                `);
+                $('#full-report-toggle').removeClass('hidden');
+            }
             const resultCards = gsap.utils.toArray(".result-card");
             resultCards.forEach((element, i) => {
                 gsap.fromTo(
                     element,
                     { opacity: 0, y: 20 },
                     { duration: 0.5, opacity: 1, y: 0, delay: i * 0.1, overwrite: 'auto', onComplete: () => {
-                        element.style.opacity = '1'; // Ensure visibility
+                        element.style.opacity = '1';
                     }}
                 );
             });
+            const evidenceCards = gsap.utils.toArray(".evidence-card");
+            evidenceCards.forEach((element, i) => {
+                gsap.fromTo(
+                    element,
+                    { opacity: 0, y: 20 },
+                    { duration: 0.5, opacity: 1, y: 0, delay: i * 0.1, overwrite: 'auto', onComplete: () => {
+                        element.style.opacity = '1';
+                    }}
+                );
+            });
+            $('#results').removeClass('hidden');
+        } catch (error) {
+            $('#error').text(`Prediction failed: ${error.message}. Please refresh and try again.`).removeClass('hidden');
+            $('#results').addClass('hidden');
+            console.error('Prediction error:', error);
+        } finally {
+            $.unblockUI();
         }
-
-        function displayDetails(p) {
-            let details = '';
-            switch (p.source) {
-                case 'ClinicalAnnotation':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Clinical Annotation Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.clinical_annotation_id || 'N/A'}</p>
-                        <p class="tooltip"><strong>Level of Evidence:</strong> ${p.details?.level_of_evidence || 'N/A'} <span class="tooltiptext">Rating of evidence strength (e.g., 1A, 1B)</span></p>
-                        <p><strong>Phenotype Category:</strong> ${p.details?.phenotype_category || 'N/A'}</p>
-                    `;
-                    break;
-                case 'ClinicalVariant':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Clinical Variant Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
-                        <p class="tooltip"><strong>Variant Type:</strong> ${p.details?.variant_type || 'N/A'} <span class="tooltiptext">Type of genetic variation (e.g., SNP, insertion)</span></p>
-                        <p class="tooltip"><strong>Level of Evidence:</strong> ${p.details?.level_of_evidence || 'N/A'} <span class="tooltiptext">Rating of evidence strength (e.g., 1A, 1B)</span></p>
-                    `;
-                    break;
-                case 'DrugLabel':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Drug Label Details</h4>
-                        <p><strong>PharmGKB ID:</strong> ${p.details?.pharmgkb_id || 'N/A'}</p>
-                        <p class="tooltip"><strong>Testing Level:</strong> ${p.details?.testing_level || 'N/A'} <span class="tooltiptext">Level of genetic testing required</span></p>
-                        <p class="tooltip"><strong>Has Prescribing Info:</strong> ${p.details?.has_prescribing_info || 'N/A'} <span class="tooltiptext">Indicates prescribing guidance availability</span></p>
-                    `;
-                    break;
-                case 'VariantFAAnn':
-                case 'VariantDrugAnn':
-                case 'VariantPhenoAnn':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">${p.source} Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.variant_annotation_id || 'N/A'}</p>
-                        <p><strong>Significance:</strong> ${p.details?.significance || 'N/A'}</p>
-                    `;
-                    break;
-                case 'StudyParameters':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Study Parameters Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.study_parameters_id || 'N/A'}</p>
-                        <p><strong>Study Type:</strong> ${p.details?.study_type || 'N/A'}</p>
-                        <p><strong>P-value:</strong> ${p.details?.p_value || 'N/A'}</p>
-                    `;
-                    break;
-                case 'Relationship':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Relationship Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
-                        <p><strong>Association:</strong> ${p.details?.association || 'N/A'}</p>
-                    `;
-                    break;
-                case 'AutomatedAnnotation':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Automated Annotation Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
-                        <p><strong>PMID:</strong> ${p.details?.pmid || 'N/A'}</p>
-                        <p><strong>Publication Year:</strong> ${p.details?.publication_year || 'N/A'}</p>
-                    `;
-                    break;
-                case 'Occurrence':
-                    details += `
-                        <h4 class="mt-2 text-md font-semibold text-green-700">Occurrence Details</h4>
-                        <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
-                        <p><strong>Source Type:</strong> ${p.details?.source_type || 'N/A'}</p>
-                    `;
-                    break;
-            }
-            return details;
+    }
+    function sortResults(predictions) {
+        const sortBy = $('#sort-results').val();
+        const filterSource = $('#filter-source').val();
+        let sorted = [...predictions];
+        if (filterSource) {
+            sorted = sorted.filter(p => p.source === filterSource);
         }
-
-        function displayEvidenceDetails(e) {
-            let details = '';
-            switch (e.source) {
-                case 'ClinicalAnnotation':
-                    details += `
-                        <p><strong>Details:</strong> Evidence from clinical studies supporting the pharmacogenomic interaction.</p>
-                    `;
-                    break;
-                case 'AutomatedAnnotation':
-                    details += `
-                        <p><strong>ID:</strong> ${e.id || 'N/A'}</p>
-                        <p><strong>Chemical Name:</strong> ${e.chemical_name || 'N/A'}</p>
-                        <p><strong>Variation Name:</strong> ${e.variation_name || 'N/A'}</p>
-                        <p><strong>Gene IDs:</strong> ${e.gene_ids || 'N/A'}</p>
-                        <p><strong>PMID:</strong> ${e.pmid || 'N/A'}</p>
-                        <p><strong>Publication Year:</strong> ${e.publication_year || 'N/A'}</p>
-                    `;
-                    break;
-                default:
-                    details += `
-                        <p><strong>Details:</strong> ${e.text && typeof e.text === 'string' ? e.text : 'No additional details available.'}</p>
-                    `;
-            }
-            return details;
+        if (sortBy === 'confidence-desc') {
+            sorted.sort((a, b) => b.confidence - a.confidence);
+        } else if (sortBy === 'confidence-asc') {
+            sorted.sort((a, b) => a.confidence - b.confidence);
+        } else if (sortBy === 'source') {
+            sorted.sort((a, b) => a.source.localeCompare(b.source));
         }
-
-        function toggleDetails(element) { 
-            $(element).toggleClass('details-open').attr('aria-expanded', $(element).hasClass('details-open')); 
-            $(element).find('.details').slideToggle(); 
+        const resultsGrid = $('#results-grid');
+        resultsGrid.empty();
+        let renderedCards = 0;
+        if (sorted.length) {
+            sorted.forEach((p, index) => {
+                try {
+                    if (!hasMeaningfulData(p)) {
+                        console.log(`Skipping prediction card in sortResults ${index} with no meaningful data:`, p);
+                        return;
+                    }
+                    resultsGrid.append(`
+                        <div class="result-card bg-white p-4 rounded-lg shadow-md border-l-4 border-yellow-400 relative overflow-hidden" role="button" tabindex="0" aria-expanded="false" onclick="toggleDetails(this)" onkeydown="if(event.key === 'Enter') toggleDetails(this)">
+                            <div class="flex justify-between items-center">
+                                <div class="tooltip">
+                                    <p class="text-green-800 font-medium truncate">${p.effect && typeof p.effect === 'string' && p.effect.length > 50 ? p.effect.substring(0, 50) + '...' : p.effect || 'No effect specified'}</p>
+                                    <span class="tooltiptext">${p.effect || 'No effect specified'}</span>
+                                </div>
+                                <span class="text-gray-500 text-sm flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                    ${p.source || 'Unknown'}
+                                </span>
+                            </div>
+                            <p class="text-gray-600 text-sm mt-2">Drug: ${p.drug || 'None'} | Phenotype: ${p.phenotype || 'None'} | Gene: ${p.gene || 'None'} | Variant: ${p.variant || 'None'}</p>
+                            <div class="confidence-bar mt-2">
+                                <div class="confidence-fill" style="width: ${p.confidence && typeof p.confidence === 'number' ? p.confidence * 100 : 0}%;"></div>
+                            </div>
+                            <div class="details mt-2 text-sm text-gray-600">
+                                <p><strong>Full Prediction:</strong> ${p.effect || 'No effect specified'}</p>
+                                <p><strong>Drug:</strong> ${p.drug || 'None'}</p>
+                                <p><strong>Phenotype:</strong> ${p.phenotype || 'None'}</p>
+                                <p><strong>Gene:</strong> ${p.gene || 'None'}</p>
+                                <p><strong>Variant:</strong> ${p.variant || 'None'}</p>
+                                <p><strong>Source:</strong> ${p.source || 'Unknown'}</p>
+                                <p><strong>Confidence:</strong> ${p.confidence && typeof p.confidence === 'number' ? (p.confidence * 100).toFixed(1) : '0'}%</p>
+                                <p><strong>Evidence Link:</strong> <a href="${p.evidence_link || '#'}" target="_blank" class="text-green-600 hover:underline">${p.evidence_link || 'N/A'}</a></p>
+                                ${displayDetails(p)}
+                            </div>
+                        </div>
+                    `);
+                    renderedCards++;
+                } catch (error) {
+                    console.error(`Error rendering prediction card in sortResults ${index}:`, error, p);
+                }
+            });
+            console.log(`sortResults rendered ${renderedCards} prediction cards out of ${sorted.length}`);
+        } else {
+            resultsGrid.html('<p class="text-gray-600 text-center">No predictions match the selected filter.</p>');
         }
-        function toggleEvidence(element) { 
-            $(element).toggleClass('evidence-open').attr('aria-expanded', $(element).hasClass('evidence-open')); 
-            $(element).find('.evidence-details').slideToggle(); 
+        const resultCards = gsap.utils.toArray(".result-card");
+        resultCards.forEach((element, i) => {
+            gsap.fromTo(
+                element,
+                { opacity: 0, y: 20 },
+                { duration: 0.5, opacity: 1, y: 0, delay: i * 0.1, overwrite: 'auto', onComplete: () => {
+                    element.style.opacity = '1';
+                }}
+            );
+        });
+    }
+    function displayDetails(p) {
+        let details = '';
+        switch (p.source) {
+            case 'ClinicalAnnotation':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Clinical Annotation Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.clinical_annotation_id || 'N/A'}</p>
+                    <p class="tooltip"><strong>Level of Evidence:</strong> ${p.details?.level_of_evidence || 'N/A'} <span class="tooltiptext">Rating of evidence strength (e.g., 1A, 1B)</span></p>
+                    <p><strong>Phenotype Category:</strong> ${p.details?.phenotype_category || 'N/A'}</p>
+                `;
+                break;
+            case 'ClinicalVariant':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Clinical Variant Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
+                    <p class="tooltip"><strong>Variant Type:</strong> ${p.details?.variant_type || 'N/A'} <span class="tooltiptext">Type of genetic variation (e.g., SNP, insertion)</span></p>
+                    <p class="tooltip"><strong>Level of Evidence:</strong> ${p.details?.level_of_evidence || 'N/A'} <span class="tooltiptext">Rating of evidence strength (e.g., 1A, 1B)</span></p>
+                `;
+                break;
+            case 'DrugLabel':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Drug Label Details</h4>
+                    <p><strong>PharmGKB ID:</strong> ${p.details?.pharmgkb_id || 'N/A'}</p>
+                    <p class="tooltip"><strong>Testing Level:</strong> ${p.details?.testing_level || 'N/A'} <span class="tooltiptext">Level of genetic testing required</span></p>
+                    <p class="tooltip"><strong>Has Prescribing Info:</strong> ${p.details?.has_prescribing_info || 'N/A'} <span class="tooltiptext">Indicates prescribing guidance availability</span></p>
+                `;
+                break;
+            case 'VariantFAAnn':
+            case 'VariantDrugAnn':
+            case 'VariantPhenoAnn':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">${p.source} Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.variant_annotation_id || 'N/A'}</p>
+                    <p><strong>Significance:</strong> ${p.details?.significance || 'N/A'}</p>
+                `;
+                break;
+            case 'StudyParameters':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Study Parameters Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.study_parameters_id || 'N/A'}</p>
+                    <p><strong>Study Type:</strong> ${p.details?.study_type || 'N/A'}</p>
+                    <p><strong>P-value:</strong> ${p.details?.p_value || 'N/A'}</p>
+                `;
+                break;
+            case 'Relationship':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Relationship Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
+                    <p><strong>Association:</strong> ${p.details?.association || 'N/A'}</p>
+                `;
+                break;
+            case 'AutomatedAnnotation':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Automated Annotation Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
+                    <p><strong>PMID:</strong> ${p.details?.pmid || 'N/A'}</p>
+                    <p><strong>Publication Year:</strong> ${p.details?.publication_year || 'N/A'}</p>
+                `;
+                break;
+            case 'Occurrence':
+                details += `
+                    <h4 class="mt-2 text-md font-semibold text-green-700">Occurrence Details</h4>
+                    <p><strong>ID:</strong> ${p.details?.id || 'N/A'}</p>
+                    <p><strong>Source Type:</strong> ${p.details?.source_type || 'N/A'}</p>
+                `;
+                break;
         }
-        function toggleFullReport() { 
-            $('#full-report').slideToggle(); 
-            $('#results').toggleClass('full-report-open'); 
-            $('#full-report-toggle').text($('#full-report').is(':visible') ? 'Close Report' : 'View Full Report'); 
+        return details;
+    }
+    function displayEvidenceDetails(e) {
+        let details = '';
+        switch (e.source) {
+            case 'ClinicalAnnotation':
+                details += `
+                    <p><strong>Details:</strong> Evidence from clinical studies supporting the pharmacogenomic interaction.</p>
+                `;
+                break;
+            case 'AutomatedAnnotation':
+                details += `
+                    <p><strong>ID:</strong> ${e.id || 'N/A'}</p>
+                    <p><strong>Chemical Name:</strong> ${e.chemical_name || 'N/A'}</p>
+                    <p><strong>Variation Name:</strong> ${e.variation_name || 'N/A'}</p>
+                    <p><strong>Gene IDs:</strong> ${e.gene_ids || 'N/A'}</p>
+                    <p><strong>PMID:</strong> ${e.pmid || 'N/A'}</p>
+                    <p><strong>Publication Year:</strong> ${e.publication_year || 'N/A'}</p>
+                `;
+                break;
+            default:
+                details += `
+                    <p><strong>Details:</strong> ${e.text && typeof e.text === 'string' ? e.text : 'No additional details available.'}</p>
+                `;
         }
-    </script>
-</body>
-</html>
+        return details;
+    }
+    function toggleDetails(element) { 
+        $(element).toggleClass('details-open').attr('aria-expanded', $(element).hasClass('details-open')); 
+        $(element).find('.details').slideToggle(); 
+    }
+    function toggleEvidence(element) { 
+        $(element).toggleClass('evidence-open').attr('aria-expanded', $(element).hasClass('evidence-open')); 
+        $(element).find('.evidence-details').slideToggle(); 
+    }
+    function toggleFullReport() { 
+        $('#full-report').slideToggle(); 
+        $('#results').toggleClass('full-report-open'); 
+        $('#full-report-toggle').text($('#full-report').is(':visible') ? 'Close Report' : 'View Full Report'); 
+    }
+</script>
+{% endblock %}

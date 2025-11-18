@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ATC Detail - Drugly.ai</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .breadcrumb {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .breadcrumb a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .detail-card {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .children-list {
+            margin: 20px 0;
+        }
+        .child-item {
+            padding: 12px;
+            background: white;
+            margin: 8px 0;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+        }
+        .child-item a {
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #9E9E9E;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .back-link:hover {
+            background: #757575;
+        }
+        .ddd-info {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('atc_view') }}" class="back-link">← Back to ATC View</a>
+        
+        {% if level == '5' %}
+            {% for item in data %}
+            <h1>{{ item.code }} - {{ item.name }}</h1>
+            
+            <div class="breadcrumb">
+                <strong>Hierarchy:</strong><br>
+                <a href="{{ url_for('atc_detail', code=item.level4_parent.level3_parent.level2_parent.level1_parent.code) }}">
+                    {{ item.level4_parent.level3_parent.level2_parent.level1_parent.code }} - {{ item.level4_parent.level3_parent.level2_parent.level1_parent.name }}
+                </a> &gt;
+                <a href="{{ url_for('atc_detail', code=item.level4_parent.level3_parent.level2_parent.code) }}">
+                    {{ item.level4_parent.level3_parent.level2_parent.code }} - {{ item.level4_parent.level3_parent.level2_parent.name }}
+                </a> &gt;
+                <a href="{{ url_for('atc_detail', code=item.level4_parent.level3_parent.code) }}">
+                    {{ item.level4_parent.level3_parent.code }} - {{ item.level4_parent.level3_parent.name }}
+                </a> &gt;
+                <a href="{{ url_for('atc_detail', code=item.level4_parent.code) }}">
+                    {{ item.level4_parent.code }} - {{ item.level4_parent.name }}
+                </a>
+            </div>
+
+            <div class="ddd-info">
+                <strong>DDD Information:</strong><br>
+                <strong>DDD:</strong> {{ item.ddd or 'N/A' }}<br>
+                <strong>Unit:</strong> {{ item.uom or 'N/A' }}<br>
+                <strong>Administration Route:</strong> {{ item.adm_r or 'N/A' }}<br>
+                {% if item.note %}
+                <strong>Note:</strong> {{ item.note }}
+                {% endif %}
+            </div>
+            
+            {% if item.drug_mappings|length > 0 %}
+            <h2>Mapped Drugs ({{ item.drug_mappings|length }})</h2>
+            <div class="children-list">
+                {% for mapping in item.drug_mappings %}
+                <div class="child-item">
+                    <a href="/drug/{{ mapping.drug.id }}">{{ mapping.drug.name_en }}</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        {% else %}
+            <h1>{{ data.code }} - {{ data.name }}</h1>
+            
+            {% if level != '1' %}
+            <div class="breadcrumb">
+                <strong>Hierarchy:</strong><br>
+                {% if level == '2' %}
+                    <a href="{{ url_for('atc_detail', code=data.level1_parent.code) }}">
+                        {{ data.level1_parent.code }} - {{ data.level1_parent.name }}
+                    </a>
+                {% elif level == '3' %}
+                    <a href="{{ url_for('atc_detail', code=data.level2_parent.level1_parent.code) }}">
+                        {{ data.level2_parent.level1_parent.code }} - {{ data.level2_parent.level1_parent.name }}
+                    </a> &gt;
+                    <a href="{{ url_for('atc_detail', code=data.level2_parent.code) }}">
+                        {{ data.level2_parent.code }} - {{ data.level2_parent.name }}
+                    </a>
+                {% elif level == '4' %}
+                    <a href="{{ url_for('atc_detail', code=data.level3_parent.level2_parent.level1_parent.code) }}">
+                        {{ data.level3_parent.level2_parent.level1_parent.code }} - {{ data.level3_parent.level2_parent.level1_parent.name }}
+                    </a> &gt;
+                    <a href="{{ url_for('atc_detail', code=data.level3_parent.level2_parent.code) }}">
+                        {{ data.level3_parent.level2_parent.code }} - {{ data.level3_parent.level2_parent.name }}
+                    </a> &gt;
+                    <a href="{{ url_for('atc_detail', code=data.level3_parent.code) }}">
+                        {{ data.level3_parent.code }} - {{ data.level3_parent.name }}
+                    </a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if level == '1' and data.level2_children %}
+                <h2>Level 2 Subgroups ({{ data.level2_children|length }})</h2>
+                <div class="children-list">
+                    {% for child in data.level2_children %}
+                    <div class="child-item">
+                        <a href="{{ url_for('atc_detail', code=child.code) }}">{{ child.code }} - {{ child.name }}</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif level == '2' and data.level3_children %}
+                <h2>Level 3 Subgroups ({{ data.level3_children|length }})</h2>
+                <div class="children-list">
+                    {% for child in data.level3_children %}
+                    <div class="child-item">
+                        <a href="{{ url_for('atc_detail', code=child.code) }}">{{ child.code }} - {{ child.name }}</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif level == '3' and data.level4_children %}
+                <h2>Level 4 Subgroups ({{ data.level4_children|length }})</h2>
+                <div class="children-list">
+                    {% for child in data.level4_children %}
+                    <div class="child-item">
+                        <a href="{{ url_for('atc_detail', code=child.code) }}">{{ child.code }} - {{ child.name }}</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% elif level == '4' and data.level5_children %}
+                <h2>Substances ({{ data.level5_children|length }})</h2>
+                <div class="children-list">
+                    {% for child in data.level5_children %}
+                    <div class="child-item">
+                        <a href="{{ url_for('atc_detail', code=child.code) }}">
+                            {{ child.code }} - {{ child.name }}
+                            {% if child.adm_r %} ({{ child.adm_r }}){% endif %}
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>

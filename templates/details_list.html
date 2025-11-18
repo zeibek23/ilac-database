@@ -1,177 +1,379 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprehensive Drug Details</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet">
-    <!-- Add 3Dmol.js CDN -->
-    <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
-    <style>
-        body {
-            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-        }
-        .card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        @keyframes fadeIn {
-            0% { opacity: 0; transform: translateY(10px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-        .btn-primary {
-            transition: background-color 0.3s ease, transform 0.2s ease;
-        }
-        .btn-primary:hover {
-            background-color: #4f46e5;
-            transform: scale(1.05);
-        }
-        .section-icon {
-            margin-right: 8px;
-        }
-        .dataTable thead th {
-            background-color: #4b5563;
-            color: white;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .dataTable tbody tr:hover {
-            background-color: #f3f4f6;
-        }
-        .long-text {
-            max-width: 150px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            cursor: pointer;
-        }
-        .tooltip-text:hover {
-            text-decoration: underline;
-        }
+{% extends "base.html" %}
+
+{% block title %}Comprehensive Drug Details - Drugly{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet">
+<script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+    body {
+        background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+        font-family: 'Inter', sans-serif;
+        min-height: 100vh;
+    }
+    .card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    }
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    .btn-primary {
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    .btn-primary:hover {
+        background-color: #4f46e5;
+        transform: scale(1.05);
+    }
+    .section-icon {
+        margin-right: 8px;
+    }
+    .dataTable thead th {
+        background: linear-gradient(135deg, #4b5563, #374151) !important;
+        color: white !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 1rem !important;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+        border-bottom: 3px solid #1f2937;
+    }
+    .dataTable tbody tr {
+        transition: background-color 0.2s ease;
+    }
+    .dataTable tbody tr:hover {
+        background-color: #f3f4f6 !important;
+    }
+    .dataTable tbody td {
+        padding: 1rem !important;
+        vertical-align: top;
+    }
+    .long-text {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+        position: relative;
+    }
+    .long-text:hover::after {
+        content: attr(title);
+        position: absolute;
+        left: 0;
+        top: 100%;
+        background: #1f2937;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        white-space: normal;
+        max-width: 300px;
+        z-index: 1000;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        font-size: 0.875rem;
+    }
+    .tooltip-text:hover {
+        text-decoration: underline;
+    }
+    .table-container {
+        max-height: 700px;
+        overflow-y: auto;
+        border-radius: 0.75rem;
+    }
+    .rich-text p {
+        margin-bottom: 0.5rem;
+        line-height: 1.6;
+    }
+    .rich-text ul, .rich-text ol {
+        margin-left: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .rich-text li {
+        margin-bottom: 0.25rem;
+    }
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        backdrop-filter: blur(4px);
+    }
+    .modal-content {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        max-width: 800px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        position: relative;
+        animation: fadeIn 0.3s ease-in;
+    }
+    .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1.5rem;
+        font-size: 2rem;
+        cursor: pointer;
+        color: #6b7280;
+        transition: color 0.2s ease;
+    }
+    .modal-close:hover {
+        color: #1f2937;
+    }
+    #viewer {
+        width: 100%;
+        height: 500px;
+        border: 2px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    /* Category Badge Styles */
+    .category-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        margin: 0.25rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .category-badge:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    /* Pregnancy/Lactation Status Colors */
+    .safety-safe { color: #10b981; font-weight: bold; }
+    .safety-caution { color: #f59e0b; font-weight: bold; }
+    .safety-contraindicated { color: #ef4444; font-weight: bold; }
+    .safety-unknown { color: #6b7280; font-weight: bold; }
+    /* Export Buttons */
+    .export-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .export-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .export-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    /* Viewer Controls */
+    .viewer-controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .viewer-btn {
+        padding: 0.5rem 1rem;
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .viewer-btn:hover {
+        background: #4338ca;
+        transform: translateY(-2px);
+    }
+    /* DataTables Customization */
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        padding: 1rem;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        padding: 0.5rem 1rem;
+        margin: 0 0.25rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+        background: white;
+        transition: all 0.2s ease;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+        background: #4f46e5;
+        color: white !important;
+        border-color: #4f46e5;
+    }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+        background: #4f46e5 !important;
+        color: white !important;
+        border-color: #4f46e5 !important;
+    }
+    @media (max-width: 768px) {
         .table-container {
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        .rich-text p {
-            margin-bottom: 0.5rem;
-        }
-        .rich-text ul, .rich-text ol {
-            margin-left: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-        .rich-text li {
-            margin-bottom: 0.25rem;
-        }
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
+            overflow-x: auto;
         }
         .modal-content {
-            background: linear-gradient(135deg, #ffffff, #f3e8ff);
-            border-radius: 12px;
-            padding: 20px;
-            max-width: 600px;
-            width: 90%;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-            position: relative;
-            animation: fadeIn 0.3s ease-in;
-        }
-        .modal-close {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #4b5563;
-        }
-        .modal-close:hover {
-            color: #1f2937;
+            width: 95%;
+            padding: 1rem;
         }
         #viewer {
-            width: 100%;
-            height: 400px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            height: 300px;
         }
-        /* Category Badge Styles */
         .category-badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            margin: 0.25rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            transition: transform 0.2s ease;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
         }
-        .category-badge:hover {
-            transform: scale(1.1);
-        }
-        @media (max-width: 768px) {
-            .table-container {
-                overflow-x: auto;
-            }
-            .modal-content {
-                width: 95%;
-                padding: 15px;
-            }
-            #viewer {
-                height: 300px;
-            }
-            .category-badge {
-                font-size: 0.7rem;
-                padding: 0.2rem 0.4rem;
-            }
-        }
-        /* Pregnancy/Lactation Status Colors */
-        .safety-safe { color: #10b981; font-weight: bold; }
-        .safety-caution { color: #f59e0b; font-weight: bold; }
-        .safety-contraindicated { color: #ef4444; font-weight: bold; }
-        .safety-unknown { color: #6b7280; font-weight: bold; }
-    </style>
-</head>
+    }
+    /* Loading Spinner */
+    .spinner {
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid #4f46e5;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 2rem auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    /* Stats Cards */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border: 2px solid #bfdbfe;
+        text-align: center;
+        transition: transform 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    .stat-card h4 {
+        font-size: 0.875rem;
+        color: #1e40af;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+    .stat-card p {
+        font-size: 2rem;
+        color: #1f2937;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
 <body class="antialiased">
     <div class="container mx-auto px-4 py-12 max-w-7xl">
-        <h1 class="text-4xl font-bold text-center text-gray-800 mb-10 fade-in">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-4 fade-in">
             <i class="fas fa-capsules section-icon"></i>Comprehensive Drug Details
         </h1>
+        <p class="text-center text-gray-600 mb-10 fade-in">
+            Explore detailed pharmaceutical information with advanced filtering and visualization
+        </p>
+
+        <!-- Statistics Cards -->
+        <div class="stats-container fade-in">
+            <div class="stat-card">
+                <h4><i class="fas fa-database section-icon"></i>Total Entries</h4>
+                <p id="totalEntries">{{ details|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4><i class="fas fa-check-circle section-icon"></i>FDA Approved</h4>
+                <p id="fdaApproved">{{ details|selectattr('fda_approved')|list|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4><i class="fas fa-exclamation-triangle section-icon"></i>Black Box Warnings</h4>
+                <p id="blackBoxCount">{{ details|selectattr('black_box_warning')|list|length }}</p>
+            </div>
+            <div class="stat-card">
+                <h4><i class="fas fa-cube section-icon"></i>3D Structures</h4>
+                <p id="structure3DCount">{{ details|selectattr('structure_3d')|list|length }}</p>
+            </div>
+        </div>
+
         <!-- Search Bar -->
-        <section class="mb-10 fade-in">
-            <div class="card bg-white rounded-xl shadow-lg p-6">
+        <section class="mb-6 fade-in">
+            <div class="card p-6">
                 <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                    <input type="text" id="searchBox" class="w-full pl-10 pr-4 py-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Search for any drug details...">
+                    <i class="fas fa-search absolute left-4 top-4 text-gray-400 text-lg"></i>
+                    <input type="text" id="searchBox" class="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="Search for any drug details (name, formula, indication, etc.)...">
                 </div>
             </div>
         </section>
+
+        <!-- Export Buttons -->
+        <section class="mb-6 fade-in">
+            <div class="card p-4">
+                <div class="export-buttons">
+                    <button id="exportExcel" class="export-btn bg-green-600 text-white hover:bg-green-700">
+                        <i class="fas fa-file-excel"></i> Export to Excel
+                    </button>
+                    <button id="exportCSV" class="export-btn bg-blue-600 text-white hover:bg-blue-700">
+                        <i class="fas fa-file-csv"></i> Export to CSV
+                    </button>
+                    <button id="exportPDF" class="export-btn bg-red-600 text-white hover:bg-red-700">
+                        <i class="fas fa-file-pdf"></i> Export to PDF
+                    </button>
+                    <button id="printTable" class="export-btn bg-gray-600 text-white hover:bg-gray-700">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                </div>
+            </div>
+        </section>
+
         <!-- Details Table -->
         <section class="fade-in">
-            <div class="card bg-white rounded-xl shadow-lg p-6">
+            <div class="card p-6">
                 <div class="table-container">
-                    <table id="detailsTable" class="w-full text-left">
+                    <table id="detailsTable" class="w-full text-left display">
                         <thead>
                             <tr>
                                 <th><i class="fas fa-medkit section-icon"></i>Drug Name</th>
                                 <th><i class="fas fa-tags section-icon"></i>Categories</th>
+                                <th><i class="fas fa-barcode section-icon"></i>ATC Codes</th>
                                 <th><i class="fas fa-cogs section-icon"></i>Mechanism of Action</th>
                                 <th><i class="fas fa-vial section-icon"></i>Salt</th>
                                 <th><i class="fas fa-exclamation-triangle section-icon"></i>Blackbox Warning</th>
@@ -205,7 +407,7 @@
                                 <th><i class="fas fa-check-circle section-icon"></i>EMA Approved</th>
                                 <th><i class="fas fa-check-circle section-icon"></i>TITCK Approved</th>
                                 <th><i class="fas fa-baby section-icon"></i>Pregnancy Safety</th>
-                                <th><i class="fas fa-baby-bottle section-icon"></i>Lactation Safety</th>
+                                <th><i class="fas fa-baby-carriage section-icon"></i>Lactation Safety</th>
                                 <th><i class="fas fa-route section-icon"></i>Routes & Indications</th>
                                 <th><i class="fas fa-book section-icon"></i>References</th>
                                 <th><i class="fas fa-cog section-icon"></i>Actions</th>
@@ -214,7 +416,7 @@
                         <tbody>
                             {% for detail in details %}
                             <tr>
-                                <td>{{ detail.drug_name }}</td>
+                                <td><strong>{{ detail.drug_name }}</strong></td>
                                 <td>
                                     {% if detail.categories %}
                                     <div class="flex flex-wrap gap-1">
@@ -223,142 +425,191 @@
                                         {% endfor %}
                                     </div>
                                     {% else %}
-                                    <span class="text-gray-500">No Categories Assigned</span>
+                                    <span class="text-gray-500">No Categories</span>
                                     {% endif %}
                                 </td>
-                                <td class="rich-text">{{ detail.mechanism_of_action|safe if detail.mechanism_of_action else 'N/A' }}</td>
-                                <td>{{ detail.salt_name if detail.salt_name else 'N/A' }}</td>
+                                <!-- ATC Codes Column -->
+<td>
+    {% if detail.atc_codes %}
+    <div class="space-y-2">
+        {% for atc in detail.atc_codes %}
+        <div class="border-l-4 border-green-500 pl-3 py-2 bg-green-50 rounded">
+            <div class="flex items-center gap-2 mb-1">
+                <strong class="text-green-700 text-sm font-mono">{{ atc.code }}</strong>
+                {% if atc.adm_r != 'N/A' %}
+                <span class="px-2 py-0.5 bg-green-200 text-green-800 rounded-full text-xs font-bold">{{ atc.adm_r }}</span>
+                {% endif %}
+            </div>
+            <div class="text-xs text-gray-700 font-medium">{{ atc.name }}</div>
+            {% if atc.ddd != 'N/A' %}
+            <div class="text-xs text-gray-600 mt-1">
+                <i class="fas fa-pills mr-1"></i>DDD: {{ atc.ddd }} {{ atc.uom }}
+            </div>
+            {% endif %}
+            <div class="text-xs text-gray-500 mt-1 truncate" title="{{ atc.full_path }}">
+                {{ atc.hierarchy }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <span class="text-gray-500">No ATC Codes</span>
+    {% endif %}
+</td>
+                                <td class="rich-text long-text" title="{{ detail.mechanism_of_action|striptags if detail.mechanism_of_action else 'N/A' }}">
+                                    {{ detail.mechanism_of_action|safe if detail.mechanism_of_action else 'N/A' }}
+                                </td>
+                                <td>{{ detail.salt_name if detail.salt_name else '<span class="text-gray-500">N/A</span>'|safe }}</td>
                                 <td>
                                     {% if detail.black_box_warning %}
-                                    <span class="text-red-500 font-bold">Yes</span>
+                                    <span class="inline-flex items-center px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i> Yes
+                                    </span>
                                     {% else %}
-                                    <span class="text-green-500">No</span>
+                                    <span class="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">
+                                        <i class="fas fa-check-circle mr-1"></i> No
+                                    </span>
                                     {% endif %}
                                 </td>
-                                <td>
+                                <td class="rich-text long-text" title="{{ detail.black_box_details|striptags if detail.black_box_details else 'N/A' }}">
                                     {% if detail.black_box_warning %}
                                     {{ detail.black_box_details|safe or 'No details available' }}
                                     {% else %}
-                                    N/A
+                                    <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ detail.molecular_formula or 'N/A' }}</td>
+                                <td><code class="bg-gray-100 px-2 py-1 rounded">{{ detail.molecular_formula or 'N/A' }}</code></td>
                                 <td>
                                     {% if detail.structure %}
-                                    <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[100px] rounded-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                    <span class="text-red-500 hidden">Structure unavailable</span>
+                                    <img src="/static/{{ detail.structure }}" alt="2D Structure" class="max-w-[120px] rounded-lg shadow-md hover:scale-110 transition-transform" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <span class="text-red-500 hidden text-sm">Unavailable</span>
                                     {% else %}
                                     <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.structure_3d %}
-                                    <button class="btn-primary bg-indigo-500 text-white px-3 py-1 rounded-lg hover:bg-indigo-600 view-3d-btn" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ detail.drug_name }}">
+                                    <button class="btn-primary bg-indigo-500 text-white px-3 py-2 rounded-lg hover:bg-indigo-600 view-3d-btn shadow-md" data-structure="/static/{{ detail.structure_3d }}" data-drug="{{ detail.drug_name }}">
                                         <i class="fas fa-cube mr-1"></i>View 3D
                                     </button>
                                     {% else %}
                                     <span class="text-gray-500">N/A</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ detail.molecular_weight or 'N/A' }} {{ detail.molecular_weight_unit }}</td>
-                                <td class="long-text tooltip-text" title="{{ detail.synthesis|striptags if detail.synthesis else 'N/A' }}">
+                                <td>{{ detail.molecular_weight or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.molecular_weight_unit }}</span></td>
+                                <td class="long-text rich-text" title="{{ detail.synthesis|striptags if detail.synthesis else 'N/A' }}">
                                     {{ detail.synthesis|safe if detail.synthesis else 'N/A' }}
                                 </td>
-                                <td>{{ detail.iupac_name or 'N/A' }}</td>
-                                <td class="long-text tooltip-text" title="{{ detail.smiles }}">{{ detail.smiles or 'N/A' }}</td>
+                                <td class="long-text" title="{{ detail.iupac_name }}">{{ detail.iupac_name or 'N/A' }}</td>
+                                <td class="long-text" title="{{ detail.smiles }}"><code class="bg-gray-100 px-2 py-1 rounded text-xs">{{ detail.smiles or 'N/A' }}</code></td>
                                 <td>{{ detail.cas_id or 'N/A' }}</td>
                                 <td>{{ detail.rxcui or 'N/A' }}</td>
                                 <td>{{ detail.pubchem_cid or 'N/A' }}</td>
                                 <td>{{ detail.pubchem_sid or 'N/A' }}</td>
-                                <td>{{ detail.inchikey or 'N/A' }}</td>
+                                <td class="long-text" title="{{ detail.inchikey }}">{{ detail.inchikey or 'N/A' }}</td>
                                 <td>{{ detail.ec_number or 'N/A' }}</td>
                                 <td>{{ detail.nci_code or 'N/A' }}</td>
                                 <td>{{ detail.snomed_id or 'N/A' }}</td>
-                                <td>{{ detail.boiling_point or 'N/A' }} {{ detail.boiling_point_unit }}</td>
-                                <td>{{ detail.melting_point or 'N/A' }} {{ detail.melting_point_unit }}</td>
-                                <td>{{ detail.density or 'N/A' }} {{ detail.density_unit }}</td>
-                                <td>{{ detail.solubility or 'N/A' }} {{ detail.solubility_unit }}</td>
-                                <td>{{ detail.flash_point or 'N/A' }} {{ detail.flash_point_unit }}</td>
-                                <td>{{ detail.pharmacodynamics|safe if detail.pharmacodynamics else 'N/A' }}</td>
-                                <td>{{ detail.pharmacokinetics|safe if detail.pharmacokinetics else 'N/A' }}</td>
+                                <td>{{ detail.boiling_point or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.boiling_point_unit }}</span></td>
+                                <td>{{ detail.melting_point or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.melting_point_unit }}</span></td>
+                                <td>{{ detail.density or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.density_unit }}</span></td>
+                                <td>{{ detail.solubility or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.solubility_unit }}</span></td>
+                                <td>{{ detail.flash_point or 'N/A' }} <span class="text-gray-500 text-xs">{{ detail.flash_point_unit }}</span></td>
+                                <td class="rich-text long-text" title="{{ detail.pharmacodynamics|striptags if detail.pharmacodynamics else 'N/A' }}">
+                                    {{ detail.pharmacodynamics|safe if detail.pharmacodynamics else 'N/A' }}
+                                </td>
+                                <td class="rich-text long-text" title="{{ detail.pharmacokinetics|striptags if detail.pharmacokinetics else 'N/A' }}">
+                                    {{ detail.pharmacokinetics|safe if detail.pharmacokinetics else 'N/A' }}
+                                </td>
                                 <td>
                                     {% if detail.indications %}
-                                    <ul class="list-disc pl-5">
+                                    <ul class="list-disc pl-5 space-y-1">
                                         {% for indication in detail.indications %}
-                                        <li>{{ indication }}</li>
+                                        <li class="text-sm">{{ indication }}</li>
                                         {% endfor %}
                                     </ul>
                                     {% else %}
-                                    <span class="text-gray-500">No Indications Provided</span>
+                                    <span class="text-gray-500">No Indications</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.side_effects %}
-                                    <ul class="list-disc pl-5">
+                                    <ul class="list-disc pl-5 space-y-1">
                                         {% for se in detail.side_effects %}
-                                        <li>{{ se.name_en }} ({{ se.name_tr or 'N/A' }})</li>
+                                        <li class="text-sm">{{ se.name_en }} <span class="text-gray-500">({{ se.name_tr or 'N/A' }})</span></li>
                                         {% endfor %}
                                     </ul>
                                     {% else %}
-                                    <span class="text-gray-500">No side effects listed.</span>
+                                    <span class="text-gray-500">None listed</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.target_molecules %}
-                                    <ul class="list-disc pl-5">
+                                    <ul class="list-disc pl-5 space-y-1">
                                         {% for target in detail.target_molecules %}
-                                        <li>{{ target }}</li>
+                                        <li class="text-sm">{{ target }}</li>
                                         {% endfor %}
                                     </ul>
                                     {% else %}
-                                    <span class="text-gray-500">No target molecules listed.</span>
+                                    <span class="text-gray-500">None listed</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.fda_approved %}
-                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    <span class="inline-block bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-check"></i> Yes
+                                    </span>
                                     {% else %}
-                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    <span class="inline-block bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-times"></i> No
+                                    </span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.ema_approved %}
-                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    <span class="inline-block bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-check"></i> Yes
+                                    </span>
                                     {% else %}
-                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    <span class="inline-block bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-times"></i> No
+                                    </span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.titck_approved %}
-                                    <span class="inline-block bg-green-500 text-white px-2 py-1 rounded-full text-xs">Yes</span>
+                                    <span class="inline-block bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-check"></i> Yes
+                                    </span>
                                     {% else %}
-                                    <span class="inline-block bg-red-500 text-white px-2 py-1 rounded-full text-xs">No</span>
+                                    <span class="inline-block bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                                        <i class="fas fa-times"></i> No
+                                    </span>
                                     {% endif %}
                                 </td>
-                                <!-- Pregnancy Safety (Trimester-Specific) -->
                                 <td>
-                                    <div class="space-y-1">
-                                        <div>
-                                            <strong>T1:</strong>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center gap-2">
+                                            <strong class="text-xs">T1:</strong>
                                             <span class="safety-{{ detail.pregnancy_safety_trimester1|lower|default('unknown') }}">
                                                 {{ detail.pregnancy_safety_trimester1 or 'N/A' }}
                                             </span>
                                         </div>
-                                        <div>
-                                            <strong>T2:</strong>
+                                        <div class="flex items-center gap-2">
+                                            <strong class="text-xs">T2:</strong>
                                             <span class="safety-{{ detail.pregnancy_safety_trimester2|lower|default('unknown') }}">
                                                 {{ detail.pregnancy_safety_trimester2 or 'N/A' }}
                                             </span>
                                         </div>
-                                        <div>
-                                            <strong>T3:</strong>
+                                        <div class="flex items-center gap-2">
+                                            <strong class="text-xs">T3:</strong>
                                             <span class="safety-{{ detail.pregnancy_safety_trimester3|lower|default('unknown') }}">
                                                 {{ detail.pregnancy_safety_trimester3 or 'N/A' }}
                                             </span>
                                         </div>
                                     </div>
                                     {% if detail.pregnancy_details_trimester1 or detail.pregnancy_details_trimester2 or detail.pregnancy_details_trimester3 %}
-                                    <div class="mt-2 text-sm text-gray-600 rich-text">
+                                    <div class="mt-2 text-xs text-gray-600 rich-text">
                                         {% if detail.pregnancy_details_trimester1 %}
                                         <div><strong>T1:</strong> {{ detail.pregnancy_details_trimester1|safe }}</div>
                                         {% endif %}
@@ -371,63 +622,69 @@
                                     </div>
                                     {% endif %}
                                 </td>
-                                <!-- Lactation Safety -->
                                 <td>
                                     <div>
-                                        <span class="safety-{{ detail.lactation_safety|lower|default('unknown') }}">
+                                        <span class="safety-{{ detail.lactation_safety|lower|default('unknown') }} text-sm">
                                             {{ detail.lactation_safety or 'N/A' }}
                                         </span>
                                     </div>
                                     {% if detail.lactation_details %}
-                                    <div class="mt-1 text-sm text-gray-600 rich-text">
+                                    <div class="mt-1 text-xs text-gray-600 rich-text">
                                         {{ detail.lactation_details|safe }}
                                     </div>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if detail.routes %}
-                                    <ul class="list-disc pl-5">
+                                    <div class="space-y-3">
                                         {% for route in detail.routes %}
-                                        <li>
-                                            <strong>{{ route.name }}</strong><br>
-                                            <span class="text-gray-600"><em>Pharmacodynamics:</em> {{ route.pharmacodynamics|safe if route.pharmacodynamics else 'N/A' }}</span><br>
-                                            <span class="text-gray-600"><em>Pharmacokinetics:</em> {{ route.pharmacokinetics|safe if route.pharmacokinetics else 'N/A' }}</span><br>
-                                            <span class="text-gray-600"><em>Absorption Rate:</em> {{ route.absorption_rate }} {{ route.absorption_rate_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Volume of Distribution:</em> {{ route.vod_rate }} {{ route.vod_rate_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Protein Binding:</em> {{ route.protein_binding }}</span><br>
-                                            <span class="text-gray-600"><em>Half-Life:</em> {{ route.half_life }} {{ route.half_life_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Clearance Rate:</em> {{ route.clearance_rate }} {{ route.clearance_rate_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Bioavailability:</em> {{ route.bioavailability }}</span><br>
-                                            <span class="text-gray-600"><em>Tmax:</em> {{ route.tmax }} {{ route.tmax_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Cmax:</em> {{ route.cmax }} {{ route.cmax_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Therapeutic Range:</em> {{ route.therapeutic_range }} {{ route.therapeutic_unit }}</span><br>
-                                            <span class="text-gray-600"><em>Indications:</em></span>
-                                            {% if route.indications %}
-                                            <ul class="list-disc pl-5">
-                                                {% for indication in route.indications %}
-                                                <li>{{ indication }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                            {% else %}
-                                            <span class="text-gray-500">No indications listed for this route.</span>
-                                            {% endif %}
-                                        </li>
+                                        <div class="border-l-4 border-indigo-500 pl-3">
+                                            <strong class="text-indigo-700 text-sm">{{ route.name }}</strong>
+                                            <div class="text-xs text-gray-600 mt-1 space-y-1">
+                                                <div><em>Pharmacodynamics:</em> {{ route.pharmacodynamics|safe if route.pharmacodynamics else 'N/A' }}</div>
+                                                <div><em>Pharmacokinetics:</em> {{ route.pharmacokinetics|safe if route.pharmacokinetics else 'N/A' }}</div>
+                                                <div><em>Absorption:</em> {{ route.absorption_rate }} {{ route.absorption_rate_unit }}</div>
+                                                <div><em>VoD:</em> {{ route.vod_rate }} {{ route.vod_rate_unit }}</div>
+                                                <div><em>Protein Binding:</em> {{ route.protein_binding }}</div>
+                                                <div><em>Half-Life:</em> {{ route.half_life }} {{ route.half_life_unit }}</div>
+                                                <div><em>Clearance:</em> {{ route.clearance_rate }} {{ route.clearance_rate_unit }}</div>
+                                                <div><em>Bioavailability:</em> {{ route.bioavailability }}</div>
+                                                <div><em>Tmax:</em> {{ route.tmax }} {{ route.tmax_unit }}</div>
+                                                <div><em>Cmax:</em> {{ route.cmax }} {{ route.cmax_unit }}</div>
+                                                <div><em>Therapeutic Range:</em> {{ route.therapeutic_range }} {{ route.therapeutic_unit }}</div>
+                                                {% if route.indications %}
+                                                <div class="mt-2">
+                                                    <em>Indications:</em>
+                                                    <ul class="list-disc pl-5">
+                                                        {% for indication in route.indications %}
+                                                        <li>{{ indication }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                         {% endfor %}
-                                    </ul>
+                                    </div>
                                     {% else %}
                                     <span class="text-gray-500">No Data</span>
                                     {% endif %}
                                 </td>
-                                <td class="rich-text">{{ detail.references|safe if detail.references else 'N/A' }}</td>
+                                <td class="rich-text long-text" title="{{ detail.references|striptags if detail.references else 'N/A' }}">
+                                    {{ detail.references|safe if detail.references else 'N/A' }}
+                                </td>
                                 <td>
-                                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-block bg-yellow-500 text-white px-3 py-1 rounded-lg hover:bg-yellow-600">
-                                        <i class="fas fa-edit mr-1"></i>Update
+                                    <a href="{{ url_for('update_detail', detail_id=detail.id) }}" class="btn-primary inline-flex items-center gap-2 bg-yellow-500 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 shadow-md">
+                                        <i class="fas fa-edit"></i> Update
                                     </a>
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="37" class="text-center text-gray-500 py-4">No details available.</td>
+                                <td colspan="40" class="text-center text-gray-500 py-8">
+                                    <i class="fas fa-inbox text-4xl mb-2"></i>
+                                    <p>No details available.</p>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -435,78 +692,251 @@
                 </div>
             </div>
         </section>
+
         <!-- Modal for 3D Structure -->
         <div id="structureModal" class="modal">
             <div class="modal-content">
-                <span class="modal-close">×</span>
-                <h2 id="modalTitle" class="text-2xl font-bold text-gray-800 mb-4"></h2>
+                <span class="modal-close">&times;</span>
+                <h2 id="modalTitle" class="text-3xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-cube text-indigo-600"></i>
+                    <span></span>
+                </h2>
                 <div id="viewer"></div>
+                <div id="viewerLoading" class="hidden">
+                    <div class="spinner"></div>
+                    <p class="text-center text-gray-600 mt-2">Loading 3D structure...</p>
+                </div>
+                <div class="viewer-controls">
+                    <button id="rotateBtn" class="viewer-btn">
+                        <i class="fas fa-sync-alt"></i> Rotate
+                    </button>
+                    <button id="zoomInBtn" class="viewer-btn">
+                        <i class="fas fa-search-plus"></i> Zoom In
+                    </button>
+                    <button id="zoomOutBtn" class="viewer-btn">
+                        <i class="fas fa-search-minus"></i> Zoom Out
+                    </button>
+                    <button id="resetViewBtn" class="viewer-btn">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                    <select id="styleSelect" class="px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="stick">Stick</option>
+                        <option value="sphere">Sphere</option>
+                        <option value="cartoon">Cartoon</option>
+                        <option value="line">Line</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script>
-        $(document).ready(function () {
-            const table = $('#detailsTable').DataTable({
-                paging: true,
-                searching: true,
-                ordering: true,
-                lengthMenu: [10, 25, 50, 100],
-                pageLength: 10,
-                scrollX: true,
-                columnDefs: [
-                    { width: '200px', targets: [1, 27, 28, 29, 33, 35, 36] }, // Categories, indications, side effects, targets, routes, pregnancy, lactation
-                    { width: '100px', targets: [10, 12] }, // Synthesis, SMILES
-                    { width: '120px', targets: [8] }, // 3D Structure column
-                    { width: '150px', targets: [2] }, // Mechanism of Action column
-                    { width: '150px', targets: [34, 35] } // Pregnancy and Lactation columns
-                ]
-            });
-            $('#searchBox').on('keyup', function () {
-                table.search(this.value).draw();
-            });
-            // Modal handling
-            const modal = $('#structureModal');
-            const modalTitle = $('#modalTitle');
-            const viewerDiv = $('#viewer');
-            let viewer = null;
-            $('.view-3d-btn').on('click', function () {
-                const structureUrl = $(this).data('structure');
-                const drugName = $(this).data('drug');
-                // Set modal title
-                modalTitle.text(`3D Structure of ${drugName}`);
-                // Clear previous viewer
-                viewerDiv.empty();
-                // Initialize 3Dmol.js viewer
-                viewer = $3Dmol.createViewer('viewer', {
-                    backgroundColor: 'white'
-                });
-                // Fetch and render PDB file
-                $.get(structureUrl, function (data) {
-                    viewer.addModel(data, 'pdb');
-                    viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
-                    viewer.zoomTo();
-                    viewer.render();
-                }, 'text').fail(function () {
-                    viewerDiv.html('<p class="text-red-500">Error loading 3D structure.</p>');
-                });
-                // Show modal
-                modal.css('display', 'flex');
-            });
-            // Close modal
-            $('.modal-close').on('click', function () {
-                modal.css('display', 'none');
-                viewerDiv.empty(); // Clear viewer
-            });
-            // Close modal when clicking outside
-            modal.on('click', function (e) {
-                if (e.target === modal[0]) {
-                    modal.css('display', 'none');
-                    viewerDiv.empty();
-                }
-            });
-        });
-    </script>
 </body>
-</html>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // Initialize DataTable with advanced features
+        const table = $('#detailsTable').DataTable({
+            paging: true,
+            searching: true,
+            ordering: true,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+            pageLength: 25,
+            scrollX: true,
+            scrollY: '600px',
+            scrollCollapse: true,
+            fixedHeader: true,
+            dom: 'Blfrtip',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="fas fa-file-excel"></i> Excel',
+                    className: 'export-btn bg-green-600 text-white hover:bg-green-700'
+                },
+                {
+                    extend: 'csvHtml5',
+                    text: '<i class="fas fa-file-csv"></i> CSV',
+                    className: 'export-btn bg-blue-600 text-white hover:bg-blue-700'
+                },
+                {
+                    extend: 'pdfHtml5',
+                    text: '<i class="fas fa-file-pdf"></i> PDF',
+                    className: 'export-btn bg-red-600 text-white hover:bg-red-700',
+                    orientation: 'landscape',
+                    pageSize: 'A3'
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="fas fa-print"></i> Print',
+                    className: 'export-btn bg-gray-600 text-white hover:bg-gray-700'
+                }
+            ],
+            columnDefs: [
+                { width: '150px', targets: [0] },
+                { width: '200px', targets: [1, 27, 28, 29, 33, 35, 36] },
+                { width: '150px', targets: [2, 10, 12] },
+                { width: '120px', targets: [8] },
+                { orderable: false, targets: [7, 8, 38] }
+            ],
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search table...",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                infoEmpty: "No entries available",
+                infoFiltered: "(filtered from _MAX_ total entries)",
+                zeroRecords: "No matching records found",
+                emptyTable: "No data available in table"
+            }
+        });
+
+        // Custom search box integration
+        $('#searchBox').on('keyup', function () {
+            table.search(this.value).draw();
+        });
+
+        // Export button handlers
+        $('#exportExcel').on('click', function() {
+            table.button('.buttons-excel').trigger();
+        });
+        
+        $('#exportCSV').on('click', function() {
+            table.button('.buttons-csv').trigger();
+        });
+        
+        $('#exportPDF').on('click', function() {
+            table.button('.buttons-pdf').trigger();
+        });
+        
+        $('#printTable').on('click', function() {
+            table.button('.buttons-print').trigger();
+        });
+
+        // Modal handling for 3D structure
+        const modal = $('#structureModal');
+        const modalTitle = $('#modalTitle span');
+        const viewerDiv = $('#viewer');
+        const viewerLoading = $('#viewerLoading');
+        let viewer = null;
+        let isRotating = false;
+
+        $('.view-3d-btn').on('click', function () {
+            const structureUrl = $(this).data('structure');
+            const drugName = $(this).data('drug');
+            
+            modalTitle.text(drugName);
+            viewerDiv.empty().show();
+            viewerLoading.removeClass('hidden');
+            
+            viewer = $3Dmol.createViewer('viewer', {
+                backgroundColor: 'white'
+            });
+            
+            $.get(structureUrl, function (data) {
+                viewer.addModel(data, 'pdb');
+                viewer.setStyle({}, { stick: {}, sphere: { radius: 0.5 } });
+                viewer.zoomTo();
+                viewer.render();
+                viewerLoading.addClass('hidden');
+            }, 'text').fail(function () {
+                viewerDiv.html('<div class="text-center text-red-500 py-8"><i class="fas fa-exclamation-triangle text-4xl mb-2"></i><p>Error loading 3D structure.</p></div>');
+                viewerLoading.addClass('hidden');
+            });
+            
+            modal.css('display', 'flex');
+        });
+
+        // Viewer controls
+        $('#rotateBtn').on('click', function() {
+            if (viewer) {
+                isRotating = !isRotating;
+                viewer.spin(isRotating);
+                $(this).toggleClass('bg-indigo-700');
+            }
+        });
+
+        $('#zoomInBtn').on('click', function() {
+            if (viewer) {
+                viewer.zoom(1.2);
+                viewer.render();
+            }
+        });
+
+        $('#zoomOutBtn').on('click', function() {
+            if (viewer) {
+                viewer.zoom(0.8);
+                viewer.render();
+            }
+        });
+
+        $('#resetViewBtn').on('click', function() {
+            if (viewer) {
+                viewer.zoomTo();
+                viewer.spin(false);
+                isRotating = false;
+                $('#rotateBtn').removeClass('bg-indigo-700');
+                viewer.render();
+            }
+        });
+
+        $('#styleSelect').on('change', function() {
+            if (viewer) {
+                const style = $(this).val();
+                viewer.setStyle({}, {});
+                
+                if (style === 'stick') {
+                    viewer.setStyle({}, { stick: {} });
+                } else if (style === 'sphere') {
+                    viewer.setStyle({}, { sphere: { radius: 0.5 } });
+                } else if (style === 'cartoon') {
+                    viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+                } else if (style === 'line') {
+                    viewer.setStyle({}, { line: {} });
+                }
+                
+                viewer.render();
+            }
+        });
+
+        // Close modal
+        $('.modal-close').on('click', function () {
+            modal.css('display', 'none');
+            viewerDiv.empty();
+            if (viewer) {
+                viewer.spin(false);
+                isRotating = false;
+            }
+        });
+
+        modal.on('click', function (e) {
+            if (e.target === modal[0]) {
+                modal.css('display', 'none');
+                viewerDiv.empty();
+                if (viewer) {
+                    viewer.spin(false);
+                    isRotating = false;
+                }
+            }
+        });
+
+        // Keyboard shortcuts
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && modal.is(':visible')) {
+                modal.css('display', 'none');
+                viewerDiv.empty();
+                if (viewer) {
+                    viewer.spin(false);
+                    isRotating = false;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

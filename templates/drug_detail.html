@@ -1,554 +1,547 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Detailed information about {{ drug.name_en }} including chemical properties, pharmacology, and routes of administration.">
-    <title>{{ drug.name_en }} Details</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
-    <style>
-        :root {
-            --primary-bg: linear-gradient(135deg, #e0e7ff, #f3e8ff);
-            --card-bg: #ffffff;
-            --text-primary: #1f2937;
-            --text-secondary: #6b7280;
-            --header-bg: linear-gradient(to right, #4f46e5, #7c3aed);
-            --header-hover-bg: linear-gradient(to right, #4338ca, #6d28d9);
-            --shadow-color: rgba(0, 0, 0, 0.15);
-            --border-color: #e5e7eb;
-            --hover-bg: #e0e7ff;
-        }
-        
-        [data-theme="dark"] {
-            --primary-bg: linear-gradient(135deg, #1e293b, #2e3a59);
-            --card-bg: #2d3748;
-            --text-primary: #e5e7eb;
-            --text-secondary: #9ca3af;
-            --header-bg: linear-gradient(to right, #5b21b6, #9333ea);
-            --header-hover-bg: linear-gradient(to right, #4c1d95, #7e22ce);
-            --shadow-color: rgba(0, 0, 0, 0.5);
-            --border-color: #4b5563;
-            --hover-bg: #374151;
-        }
-        
-        body {
-            background: var(--primary-bg);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            min-height: 100vh;
-            color: var(--text-primary);
-            transition: background 0.3s ease, color 0.3s ease;
-        }
-        
-        .card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border-radius: 12px;
-            background: var(--card-bg);
-            box-shadow: 0 4px 10px var(--shadow-color);
-        }
-        
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px var(--shadow-color);
-        }
-        
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            0% { opacity: 0; transform: translateY(10px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-        
-        .slide-in {
-            animation: slideIn 0.5s ease-out;
-        }
-        
-        @keyframes slideIn {
-            0% { opacity: 0; transform: translateX(-20px); }
-            100% { opacity: 1; transform: translateX(0); }
-        }
-        
-        .btn-primary {
-            transition: background-color 0.3s ease, transform 0.2s ease;
-        }
-        
-        .btn-primary:hover {
-            background-color: #4f46e5;
-            transform: scale(1.05);
-        }
-        
-        .section-icon {
-            margin-right: 8px;
-        }
-        
-        .sticky-header {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: var(--card-bg);
-            padding: 1rem;
-            box-shadow: 0 2px 4px var(--shadow-color);
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
+{% extends "base.html" %}
+
+{% block title %}{{ drug.name_en }} Details - Drugly{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+<style>
+    :root {
+        --primary-bg: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+        --card-bg: #ffffff;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --header-bg: linear-gradient(to right, #4f46e5, #7c3aed);
+        --header-hover-bg: linear-gradient(to right, #4338ca, #6d28d9);
+        --shadow-color: rgba(0, 0, 0, 0.15);
+        --border-color: #e5e7eb;
+        --hover-bg: #e0e7ff;
+    }
+    
+    [data-theme="dark"] {
+        --primary-bg: linear-gradient(135deg, #1e293b, #2e3a59);
+        --card-bg: #2d3748;
+        --text-primary: #e5e7eb;
+        --text-secondary: #9ca3af;
+        --header-bg: linear-gradient(to right, #5b21b6, #9333ea);
+        --header-hover-bg: linear-gradient(to right, #4c1d95, #7e22ce);
+        --shadow-color: rgba(0, 0, 0, 0.5);
+        --border-color: #4b5563;
+        --hover-bg: #374151;
+    }
+    
+    body {
+        background: var(--primary-bg);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-height: 100vh;
+        color: var(--text-primary);
+        transition: background 0.3s ease, color 0.3s ease;
+    }
+    
+    .card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border-radius: 12px;
+        background: var(--card-bg);
+        box-shadow: 0 4px 10px var(--shadow-color);
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px var(--shadow-color);
+    }
+    
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        0% { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    .slide-in {
+        animation: slideIn 0.5s ease-out;
+    }
+    
+    @keyframes slideIn {
+        0% { opacity: 0; transform: translateX(-20px); }
+        100% { opacity: 1; transform: translateX(0); }
+    }
+    
+    .btn-primary {
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    
+    .btn-primary:hover {
+        background-color: #4f46e5;
+        transform: scale(1.05);
+    }
+    
+    .section-icon {
+        margin-right: 8px;
+    }
+    
+    .sticky-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--card-bg);
+        padding: 1rem;
+        box-shadow: 0 2px 4px var(--shadow-color);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .sidebar {
+        position: sticky;
+        top: 100px;
+        height: fit-content;
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 10px var(--shadow-color);
+    }
+    
+    .sidebar a {
+        display: block;
+        padding: 10px;
+        margin-bottom: 5px;
+        border-radius: 8px;
+        transition: background-color 0.2s ease;
+        color: #4f46e5;
+    }
+    
+    [data-theme="dark"] .sidebar a {
+        color: #a78bfa;
+    }
+    
+    .sidebar a:hover, .sidebar a:focus {
+        background-color: var(--hover-bg);
+        outline: none;
+    }
+    
+    .collapsible-header {
+        cursor: pointer;
+        padding: 12px;
+        background: var(--header-bg);
+        color: white;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        transition: background 0.3s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .collapsible-header:hover, .collapsible-header:focus {
+        background: var(--header-hover-bg);
+        outline: 2px solid #a78bfa;
+        outline-offset: 2px;
+    }
+    
+    .collapsible-content {
+        display: none;
+        padding: 16px;
+        background: var(--card-bg);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .rich-text {
+        color: var(--text-primary);
+    }
+    
+    .rich-text p {
+        margin-bottom: 1rem;
+        line-height: 1.8;
+        font-size: 1rem;
+    }
+    
+    .rich-text p:last-child {
+        margin-bottom: 0;
+    }
+    
+    .rich-text br:last-child {
+        display: none;
+    }
+    
+    .rich-text ul, .rich-text ol {
+        margin-left: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .rich-text li {
+        margin-bottom: 0.5rem;
+    }
+    
+    .rich-text b, .rich-text strong {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .rich-text i, .rich-text em {
+        font-style: italic;
+    }
+    
+    .rich-text u {
+        text-decoration: underline;
+    }
+    
+    .rich-text a {
+        color: #4f46e5;
+        text-decoration: underline;
+    }
+    
+    [data-theme="dark"] .rich-text a {
+        color: #a78bfa;
+    }
+    
+    .rich-text span[style*="color"] {
+        padding: 0 2px;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .modal-content {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 700px;
+        width: 90%;
+        box-shadow: 0 10px 20px var(--shadow-color);
+        position: relative;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    .modal-close {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--text-secondary);
+    }
+    
+    .modal-close:hover, .modal-close:focus {
+        color: var(--text-primary);
+        outline: none;
+    }
+    
+    #viewer {
+        width: 100%;
+        height: 500px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+    
+    .spinner {
+        border: 4px solid var(--border-color);
+        border-top: 4px solid #4f46e5;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .metabolite-tree {
+        background-color: var(--card-bg);
+        border-radius: 8px;
+        padding: 16px;
+        border-left: 4px solid #4f46e5;
+    }
+    
+    .metabolite-node {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-radius: 6px;
+        transition: background-color 0.2s ease;
+    }
+    
+    .metabolite-node:hover, .metabolite-node:focus-within {
+        background-color: var(--hover-bg);
+        outline: none;
+    }
+    
+    .metabolite-node .toggle {
+        cursor: pointer;
+        margin-right: 8px;
+        color: #4f46e5;
+    }
+    
+    [data-theme="dark"] .metabolite-node .toggle {
+        color: #a78bfa;
+    }
+    
+    .metabolite-node .name {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    
+    .metabolite-node .icon {
+        margin-right: 8px;
+        color: #4f46e5;
+    }
+    
+    [data-theme="dark"] .metabolite-node .icon {
+        color: #a78bfa;
+    }
+    
+    .metabolite-tree ul {
+        list-style: none;
+        padding-left: 24px;
+    }
+    
+    .metabolite-tree .hidden {
+        display: none;
+    }
+    
+    .grid-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 16px;
+    }
+    
+    .drug-only {
+        border: 2px solid #4f46e5;
+        background: var(--card-bg);
+    }
+    
+    [data-theme="dark"] .drug-only {
+        border-color: #7c3aed;
+    }
+    
+    .salt-section {
+        border-left: 4px solid #7c3aed;
+    }
+    
+    .structure-error {
+        color: #ef4444;
+        font-style: italic;
+    }
+    
+    .icd11-code {
+        color: #4f46e5;
+        font-size: 0.9em;
+        font-weight: 500;
+        margin-left: 4px;
+    }
+    
+    [data-theme="dark"] .icd11-code {
+        color: #a78bfa;
+    }
+    
+    .safety-safe { color: #10b981; font-weight: bold; }
+    .safety-caution { color: #f59e0b; font-weight: bold; }
+    .safety-contraindicated { color: #ef4444; font-weight: bold; }
+    .safety-unknown { color: #6b7280; font-weight: bold; }
+    
+    .section-title {
+        font-weight: 700;
+        color: var(--text-primary);
+        font-size: 1.05rem;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    
+    .copy-btn {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 8px;
+        background: #4f46e5;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        font-size: 0.875rem;
+    }
+    
+    .copy-btn:hover, .copy-btn:focus {
+        background: #4338ca;
+        outline: none;
+    }
+    
+    .tooltip {
+        position: relative;
+    }
+    
+    .tooltip .tooltip-text {
+        visibility: hidden;
+        width: 200px;
+        background-color: #1f2937;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 20;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.9rem;
+    }
+    
+    .tooltip:hover .tooltip-text, .tooltip:focus-within .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+    
+    .search-bar {
+        margin-bottom: 1.5rem;
+        padding: 0.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--card-bg);
+    }
+    
+    .search-bar input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 1rem;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease;
+    }
+    
+    .search-bar input:focus {
+        outline: none;
+        border-color: #4f46e5;
+    }
+    
+    .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        background: #4f46e5;
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        border: none;
+        transition: background-color 0.2s ease;
+    }
+    
+    .theme-toggle:hover, .theme-toggle:focus {
+        background: #4338ca;
+        outline: 2px solid #a78bfa;
+        outline-offset: 2px;
+    }
+    
+    .updated-indicator {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 4px 8px;
+        background: #10b981;
+        color: white;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    
+    .chevron-icon {
+        transition: transform 0.3s ease;
+    }
+    
+    .chevron-icon.rotated {
+        transform: rotate(180deg);
+    }
+    
+    [data-theme="dark"] .text-gray-600 {
+        color: #9ca3af !important;
+    }
+    
+    [data-theme="dark"] .text-gray-800 {
+        color: #e5e7eb !important;
+    }
+    
+    [data-theme="dark"] .text-gray-500 {
+        color: #6b7280 !important;
+    }
+    
+    [data-theme="dark"] #shareDropdown {
+        background: var(--card-bg);
+    }
+    
+    [data-theme="dark"] #shareDropdown a {
+        color: var(--text-primary);
+    }
+    
+    [data-theme="dark"] #shareDropdown a:hover {
+        background-color: var(--hover-bg);
+    }
+    
+    [data-theme="dark"] #styleSelect {
+        background: var(--card-bg);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+    
+    @media (max-width: 1024px) {
         .sidebar {
-            position: sticky;
-            top: 100px;
-            height: fit-content;
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 10px var(--shadow-color);
+            position: static;
+            margin-bottom: 20px;
         }
-        
-        .sidebar a {
-            display: block;
-            padding: 10px;
-            margin-bottom: 5px;
-            border-radius: 8px;
-            transition: background-color 0.2s ease;
-            color: #4f46e5;
+        .sticky-header {
+            position: static;
         }
-        
-        [data-theme="dark"] .sidebar a {
-            color: #a78bfa;
-        }
-        
-        .sidebar a:hover, .sidebar a:focus {
-            background-color: var(--hover-bg);
-            outline: none;
-        }
-        
-        .collapsible-header {
-            cursor: pointer;
-            padding: 12px;
-            background: var(--header-bg);
-            color: white;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            transition: background 0.3s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .collapsible-header:hover, .collapsible-header:focus {
-            background: var(--header-hover-bg);
-            outline: 2px solid #a78bfa;
-            outline-offset: 2px;
-        }
-        
-        .collapsible-content {
-            display: none;
-            padding: 16px;
-            background: var(--card-bg);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-        
-        /* Rich text styling - removes trailing <br> tags visually */
-        .rich-text {
-            color: var(--text-primary);
-        }
-        
-        .rich-text p {
-            margin-bottom: 1rem;
-            line-height: 1.8;
-            font-size: 1rem;
-        }
-        
-        .rich-text p:last-child {
-            margin-bottom: 0;
-        }
-        
-        .rich-text br:last-child {
-            display: none;
-        }
-        
-        .rich-text ul, .rich-text ol {
-            margin-left: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .rich-text li {
-            margin-bottom: 0.5rem;
-        }
-        
-        .rich-text b, .rich-text strong {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        
-        .rich-text i, .rich-text em {
-            font-style: italic;
-        }
-        
-        .rich-text u {
-            text-decoration: underline;
-        }
-        
-        .rich-text a {
-            color: #4f46e5;
-            text-decoration: underline;
-        }
-        
-        [data-theme="dark"] .rich-text a {
-            color: #a78bfa;
-        }
-        
-        .rich-text span[style*="color"] {
-            padding: 0 2px;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        
+    }
+    
+    @media (max-width: 768px) {
         .modal-content {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 20px;
-            max-width: 700px;
-            width: 90%;
-            box-shadow: 0 10px 20px var(--shadow-color);
-            position: relative;
-            animation: fadeIn 0.3s ease-in;
+            width: 95%;
+            padding: 15px;
         }
-        
-        .modal-close {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-        
-        .modal-close:hover, .modal-close:focus {
-            color: var(--text-primary);
-            outline: none;
-        }
-        
         #viewer {
-            width: 100%;
-            height: 500px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+            height: 300px;
         }
-        
-        .spinner {
-            border: 4px solid var(--border-color);
-            border-top: 4px solid #4f46e5;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .metabolite-tree {
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            padding: 16px;
-            border-left: 4px solid #4f46e5;
-        }
-        
-        .metabolite-node {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            margin: 4px 0;
-            border-radius: 6px;
-            transition: background-color 0.2s ease;
-        }
-        
-        .metabolite-node:hover, .metabolite-node:focus-within {
-            background-color: var(--hover-bg);
-            outline: none;
-        }
-        
-        .metabolite-node .toggle {
-            cursor: pointer;
-            margin-right: 8px;
-            color: #4f46e5;
-        }
-        
-        [data-theme="dark"] .metabolite-node .toggle {
-            color: #a78bfa;
-        }
-        
-        .metabolite-node .name {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-        
-        .metabolite-node .icon {
-            margin-right: 8px;
-            color: #4f46e5;
-        }
-        
-        [data-theme="dark"] .metabolite-node .icon {
-            color: #a78bfa;
-        }
-        
-        .metabolite-tree ul {
-            list-style: none;
-            padding-left: 24px;
-        }
-        
-        .metabolite-tree .hidden {
-            display: none;
-        }
-        
         .grid-section {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 16px;
+            grid-template-columns: 1fr;
         }
-        
-        .drug-only {
-            border: 2px solid #4f46e5;
-            background: var(--card-bg);
+        .sticky-header .flex {
+            flex-direction: column;
+            gap: 1rem;
         }
-        
-        [data-theme="dark"] .drug-only {
-            border-color: #7c3aed;
+    }
+    
+    @media print {
+        .sticky-header, .sidebar, .theme-toggle, #printBtn, #shareBtn, .btn-primary {
+            display: none !important;
         }
-        
-        .salt-section {
-            border-left: 4px solid #7c3aed;
+        body {
+            background: white;
+            color: black;
         }
-        
-        .structure-error {
-            color: #ef4444;
-            font-style: italic;
+        .card {
+            box-shadow: none;
+            border: 1px solid #e5e7eb;
         }
-        
-        .icd11-code {
-            color: #4f46e5;
-            font-size: 0.9em;
-            font-weight: 500;
-            margin-left: 4px;
-        }
-        
-        [data-theme="dark"] .icd11-code {
-            color: #a78bfa;
-        }
-        
-        .safety-safe { color: #10b981; font-weight: bold; }
-        .safety-caution { color: #f59e0b; font-weight: bold; }
-        .safety-contraindicated { color: #ef4444; font-weight: bold; }
-        .safety-unknown { color: #6b7280; font-weight: bold; }
-        
-        .section-title {
-            font-weight: 700;
-            color: var(--text-primary);
-            font-size: 1.05rem;
-            display: inline-block;
-            margin-right: 0.5rem;
-        }
-        
-        .copy-btn {
-            display: inline-block;
-            margin-left: 8px;
-            padding: 2px 8px;
-            background: #4f46e5;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-            font-size: 0.875rem;
-        }
-        
-        .copy-btn:hover, .copy-btn:focus {
-            background: #4338ca;
-            outline: none;
-        }
-        
-        .tooltip {
-            position: relative;
-        }
-        
-        .tooltip .tooltip-text {
-            visibility: hidden;
-            width: 200px;
-            background-color: #1f2937;
-            color: #fff;
-            text-align: center;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 20;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.9rem;
-        }
-        
-        .tooltip:hover .tooltip-text, .tooltip:focus-within .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-        
-        .search-bar {
-            margin-bottom: 1.5rem;
-            padding: 0.5rem;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            background: var(--card-bg);
-        }
-        
-        .search-bar input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 1rem;
-            background: var(--card-bg);
-            color: var(--text-primary);
-            transition: border-color 0.2s ease;
-        }
-        
-        .search-bar input:focus {
-            outline: none;
-            border-color: #4f46e5;
-        }
-        
-        .theme-toggle {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            background: #4f46e5;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            border: none;
-            transition: background-color 0.2s ease;
-        }
-        
-        .theme-toggle:hover, .theme-toggle:focus {
-            background: #4338ca;
-            outline: 2px solid #a78bfa;
-            outline-offset: 2px;
-        }
-        
-        .updated-indicator {
-            display: inline-block;
-            margin-left: 8px;
-            padding: 4px 8px;
-            background: #10b981;
-            color: white;
-            border-radius: 4px;
-            font-size: 0.9rem;
-        }
-        
-        .chevron-icon {
-            transition: transform 0.3s ease;
-        }
-        
-        .chevron-icon.rotated {
-            transform: rotate(180deg);
-        }
-        
-        /* Improved text color for dark mode */
-        [data-theme="dark"] .text-gray-600 {
-            color: #9ca3af !important;
-        }
-        
-        [data-theme="dark"] .text-gray-800 {
-            color: #e5e7eb !important;
-        }
-        
-        [data-theme="dark"] .text-gray-500 {
-            color: #6b7280 !important;
-        }
-        
-        /* Share dropdown dark mode */
-        [data-theme="dark"] #shareDropdown {
-            background: var(--card-bg);
-        }
-        
-        [data-theme="dark"] #shareDropdown a {
-            color: var(--text-primary);
-        }
-        
-        [data-theme="dark"] #shareDropdown a:hover {
-            background-color: var(--hover-bg);
-        }
-        
-        /* Select dropdown dark mode */
-        [data-theme="dark"] #styleSelect {
-            background: var(--card-bg);
-            color: var(--text-primary);
-            border-color: var(--border-color);
-        }
-        
-        @media (max-width: 1024px) {
-            .sidebar {
-                position: static;
-                margin-bottom: 20px;
-            }
-            .sticky-header {
-                position: static;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .modal-content {
-                width: 95%;
-                padding: 15px;
-            }
-            #viewer {
-                height: 300px;
-            }
-            .grid-section {
-                grid-template-columns: 1fr;
-            }
-            .sticky-header .flex {
-                flex-direction: column;
-                gap: 1rem;
-            }
-        }
-        
-        /* Print styles */
-        @media print {
-            .sticky-header, .sidebar, .theme-toggle, #printBtn, #shareBtn, .btn-primary {
-                display: none !important;
-            }
-            body {
-                background: white;
-                color: black;
-            }
-            .card {
-                box-shadow: none;
-                border: 1px solid #e5e7eb;
-            }
-        }
-    </style>
-</head>
+    }
+</style>
+{% endblock %}
+
+{% block content %}
 <body class="antialiased">
-    <!-- Sticky Header -->
     <header class="sticky-header fade-in">
         <div class="flex justify-between items-center">
             <h2 class="text-2xl font-bold" style="color: var(--text-primary)">
@@ -567,30 +560,24 @@
             </div>
         </div>
     </header>
-
     <div class="container mx-auto px-4 py-12 max-w-7xl flex flex-col lg:flex-row gap-8">
-        <!-- Sidebar -->
         <aside class="lg:w-1/4">
             <div class="sidebar fade-in" role="navigation" aria-label="Quick navigation">
                 <h3 class="text-xl font-bold mb-4" style="color: var(--text-primary)">
                     <i class="fas fa-compass section-icon"></i>Quick Navigation
                 </h3>
                 <a href="#drug-info" tabindex="0"><i class="fas fa-capsules mr-2"></i>Drug Information</a>
+                <a href="#atc-classification" tabindex="0"><i class="fas fa-barcode mr-2"></i>ATC Classification</a>
                 <a href="#salts" tabindex="0"><i class="fas fa-vial mr-2"></i>Associated Salts</a>
                 {% for detail in details if not detail.is_drug_only %}
                 <a href="#salt-{{ detail.salt_id }}" tabindex="0"><i class="fas fa-vial mr-2"></i>Salt: {{ detail.salt_name }}</a>
                 {% endfor %}
             </div>
         </aside>
-
-        <!-- Main Content -->
         <main class="lg:w-3/4">
-            <!-- Search Bar -->
             <div class="search-bar fade-in" role="search">
                 <input type="text" id="searchInput" placeholder="Search drug details (e.g., indications, side effects)" aria-label="Search drug details">
             </div>
-
-            <!-- Drug Information -->
             {% for detail in details if detail.is_drug_only %}
             <section id="drug-info" class="mb-10 fade-in">
                 <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="drug-info-content">
@@ -598,7 +585,6 @@
                     <i class="fas fa-chevron-down chevron-icon"></i>
                 </div>
                 <div id="drug-info-content" class="collapsible-content card p-6 drug-only">
-                    <!-- General Information -->
                     <h3 class="text-xl font-semibold mb-4" style="color: var(--text-primary)">
                         <i class="fas fa-info-circle section-icon"></i>General Information
                     </h3>
@@ -686,8 +672,6 @@
                             </p>
                         </div>
                     </div>
-
-                    <!-- Chemical Properties -->
                     <h3 class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-flask section-icon"></i>Chemical Properties
                     </h3>
@@ -714,8 +698,6 @@
                             <p class="mb-3"><strong class="section-title">Synthesis:</strong> <span class="rich-text">{{ detail.synthesis | safe or "N/A" }}</span></p>
                         </div>
                     </div>
-
-                    <!-- Identifiers -->
                     <h3 class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-id-card section-icon"></i>Identifiers
                     </h3>
@@ -773,8 +755,6 @@
                             </p>
                         </div>
                     </div>
-
-                    <!-- Pharmacology -->
                     <h3 class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-heartbeat section-icon"></i>Pharmacology
                     </h3>
@@ -828,8 +808,6 @@
                             </p>
                         </div>
                     </div>
-
-                    <!-- Routes of Administration -->
                     <h3 class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-route section-icon"></i>Routes of Administration
                     </h3>
@@ -957,14 +935,10 @@
                     {% else %}
                     <p class="text-gray-500">No routes available.</p>
                     {% endif %}
-
-                    <!-- References -->
                     <h3 id="drug-references" class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-book section-icon"></i>References
                     </h3>
                     <div class="mb-3 rich-text">{{ detail.references | safe if detail.references else "Not Given" }}</div>
-
-                    <!-- Actions -->
                     <h3 class="text-xl font-semibold mb-4 mt-6" style="color: var(--text-primary)">
                         <i class="fas fa-cog section-icon"></i>Actions
                     </h3>
@@ -975,7 +949,109 @@
             </section>
             {% endfor %}
 
-            <!-- Associated Salts -->
+<!-- ATC Classification Section -->
+            {% if atc_codes %}
+            <section id="atc-classification" class="mb-10 fade-in">
+                <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="atc-content">
+                    <span><i class="fas fa-barcode section-icon"></i>ATC Classification</span>
+                    <i class="fas fa-chevron-down chevron-icon"></i>
+                </div>
+                <div id="atc-content" class="collapsible-content card p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {% for atc in atc_codes %}
+                        <div class="border-2 border-green-200 rounded-lg p-5 bg-gradient-to-br from-green-50 to-white hover:shadow-xl transition-all duration-300">
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-3xl font-mono font-bold text-green-700">{{ atc.code }}</span>
+                                {% if atc.adm_r != 'N/A' %}
+                                <span class="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold shadow-md">
+                                    <i class="fas fa-syringe mr-1"></i>{{ atc.adm_r }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold mb-3" style="color: var(--text-primary)">{{ atc.name }}</h3>
+                            
+                            {% if atc.ddd != 'N/A' %}
+                            <div class="mb-3 p-3 bg-white rounded-lg border border-green-200 shadow-sm">
+                                <div class="flex items-center gap-2">
+                                    <i class="fas fa-pills text-green-600 text-lg"></i>
+                                    <div>
+                                        <span class="text-xs font-semibold text-gray-600 block">Defined Daily Dose (DDD)</span>
+                                        <span class="text-lg font-bold text-green-700">{{ atc.ddd }} {{ atc.uom }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if atc.note != 'N/A' %}
+                            <div class="mb-3 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <div class="flex items-start gap-2">
+                                    <i class="fas fa-info-circle text-yellow-600 mt-1"></i>
+                                    <div>
+                                        <span class="text-xs font-semibold text-gray-700 block mb-1">Note:</span>
+                                        <span class="text-xs text-gray-600">{{ atc.note }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mt-4 pt-4 border-t border-green-200">
+                                <h4 class="text-sm font-semibold mb-3 flex items-center gap-2" style="color: var(--text-primary)">
+                                    <i class="fas fa-sitemap text-green-600"></i>
+                                    Classification Hierarchy
+                                </h4>
+                                <div class="space-y-2 text-xs">
+                                    <div class="flex items-start gap-2 pl-0">
+                                        <span class="font-mono font-bold text-blue-600 min-w-[70px]">{{ atc.hierarchy_names.level1.code }}</span>
+                                        <span style="color: var(--text-secondary)" class="flex-1">{{ atc.hierarchy_names.level1.name }}</span>
+                                    </div>
+                                    <div class="flex items-start gap-2 pl-4">
+                                        <span class="font-mono font-bold text-blue-600 min-w-[70px]">{{ atc.hierarchy_names.level2.code }}</span>
+                                        <span style="color: var(--text-secondary)" class="flex-1">{{ atc.hierarchy_names.level2.name }}</span>
+                                    </div>
+                                    <div class="flex items-start gap-2 pl-8">
+                                        <span class="font-mono font-bold text-blue-600 min-w-[70px]">{{ atc.hierarchy_names.level3.code }}</span>
+                                        <span style="color: var(--text-secondary)" class="flex-1">{{ atc.hierarchy_names.level3.name }}</span>
+                                    </div>
+                                    <div class="flex items-start gap-2 pl-12">
+                                        <span class="font-mono font-bold text-blue-600 min-w-[70px]">{{ atc.hierarchy_names.level4.code }}</span>
+                                        <span style="color: var(--text-secondary)" class="flex-1">{{ atc.hierarchy_names.level4.name }}</span>
+                                    </div>
+                                    <div class="flex items-start gap-2 pl-16 bg-green-50 p-2 rounded">
+                                        <span class="font-mono font-bold text-green-600 min-w-[70px]">{{ atc.hierarchy_names.level5.code }}</span>
+                                        <span style="color: var(--text-primary)" class="font-semibold flex-1">{{ atc.hierarchy_names.level5.name }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 pt-4 border-t border-green-200">
+                                <a href="{{ url_for('atc_detail', code=atc.code) }}" 
+                                   class="text-sm text-green-600 hover:text-green-800 font-semibold inline-flex items-center gap-2 hover:underline transition-colors"
+                                   aria-label="View full ATC details for {{ atc.code }}">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    View Full ATC Details
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% else %}
+            <section id="atc-classification" class="mb-10 fade-in">
+                <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="atc-content">
+                    <span><i class="fas fa-barcode section-icon"></i>ATC Classification</span>
+                    <i class="fas fa-chevron-down chevron-icon"></i>
+                </div>
+                <div id="atc-content" class="collapsible-content card p-6 text-center">
+                    <div class="py-8">
+                        <i class="fas fa-info-circle text-gray-400 text-5xl mb-4"></i>
+                        <p class="text-gray-500 text-lg">No ATC codes assigned to this drug yet.</p>
+                    </div>
+                </div>
+            </section>
+            {% endif %}            
+
             <section id="salts" class="mb-10 fade-in">
                 <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="salts-content">
                     <span><i class="fas fa-vial section-icon"></i>Associated Salts</span>
@@ -995,8 +1071,6 @@
                     {% endif %}
                 </div>
             </section>
-
-            <!-- Salt-Specific Information (simplified - same pattern as drug-only) -->
             {% for detail in details if not detail.is_drug_only %}
             <section id="salt-{{ detail.salt_id }}" class="mb-10 fade-in salt-section">
                 <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="salt-{{ detail.salt_id }}-content">
@@ -1004,21 +1078,16 @@
                     <i class="fas fa-chevron-down chevron-icon"></i>
                 </div>
                 <div id="salt-{{ detail.salt_id }}-content" class="collapsible-content card p-6">
-                    <!-- The rest follows the same structure as drug-only section above -->
-                    <!-- I'll provide a condensed version for brevity, but you should replicate the full structure -->
                     <h3 class="text-xl font-semibold mb-4" style="color: var(--text-primary)">
                         <i class="fas fa-info-circle section-icon"></i>General Information
                     </h3>
                     <p class="mb-3"><strong class="section-title">Drug Name:</strong> <span style="color: var(--text-primary)">{{ drug.name_en }}</span></p>
                     <p class="mb-3"><strong class="section-title">Salt:</strong> <span style="color: var(--text-primary)">{{ detail.salt_name }}</span></p>
-                    <!-- Continue with all sections as in drug-only above -->
                 </div>
             </section>
             {% endfor %}
-
-            <!-- Back Button and Share Options -->
             <div class="text-center mt-10 fade-in">
-                <a href="/backend" class="btn-primary inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition" aria-label="Return to homepage">
+                <a href="/" class="btn-primary inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition" aria-label="Return to homepage">
                     <i class="fas fa-arrow-left mr-2"></i>Back to Home
                 </a>
                 <div class="relative inline-block ml-4">
@@ -1032,7 +1101,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="text-center mt-6 fade-in">
                 <h4 class="text-xl font-semibold mb-4" style="color: var(--text-primary)">
                     <i class="fas fa-qrcode section-icon"></i>Share this page via QR Code
@@ -1041,8 +1109,6 @@
             </div>
         </main>
     </div>
-
-    <!-- 3D Structure Modal -->
     <div id="structureModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
         <div class="modal-content">
             <span class="modal-close" role="button" tabindex="0" aria-label="Close 3D structure modal">×</span>
@@ -1067,256 +1133,220 @@
             </div>
         </div>
     </div>
+</body>
+{% endblock %}
 
-    <script>
-        $(document).ready(function () {
-            // Initialize theme from localStorage
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            if (savedTheme === 'dark') {
-                $('html').attr('data-theme', 'dark');
-                $('#themeToggle span').text('Light Mode');
-                $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
-            }
-
-            // Theme Toggle
-            $('#themeToggle').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    const html = $('html');
-                    const currentTheme = html.attr('data-theme') || 'light';
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    
-                    html.attr('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    
-                    $('#themeToggle span').text(newTheme === 'dark' ? 'Light Mode' : 'Dark Mode');
-                    $('#themeToggle i').toggleClass('fa-moon fa-sun');
-                    
-                    // Update 3D viewer background if open
-                    if (viewer) {
-                        viewer.setBackgroundColor(newTheme === 'dark' ? '#1e293b' : 'white');
-                        viewer.render();
-                    }
-                }
-            });
-
-            // Collapsible Sections with chevron rotation
-            $('.collapsible-header').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    const $content = $(this).next('.collapsible-content');
-                    const isExpanded = $content.is(':visible');
-                    $content.slideToggle(300);
-                    $(this).find('.chevron-icon').toggleClass('rotated');
-                    $(this).attr('aria-expanded', !isExpanded);
-                }
-            });
-
-            // 3D Modal Handling
-            const modal = $('#structureModal');
-            const modalTitle = $('#modalTitle');
-            const viewerDiv = $('#viewer');
-            const loadingDiv = $('#loading');
-            const downloadLink = $('#downloadLink');
-            let viewer = null;
-            let isRotating = false;
-
-            $('.view-3d-btn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    const structureUrl = $(this).data('structure');
-                    const drugName = $(this).data('drug');
-                    const currentTheme = $('html').attr('data-theme') || 'light';
-                    
-                    modalTitle.text(`3D Structure of ${drugName}`);
-                    viewerDiv.empty();
-                    loadingDiv.removeClass('hidden');
-                    downloadLink.attr('href', structureUrl).attr('download', '');
-
-                    viewer = $3Dmol.createViewer('viewer', { 
-                        backgroundColor: currentTheme === 'dark' ? '#1e293b' : 'white' 
-                    });
-
-                    $.get(structureUrl, function (data) {
-                        viewer.addModel(data, 'pdb');
-                        const style = $('#styleSelect').val();
-                        apply3DStyle(style);
-                        viewer.zoomTo();
-                        viewer.render();
-                        loadingDiv.addClass('hidden');
-                    }, 'text').fail(function () {
-                        viewerDiv.html('<p class="text-red-500 text-center">Unable to load 3D structure. The file may be missing or invalid.</p>');
-                        loadingDiv.addClass('hidden');
-                    });
-
-                    modal.css('display', 'flex').attr('aria-hidden', 'false');
-                }
-            });
-
-            function apply3DStyle(style) {
+{% block extra_js %}
+<script>
+    $(document).ready(function () {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            $('html').attr('data-theme', 'dark');
+            $('#themeToggle span').text('Light Mode');
+            $('#themeToggle i').removeClass('fa-moon').addClass('fa-sun');
+        }
+        $('#themeToggle').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                const html = $('html');
+                const currentTheme = html.attr('data-theme') || 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                html.attr('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                
+                $('#themeToggle span').text(newTheme === 'dark' ? 'Light Mode' : 'Dark Mode');
+                $('#themeToggle i').toggleClass('fa-moon fa-sun');
+                
                 if (viewer) {
-                    if (style === 'stick') {
-                        viewer.setStyle({}, { stick: {} });
-                    } else if (style === 'sphere') {
-                        viewer.setStyle({}, { sphere: { radius: 0.5 } });
-                    } else if (style === 'cartoon') {
-                        viewer.setStyle({}, { cartoon: {} });
-                    }
+                    viewer.setBackgroundColor(newTheme === 'dark' ? '#1e293b' : 'white');
                     viewer.render();
                 }
             }
-
-            $('#styleSelect').on('change', function () {
-                apply3DStyle($(this).val());
-            });
-
-            function closeModal() {
-                modal.css('display', 'none').attr('aria-hidden', 'true');
-                viewerDiv.empty();
-                loadingDiv.addClass('hidden');
-                isRotating = false;
-                $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
-                viewer = null;
-            }
-
-            $('.modal-close').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    closeModal();
-                }
-            });
-
-            modal.on('click', function (e) {
-                if (e.target === modal[0]) {
-                    closeModal();
-                }
-            });
-
-            $(document).on('keydown', function(e) {
-                if (e.key === 'Escape' && modal.is(':visible')) {
-                    closeModal();
-                }
-            });
-
-            $('#rotateBtn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    isRotating = !isRotating;
-                    if (viewer) {
-                        viewer.spin(isRotating);
-                        $(this).find('i').toggleClass('fa-sync-alt fa-pause');
-                    }
-                }
-            });
-
-            $('#resetBtn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    if (viewer) {
-                        viewer.zoomTo();
-                        apply3DStyle($('#styleSelect').val());
-                        viewer.spin(false);
-                        isRotating = false;
-                        $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
-                        viewer.render();
-                    }
-                }
-            });
-
-            // Copy to Clipboard
-            $('.copy-btn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    const text = $(this).data('copy');
-                    const $btn = $(this);
-                    navigator.clipboard.writeText(text).then(() => {
-                        $btn.text('Copied!').css('background', '#10b981');
-                        setTimeout(() => {
-                            $btn.text('Copy').css('background', '#4f46e5');
-                        }, 2000);
-                    }).catch(() => {
-                        alert('Failed to copy to clipboard.');
-                    });
-                }
-            });
-
-            // Metabolite Tree Toggle
-            $('.metabolite-tree .toggle').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    const $node = $(this).closest('.metabolite-node');
-                    const $children = $node.children('ul');
-                    $children.toggleClass('hidden');
-                    $(this).toggleClass('fa-chevron-right fa-chevron-down');
-                }
-            });
-
-            // Smooth Scroll for Sidebar
-            $('.sidebar a').on('click', function (e) {
-                e.preventDefault();
-                const target = $(this).attr('href');
-                $('html, body').animate({
-                    scrollTop: $(target).offset().top - 100
-                }, 500);
-            });
-
-            // Search Functionality
-            $('#searchInput').on('input', function () {
-                const query = $(this).val().toLowerCase();
-                if (query === '') {
-                    $('.collapsible-content, .collapsible-header, li').show();
-                } else {
-                    $('.collapsible-content, .collapsible-header, li').each(function () {
-                        const $element = $(this);
-                        const text = $element.text().toLowerCase();
-                        if (text.includes(query)) {
-                            $element.show();
-                            if ($element.hasClass('collapsible-content')) {
-                                $element.prev('.collapsible-header').show();
-                            }
-                        } else {
-                            $element.hide();
-                            if ($element.hasClass('collapsible-header')) {
-                                $element.next('.collapsible-content').hide();
-                            }
-                        }
-                    });
-                }
-            });
-
-            // Print Button
-            $('#printBtn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    window.print();
-                }
-            });
-
-            // Share Dropdown
-            $('#shareBtn').on('click keypress', function (e) {
-                if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
-                    $('#shareDropdown').toggleClass('hidden');
-                }
-            });
-
-            // Share links
-            $('[data-share]').on('click', function (e) {
-                e.preventDefault();
-                const platform = $(this).data('share');
-                const url = window.location.href;
-                const title = `Details for ${$('.sticky-header h2').text().trim()}`;
-                let shareUrl;
-
-                if (platform === 'twitter') {
-                    shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
-                } else if (platform === 'linkedin') {
-                    shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-                } else if (platform === 'email') {
-                    shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=Check out the details for this drug: ${encodeURIComponent(url)}`;
-                }
-
-                window.open(shareUrl, '_blank');
-                $('#shareDropdown').addClass('hidden');
-            });
-
-            // Close dropdown when clicking outside
-            $(document).on('click', function (e) {
-                if (!$(e.target).closest('#shareBtn, #shareDropdown').length) {
-                    $('#shareDropdown').addClass('hidden');
-                }
-            });
         });
-    </script>
-</body>
-</html>
+        $('.collapsible-header').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                const $content = $(this).next('.collapsible-content');
+                const isExpanded = $content.is(':visible');
+                $content.slideToggle(300);
+                $(this).find('.chevron-icon').toggleClass('rotated');
+                $(this).attr('aria-expanded', !isExpanded);
+            }
+        });
+        const modal = $('#structureModal');
+        const modalTitle = $('#modalTitle');
+        const viewerDiv = $('#viewer');
+        const loadingDiv = $('#loading');
+        const downloadLink = $('#downloadLink');
+        let viewer = null;
+        let isRotating = false;
+        $('.view-3d-btn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                const structureUrl = $(this).data('structure');
+                const drugName = $(this).data('drug');
+                const currentTheme = $('html').attr('data-theme') || 'light';
+                
+                modalTitle.text(`3D Structure of ${drugName}`);
+                viewerDiv.empty();
+                loadingDiv.removeClass('hidden');
+                downloadLink.attr('href', structureUrl).attr('download', '');
+                viewer = $3Dmol.createViewer('viewer', { 
+                    backgroundColor: currentTheme === 'dark' ? '#1e293b' : 'white' 
+                });
+                $.get(structureUrl, function (data) {
+                    viewer.addModel(data, 'pdb');
+                    const style = $('#styleSelect').val();
+                    apply3DStyle(style);
+                    viewer.zoomTo();
+                    viewer.render();
+                    loadingDiv.addClass('hidden');
+                }, 'text').fail(function () {
+                    viewerDiv.html('<p class="text-red-500 text-center">Unable to load 3D structure. The file may be missing or invalid.</p>');
+                    loadingDiv.addClass('hidden');
+                });
+                modal.css('display', 'flex').attr('aria-hidden', 'false');
+            }
+        });
+        function apply3DStyle(style) {
+            if (viewer) {
+                if (style === 'stick') {
+                    viewer.setStyle({}, { stick: {} });
+                } else if (style === 'sphere') {
+                    viewer.setStyle({}, { sphere: { radius: 0.5 } });
+                } else if (style === 'cartoon') {
+                    viewer.setStyle({}, { cartoon: {} });
+                }
+                viewer.render();
+            }
+        }
+        $('#styleSelect').on('change', function () {
+            apply3DStyle($(this).val());
+        });
+        function closeModal() {
+            modal.css('display', 'none').attr('aria-hidden', 'true');
+            viewerDiv.empty();
+            loadingDiv.addClass('hidden');
+            isRotating = false;
+            $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
+            viewer = null;
+        }
+        $('.modal-close').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                closeModal();
+            }
+        });
+        modal.on('click', function (e) {
+            if (e.target === modal[0]) {
+                closeModal();
+            }
+        });
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && modal.is(':visible')) {
+                closeModal();
+            }
+        });
+        $('#rotateBtn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                isRotating = !isRotating;
+                if (viewer) {
+                    viewer.spin(isRotating);
+                    $(this).find('i').toggleClass('fa-sync-alt fa-pause');
+                }
+            }
+        });
+        $('#resetBtn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                if (viewer) {
+                    viewer.zoomTo();
+                    apply3DStyle($('#styleSelect').val());
+                    viewer.spin(false);
+                    isRotating = false;
+                    $('#rotateBtn').find('i').removeClass('fa-pause').addClass('fa-sync-alt');
+                    viewer.render();
+                }
+            }
+        });
+        $('.copy-btn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                const text = $(this).data('copy');
+                const $btn = $(this);
+                navigator.clipboard.writeText(text).then(() => {
+                    $btn.text('Copied!').css('background', '#10b981');
+                    setTimeout(() => {
+                        $btn.text('Copy').css('background', '#4f46e5');
+                    }, 2000);
+                }).catch(() => {
+                    alert('Failed to copy to clipboard.');
+                });
+            }
+        });
+        $('.metabolite-tree .toggle').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                const $node = $(this).closest('.metabolite-node');
+                const $children = $node.children('ul');
+                $children.toggleClass('hidden');
+                $(this).toggleClass('fa-chevron-right fa-chevron-down');
+            }
+        });
+        $('.sidebar a').on('click', function (e) {
+            e.preventDefault();
+            const target = $(this).attr('href');
+            $('html, body').animate({
+                scrollTop: $(target).offset().top - 100
+            }, 500);
+        });
+        $('#searchInput').on('input', function () {
+            const query = $(this).val().toLowerCase();
+            if (query === '') {
+                $('.collapsible-content, .collapsible-header, li').show();
+            } else {
+                $('.collapsible-content, .collapsible-header, li').each(function () {
+                    const $element = $(this);
+                    const text = $element.text().toLowerCase();
+                    if (text.includes(query)) {
+                        $element.show();
+                        if ($element.hasClass('collapsible-content')) {
+                            $element.prev('.collapsible-header').show();
+                        }
+                    } else {
+                        $element.hide();
+                        if ($element.hasClass('collapsible-header')) {
+                            $element.next('.collapsible-content').hide();
+                        }
+                    }
+                });
+            }
+        });
+        $('#printBtn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                window.print();
+            }
+        });
+        $('#shareBtn').on('click keypress', function (e) {
+            if (e.type === 'click' || (e.type === 'keypress' && e.key === 'Enter')) {
+                $('#shareDropdown').toggleClass('hidden');
+            }
+        });
+        $('[data-share]').on('click', function (e) {
+            e.preventDefault();
+            const platform = $(this).data('share');
+            const url = window.location.href;
+            const title = `Details for ${$('.sticky-header h2').text().trim()}`;
+            let shareUrl;
+            if (platform === 'twitter') {
+                shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`;
+            } else if (platform === 'linkedin') {
+                shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+            } else if (platform === 'email') {
+                shareUrl = `mailto:?subject=${encodeURIComponent(title)}&body=Check out the details for this drug: ${encodeURIComponent(url)}`;
+            }
+            window.open(shareUrl, '_blank');
+            $('#shareDropdown').addClass('hidden');
+        });
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('#shareBtn, #shareDropdown').length) {
+                $('#shareDropdown').addClass('hidden');
+            }
+        });
+    });
+</script>
+{% endblock %}

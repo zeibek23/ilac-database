@@ -1,1104 +1,1121 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Drugly</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9241454402783604"
-     crossorigin="anonymous"></script>
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
-            color: #2c3e50;
-            margin: 0;
+{% extends "base.html" %}
+
+{% block title %}Welcome to Drugly{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        color: #2c3e50;
+        margin: 0;
+    }
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .search-form {
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: 20px;
+        position: relative;
+    }
+    .search-form .form-control {
+        border-radius: 25px 0 0 25px;
+        border: 1px solid #ced4da;
+        font-size: 0.9rem;
+        padding: 8px 15px;
+    }
+    .search-form .btn {
+        border-radius: 0 25px 25px 0;
+        padding: 8px 15px;
+        background: #00b4d8;
+        border: none;
+        color: #fff;
+    }
+    .search-form .btn:hover {
+        background: #0096b2;
+    }
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid #ced4da;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+    .autocomplete-dropdown.show {
+        display: block;
+    }
+    .autocomplete-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #f1f1f1;
+    }
+    .autocomplete-item:hover {
+        background: #f8f9fa;
+    }
+    .autocomplete-item i {
+        margin-right: 10px;
+        color: #00b4d8;
+    }
+    .autocomplete-item span {
+        font-size: 0.9rem;
+        color: #2c3e50;
+    }
+    .autocomplete-category {
+        padding: 5px 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        background: #f1f1f1;
+        text-transform: uppercase;
+    }
+    .hero-section {
+        background: linear-gradient(to right, #007bff, #6610f2);
+        color: white;
+        padding: 100px 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .hero-section h1 {
+        font-size: 3.5rem;
+        font-weight: 700;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .hero-section p {
+        font-size: 1.5rem;
+        margin: 20px 0;
+        animation: fadeInUp 1s ease-in-out;
+    }
+    .hero-section .btn {
+        animation: fadeIn 1.5s ease-in-out;
+        border-radius: 25px;
+        padding: 10px 25px;
+    }
+    .features-section {
+        padding: 60px 20px;
+        background: #fff;
+    }
+    .features-section h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        text-align: center;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .features-section p {
+        font-size: 1.25rem;
+        color: #6c757d;
+        margin-bottom: 40px;
+        text-align: center;
+        animation: fadeInUp 1s ease-in-out;
+    }
+    .features-section .row {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    .feature-card {
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        border: none;
+        border-radius: 15px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+    .feature-card h4 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 15px;
+    }
+    .feature-card p {
+        font-size: 1rem;
+        color: #495057;
+        margin-bottom: 20px;
+    }
+    .feature-card .btn {
+        width: 100%;
+        margin-top: 10px;
+        border-radius: 25px;
+        font-weight: 500;
+    }
+    .news-section {
+        padding: 60px 20px;
+        background: #f8f9fa;
+    }
+    .news-section h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        text-align: center;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .news-card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 15px;
+        margin-bottom: 20px;
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        padding: 20px;
+    }
+    .news-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+    .news-card .news-type-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 10px;
+    }
+    .news-card .news-type-badge.news {
+        background: #28a745;
+        color: #fff;
+    }
+    .news-card .news-type-badge.update {
+        background: #ffc107;
+        color: #212529;
+    }
+    .news-card .news-type-badge.drug-update {
+        background: #007bff;
+        color: #fff;
+    }
+    .news-card h5 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    .news-card p {
+        font-size: 1rem;
+        color: #495057;
+        margin-bottom: 15px;
+    }
+    .news-card small {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    footer {
+        background: #2c3e50;
+        color: #fff;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    footer a:hover {
+        color: #fff;
+    }
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+    .toast {
+        border-radius: 10px;
+    }
+    .badge.bg-primary { 
+        background: linear-gradient(135deg, #007bff, #0056b3) !important; 
+    }
+    .badge.bg-danger { 
+        background: linear-gradient(135deg, #dc3545, #c82333) !important; 
+    }
+    
+    /* ENHANCED CHATBOT STYLES */
+    #chatbotModal .modal-content {
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    #chatbotModal .modal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 20px;
+    }
+    
+    #chatMessages {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 20px;
+    }
+    
+    .chat-message {
+        margin-bottom: 20px;
+        display: flex;
+        animation: slideIn 0.4s ease-out;
+        align-items: flex-end;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
         }
-        .navbar {
-            background: #2c3e50 !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-            padding: 15px 0;
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-        .navbar-brand {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: #fff !important;
+    }
+    
+    .chat-message.user {
+        justify-content: flex-end;
+    }
+    
+    .chat-message.assistant {
+        justify-content: flex-start;
+    }
+    
+    .chat-bubble {
+        max-width: 75%;
+        padding: 16px 20px;
+        border-radius: 20px;
+        word-wrap: break-word;
+        position: relative;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        line-height: 1.6;
+    }
+    
+    .chat-message.user .chat-bubble {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+        margin-left: 10px;
+    }
+    
+    .chat-message.assistant .chat-bubble {
+        background: white;
+        color: #2c3e50;
+        border-bottom-left-radius: 4px;
+        margin-right: 10px;
+        border-left: 4px solid #667eea;
+    }
+    
+    .chat-message .chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .chat-message.user .chat-avatar {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        order: 2;
+    }
+    
+    .chat-message.assistant .chat-avatar {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        order: 1;
+    }
+    
+    /* Enhanced markdown styling in chat bubbles */
+    .chat-bubble h1, .chat-bubble h2, .chat-bubble h3, 
+    .chat-bubble h4, .chat-bubble h5, .chat-bubble h6 {
+        margin-top: 12px;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    
+    .chat-bubble h1 { font-size: 1.6rem; }
+    .chat-bubble h2 { font-size: 1.4rem; }
+    .chat-bubble h3 { font-size: 1.2rem; }
+    .chat-bubble h4 { font-size: 1.1rem; }
+    
+    .chat-bubble p {
+        margin-bottom: 10px;
+    }
+    
+    .chat-bubble ul, .chat-bubble ol {
+        margin-left: 20px;
+        margin-bottom: 10px;
+    }
+    
+    .chat-bubble li {
+        margin-bottom: 6px;
+    }
+    
+    .chat-bubble code {
+        background: rgba(0,0,0,0.05);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+    }
+    
+    .chat-bubble pre {
+        background: rgba(0,0,0,0.05);
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 10px 0;
+    }
+    
+    .chat-bubble pre code {
+        background: none;
+        padding: 0;
+    }
+    
+    .chat-bubble strong {
+        font-weight: 600;
+        color: #667eea;
+    }
+    
+    .chat-message.user .chat-bubble strong {
+        color: #fff;
+    }
+    
+    .chat-bubble blockquote {
+        border-left: 3px solid #667eea;
+        padding-left: 15px;
+        margin: 10px 0;
+        font-style: italic;
+        color: #666;
+    }
+    
+    .chat-bubble a {
+        color: #667eea;
+        text-decoration: underline;
+    }
+    
+    .chat-message.user .chat-bubble a {
+        color: #fff;
+    }
+    
+    .chat-bubble table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+    }
+    
+    .chat-bubble table th,
+    .chat-bubble table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    
+    .chat-bubble table th {
+        background: rgba(102, 126, 234, 0.1);
+        font-weight: 600;
+    }
+    
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        background: white;
+        border-radius: 20px;
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+    }
+    
+    .typing-indicator span {
+        height: 10px;
+        width: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        display: inline-block;
+        margin: 0 3px;
+        animation: typing 1.4s infinite;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    
+    @keyframes typing {
+        0%, 60%, 100% { 
+            transform: translateY(0); 
+            opacity: 0.7;
         }
-        .nav-link {
-            color: #fff !important;
-            font-weight: 400;
-            transition: color 0.3s ease;
+        30% { 
+            transform: translateY(-10px); 
+            opacity: 1;
         }
-        .nav-link:hover, .nav-link.active {
-            color: #00b4d8 !important;
-        }
-        .btn-outline-light, .btn-light, .btn-warning {
-            border-radius: 25px;
-            padding: 8px 20px;
-            font-weight: 500;
-        }
-        .search-form {
-            max-width: 300px;
-            margin-left: auto;
-            margin-right: 20px;
-            position: relative;
-        }
-        .search-form .form-control {
-            border-radius: 25px 0 0 25px;
-            border: 1px solid #ced4da;
-            font-size: 0.9rem;
-            padding: 8px 15px;
-        }
-        .search-form .btn {
-            border-radius: 0 25px 25px 0;
-            padding: 8px 15px;
-            background: #00b4d8;
-            border: none;
-            color: #fff;
-        }
-        .search-form .btn:hover {
-            background: #0096b2;
-        }
-        .autocomplete-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: #fff;
-            border: 1px solid #ced4da;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-        }
-        .autocomplete-dropdown.show {
-            display: block;
-        }
-        .autocomplete-item {
-            padding: 10px 15px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid #f1f1f1;
-        }
-        .autocomplete-item:hover {
-            background: #f8f9fa;
-        }
-        .autocomplete-item i {
-            margin-right: 10px;
-            color: #00b4d8;
-        }
-        .autocomplete-item span {
-            font-size: 0.9rem;
-            color: #2c3e50;
-        }
-        .autocomplete-category {
-            padding: 5px 15px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: #6c757d;
-            background: #f1f1f1;
-            text-transform: uppercase;
-        }
+    }
+    
+    .chat-input-container {
+        background: white;
+        padding: 20px;
+        border-top: 2px solid #e9ecef;
+    }
+    
+    .chat-input-container .input-group {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 25px;
+        overflow: hidden;
+    }
+    
+    .chat-input-container .form-control {
+        border: none;
+        padding: 12px 20px;
+        font-size: 0.95rem;
+    }
+    
+    .chat-input-container .form-control:focus {
+        box-shadow: none;
+    }
+    
+    .chat-input-container .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 12px 25px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .chat-input-container .btn-primary:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .quick-actions {
+        margin-top: 12px;
+    }
+    
+    .quick-actions .btn {
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        margin: 4px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        transition: all 0.3s ease;
+    }
+    
+    .quick-actions .btn:hover {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: transparent;
+        transform: translateY(-2px);
+    }
+    
+    .chat-timestamp {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 4px;
+        text-align: right;
+    }
+    
+    .chat-message.user .chat-timestamp {
+        text-align: left;
+    }
+    
+    .chat-source-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        margin-top: 8px;
+        font-weight: 500;
+    }
+    
+    .chat-source-badge.database {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+    
+    .chat-source-badge.knowledge {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+    }
+    
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @media (max-width: 768px) {
         .hero-section {
-            background: linear-gradient(to right, #007bff, #6610f2);
-            color: white;
-            padding: 100px 20px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+            padding: 60px 15px;
         }
         .hero-section h1 {
-            font-size: 3.5rem;
-            font-weight: 700;
-            animation: fadeInDown 1s ease-in-out;
+            font-size: 2.5rem;
         }
         .hero-section p {
-            font-size: 1.5rem;
-            margin: 20px 0;
-            animation: fadeInUp 1s ease-in-out;
+            font-size: 1.2rem;
         }
-        .hero-section .btn {
-            animation: fadeIn 1.5s ease-in-out;
-            border-radius: 25px;
-            padding: 10px 25px;
+        .features-section, .news-section {
+            padding: 40px 15px;
         }
-        .features-section {
-            padding: 60px 20px;
-            background: #fff;
+        .features-section h2, .news-section h2 {
+            font-size: 2rem;
         }
-        .features-section h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-align: center;
-            animation: fadeInDown 1s ease-in-out;
-        }
-        .features-section p {
-            font-size: 1.25rem;
-            color: #6c757d;
-            margin-bottom: 40px;
-            text-align: center;
-            animation: fadeInUp 1s ease-in-out;
-        }
-        .features-section .row {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
+        .search-form {
+            max-width: 100%;
+            margin: 10px 0;
         }
         .feature-card {
-            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-            border: none;
-            border-radius: 15px;
-            overflow: hidden;
-            background: linear-gradient(135deg, #ffffff, #f1f1f1);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-        }
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-        }
-        .feature-card h4 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 15px;
-        }
-        .feature-card p {
-            font-size: 1rem;
-            color: #495057;
             margin-bottom: 20px;
         }
-        .feature-card .btn {
-            width: 100%;
-            margin-top: 10px;
-            border-radius: 25px;
-            font-weight: 500;
+        .autocomplete-dropdown {
+            max-width: 100%;
         }
-        .news-section {
-            padding: 60px 20px;
-            background: #f8f9fa;
-        }
-        .news-section h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            text-align: center;
-            animation: fadeInDown 1s ease-in-out;
-        }
-        .news-card {
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            border-radius: 15px;
-            margin-bottom: 20px;
-            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
-            background: linear-gradient(135deg, #ffffff, #f1f1f1);
-            padding: 20px;
-        }
-        .news-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-        }
-        .news-card .news-type-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            margin-bottom: 10px;
-        }
-        .news-card .news-type-badge.news {
-            background: #28a745;
-            color: #fff;
-        }
-        .news-card .news-type-badge.update {
-            background: #ffc107;
-            color: #212529;
-        }
-        .news-card .news-type-badge.drug-update {
-            background: #007bff;
-            color: #fff;
-        }
-        .news-card h5 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-        .news-card p {
-            font-size: 1rem;
-            color: #495057;
-            margin-bottom: 15px;
-        }
-        .news-card small {
-            font-size: 0.875rem;
-            color: #6c757d;
-        }
-        footer {
-            background: #2c3e50;
-            color: #fff;
-            padding: 30px 0;
-            font-size: 0.9rem;
-            text-align: center;
-        }
-        footer a {
-            color: #00b4d8;
-            margin: 0 15px;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        footer a:hover {
-            color: #fff;
-        }
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-        .toast {
-            border-radius: 10px;
-        }
-        .badge.bg-primary { 
-            background: linear-gradient(135deg, #007bff, #0056b3) !important; 
-        }
-        .badge.bg-danger { 
-            background: linear-gradient(135deg, #dc3545, #c82333) !important; 
-        }
-        
-        /* ENHANCED CHATBOT STYLES */
-        #chatbotModal .modal-content {
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        }
-        
-        #chatbotModal .modal-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            padding: 20px;
-        }
-        
-        #chatMessages {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 20px;
-        }
-        
-        .chat-message {
-            margin-bottom: 20px;
-            display: flex;
-            animation: slideIn 0.4s ease-out;
-            align-items: flex-end;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .chat-message.user {
-            justify-content: flex-end;
-        }
-        
-        .chat-message.assistant {
-            justify-content: flex-start;
-        }
-        
         .chat-bubble {
-            max-width: 75%;
-            padding: 16px 20px;
-            border-radius: 20px;
-            word-wrap: break-word;
-            position: relative;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            line-height: 1.6;
+            max-width: 85%;
         }
-        
-        .chat-message.user .chat-bubble {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-bottom-right-radius: 4px;
-            margin-left: 10px;
+    }
+    @media (max-width: 992px) {
+        .features-section .row > div {
+            flex: 0 0 50%;
+            max-width: 50%;
         }
-        
-        .chat-message.assistant .chat-bubble {
-            background: white;
-            color: #2c3e50;
-            border-bottom-left-radius: 4px;
-            margin-right: 10px;
-            border-left: 4px solid #667eea;
+    }
+    @media (max-width: 576px) {
+        .features-section .row > div {
+            flex: 0 0 100%;
+            max-width: 100%;
         }
-        
-        .chat-message .chat-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            flex-shrink: 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        }
-        
-        .chat-message.user .chat-avatar {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            order: 2;
-        }
-        
-        .chat-message.assistant .chat-avatar {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            order: 1;
-        }
-        
-        /* Enhanced markdown styling in chat bubbles */
-        .chat-bubble h1, .chat-bubble h2, .chat-bubble h3, 
-        .chat-bubble h4, .chat-bubble h5, .chat-bubble h6 {
-            margin-top: 12px;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-        
-        .chat-bubble h1 { font-size: 1.6rem; }
-        .chat-bubble h2 { font-size: 1.4rem; }
-        .chat-bubble h3 { font-size: 1.2rem; }
-        .chat-bubble h4 { font-size: 1.1rem; }
-        
-        .chat-bubble p {
-            margin-bottom: 10px;
-        }
-        
-        .chat-bubble ul, .chat-bubble ol {
-            margin-left: 20px;
-            margin-bottom: 10px;
-        }
-        
-        .chat-bubble li {
-            margin-bottom: 6px;
-        }
-        
-        .chat-bubble code {
-            background: rgba(0,0,0,0.05);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-        }
-        
-        .chat-bubble pre {
-            background: rgba(0,0,0,0.05);
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 10px 0;
-        }
-        
-        .chat-bubble pre code {
-            background: none;
-            padding: 0;
-        }
-        
-        .chat-bubble strong {
-            font-weight: 600;
-            color: #667eea;
-        }
-        
-        .chat-message.user .chat-bubble strong {
-            color: #fff;
-        }
-        
-        .chat-bubble blockquote {
-            border-left: 3px solid #667eea;
-            padding-left: 15px;
-            margin: 10px 0;
-            font-style: italic;
-            color: #666;
-        }
-        
-        .chat-bubble a {
-            color: #667eea;
-            text-decoration: underline;
-        }
-        
-        .chat-message.user .chat-bubble a {
-            color: #fff;
-        }
-        
-        .chat-bubble table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-        
-        .chat-bubble table th,
-        .chat-bubble table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        
-        .chat-bubble table th {
-            background: rgba(102, 126, 234, 0.1);
-            font-weight: 600;
-        }
-        
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            padding: 12px 16px;
-            background: white;
-            border-radius: 20px;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-left: 4px solid #667eea;
-        }
-        
-        .typing-indicator span {
-            height: 10px;
-            width: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 50%;
-            display: inline-block;
-            margin: 0 3px;
-            animation: typing 1.4s infinite;
-        }
-        
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-        
-        @keyframes typing {
-            0%, 60%, 100% { 
-                transform: translateY(0); 
-                opacity: 0.7;
-            }
-            30% { 
-                transform: translateY(-10px); 
-                opacity: 1;
-            }
-        }
-        
-        .chat-input-container {
-            background: white;
-            padding: 20px;
-            border-top: 2px solid #e9ecef;
-        }
-        
-        .chat-input-container .input-group {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-radius: 25px;
-            overflow: hidden;
-        }
-        
-        .chat-input-container .form-control {
-            border: none;
-            padding: 12px 20px;
-            font-size: 0.95rem;
-        }
-        
-        .chat-input-container .form-control:focus {
-            box-shadow: none;
-        }
-        
-        .chat-input-container .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            padding: 12px 25px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        
-        .chat-input-container .btn-primary:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .quick-actions {
-            margin-top: 12px;
-        }
-        
-        .quick-actions .btn {
-            border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 0.85rem;
-            margin: 4px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            color: #495057;
-            transition: all 0.3s ease;
-        }
-        
-        .quick-actions .btn:hover {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-color: transparent;
-            transform: translateY(-2px);
-        }
-        
-        .chat-timestamp {
-            font-size: 0.75rem;
-            color: #6c757d;
-            margin-top: 4px;
-            text-align: right;
-        }
-        
-        .chat-message.user .chat-timestamp {
-            text-align: left;
-        }
-        
-        .chat-source-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.7rem;
-            margin-top: 8px;
-            font-weight: 500;
-        }
-        
-        .chat-source-badge.database {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            color: white;
-        }
-        
-        .chat-source-badge.knowledge {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-        }
-        
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @media (max-width: 768px) {
-            .hero-section {
-                padding: 60px 15px;
-            }
-            .hero-section h1 {
-                font-size: 2.5rem;
-            }
-            .hero-section p {
-                font-size: 1.2rem;
-            }
-            .features-section, .news-section {
-                padding: 40px 15px;
-            }
-            .features-section h2, .news-section h2 {
-                font-size: 2rem;
-            }
-            .search-form {
-                max-width: 100%;
-                margin: 10px 0;
-            }
-            .feature-card {
-                margin-bottom: 20px;
-            }
-            .autocomplete-dropdown {
-                max-width: 100%;
-            }
-            .chat-bubble {
-                max-width: 85%;
-            }
-        }
-        @media (max-width: 992px) {
-            .features-section .row > div {
-                flex: 0 0 50%;
-                max-width: 50%;
-            }
-        }
-        @media (max-width: 576px) {
-            .features-section .row > div {
-                flex: 0 0 100%;
-                max-width: 100%;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Drugly</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="druglyNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#news">News</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
-                </ul>
-                {% if user_email %}
-                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
-                        <input class="form-control" type="search" name="query" id="searchInput" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
-                        <button class="btn" type="submit"><i class="fas fa-search"></i></button>
-                        <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
-                    </form>
-                {% endif %}
-                {% if user and user.is_admin %}
-                    <a href="/online-users" class="btn btn-success me-2">
-                        <i class="fas fa-users"></i> Online Users
-                    </a>
-                    <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
-                {% endif %}
-                {% if user_email %}
-                    <a href="/profile" class="btn btn-light me-2">Profile</a>
-                    <a href="/logout" class="btn btn-outline-light">Logout</a>
-                {% else %}
-                    <a href="/login" class="btn btn-light me-2">Login</a>
-                    <a href="/register" class="btn btn-outline-light">Register</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-    <!-- Toast Notifications -->
-    <div class="toast-container">
-        {% with messages = get_flashed_messages(with_categories=True) %}
-        {% for category, message in messages %}
-        <div class="toast align-items-center text-bg-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
-            <div class="d-flex">
-                <div class="toast-body">
-                    {{ message }}
-                </div>
-                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-        {% endfor %}
-        {% endwith %}
-    </div>
-    <!-- Hero Section -->
-    <div class="hero-section">
-        <h1>Welcome to Drugly</h1>
-        <p>Your trusted platform for detailed drug information, interactions, and personalized medicine insights.</p>
-        {% if user_email %}
-            <p>Welcome back, <strong>{{ user_email }}</strong>!</p>
-            <a href="/profile" class="btn btn-light btn-lg mx-2">View Profile</a>
-            <a href="/logout" class="btn btn-outline-light btn-lg mx-2">Logout</a>
-        {% else %}
-            <a href="/login" class="btn btn-light btn-lg mx-2">Login</a>
-            <a href="/register" class="btn btn-outline-light btn-lg mx-2">Register</a>
-        {% endif %}
-    </div>
-    <!-- Features Section -->
-    <div class="features-section container text-center" id="features">
-        <h2>Our Features</h2>
-        <p>Explore the powerful tools and features we offer:</p>
-        <div class="row mt-4">
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Detailed Drug Information</h4>
-                    <p>Comprehensive data on active ingredients, salts, and more.</p>
-                    <a href="/details" class="btn btn-primary">Learn More</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Drug-Drug Interactions</h4>
-                    <p>Analyze and manage potential interactions effectively.</p>
-                    <a href="/interactions" class="btn btn-danger">Explore</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Pharmacogenomics</h4>
-                    <p>Personalized medicine insights based on genetic data.</p>
-                    <a href="/pharmacogenomics/dashboard" class="btn btn-success">Discover</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>ICD-11 Management</h4>
-                    <p>Advanced tools for managing ICD-11 codes and indications.</p>
-                    <a href="/icd11" class="btn btn-warning">Check it out!</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Receptor-Ligand Interactions</h4>
-                    <p>Explore drug-receptor interactions for advanced research.</p>
-                    <a href="/receptor-ligand-dashboard" class="btn btn-info">Analyze</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Simulate Dose Response</h4>
-                    <p>Model and analyze dose-response relationships with ease. Doesn't require you to sign-in haha :) </p>
-                    <a href="/simulate-dose-response" class="btn btn-primary">Simulate</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4>Receptor-Ligand Interaction Simulator</h4>
-                    <p>Simulate and analyze receptor-ligand interactions with precision.</p>
-                    <a href="/receptor-ligand-simulator" class="btn btn-info">Try Now</a>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card feature-card p-3">
-                    <h4><i class="fas fa-robot"></i> AI Chatbot</h4>
-                    <p>Get instant answers about drugs, interactions, and medical information.</p>
-                    {% if user_email %}
-                        <button class="btn btn-success" onclick="openChatbot()">Chat Now</button>
-                    {% else %}
-                        <a href="/login" class="btn btn-secondary">Login to Access</a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- FDA APPROVALS HERO SECTION -->
-    {% if fda_approvals %}
-    <div class="container my-5">
-        <div class="text-center mb-4">
-            <h2 class="display-5 fw-bold text-danger">
-                <img src="{{ url_for('static', filename='images/fda_logo.png') }}" alt="FDA" height="50" class="me-3">
-                Latest FDA Approvals
-            </h2>
-            <p class="lead text-muted">Breaking news from the U.S. Food and Drug Administration</p>
-        </div>
-        <div class="row g-4">
-            {% for news in fda_approvals %}
-            <div class="col-lg-4 col-md-6">
-                <div class="card h-100 shadow-lg border-0 news-card" style="border-left: 6px solid #dc3545;">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
-                            <span class="badge bg-danger fs-6 px-3 py-2">FDA APPROVED</span>
-                            <small class="text-muted">{{ news.publication_date.strftime('%d %B %Y') }}</small>
-                        </div>
-                        <h4 class="card-title fw-bold text-dark">{{ news.title }}</h4>
-                        {% if news.drug %}
-                            <div class="mb-3">
-                                <span class="badge bg-primary fs-6 px-4 py-2">
-                                    {{ news.drug.name_en }} ({{ news.drug.name_tr }})
-                                </span>
-                            </div>
-                        {% endif %}
-                        <div class="text-muted flex-grow-1">{{ news.description | safe | truncate(180) }}</div>
-<div class="mt-3">
-    <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-danger btn-sm">
-        Read Full Announcement →
-    </a>
-</div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        <div class="text-center mt-4">
-            <a href="{{ url_for('public_news') }}" class="btn btn-danger btn-lg px-5">View All FDA Approvals</a>
-        </div>
-    </div>
-    {% endif %}
-    <!-- Classic News Section -->
-    <div class="news-section container" id="news">
-        <h2 class="text-center mb-5">Latest News & Updates</h2>
-        <div class="row mt-4">
-            {% for news in announcements + updates + drug_updates %}
-            <div class="col-md-6 col-lg-4">
-                <div class="card news-card p-3 h-100">
-                    <span class="news-type-badge 
-                        {{ 'news' if news.category == 'Announcement' else 'update' if news.category == 'Update' else 'drug-update' }}">
-                        {{ news.category.replace('Drug Update', 'Drug Update') }}
-                    </span>
-                    <h5 class="mt-3">{{ news.title }}</h5>
-                    <p>{{ news.description | safe | truncate(150) }}</p>
-                    <small class="text-muted">Published on {{ news.publication_date.strftime('%d %B %Y') }}</small>
-                </div>
-            </div>
-            {% endfor %}
-            {% if not (announcements or updates or drug_updates) and not fda_approvals %}
-            <div class="col-12">
-                <p class="text-center text-muted fs-4">No news available at the moment. Stay tuned!</p>
-            </div>
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="#news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+            </ul>
+            {% if user_email %}
+                <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
+                    <input class="form-control" type="search" name="query" id="searchInput" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
+                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                    <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+                </form>
+            {% endif %}
+            {% if user and user.is_admin %}
+                <a href="/online-users" class="btn btn-success me-2">
+                    <i class="fas fa-users"></i> Online Users
+                </a>
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
             {% endif %}
         </div>
     </div>
-    <!-- Footer -->
-    <footer>
-        <p>© 2025 Drugly. All rights reserved.</p>
-        <a href="/contact">Contact Us</a> |
-        <a href="/about">About Us</a> |
-        <a href="/terms">Terms of Service</a>
-    </footer>
-    <!-- Chatbot Modal -->
+</nav>
+
+<!-- Toast Notifications -->
+<div class="toast-container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% for category, message in messages %}
+    <div class="toast align-items-center text-bg-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="d-flex">
+            <div class="toast-body">
+                {{ message }}
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endwith %}
+</div>
+
+<!-- Hero Section -->
+<div class="hero-section">
+    <h1>Welcome to Drugly</h1>
+    <p>Your trusted platform for detailed drug information, interactions, and personalized medicine insights.</p>
     {% if user_email %}
-    <div class="modal fade" id="chatbotModal" tabindex="-1" aria-labelledby="chatbotModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content" style="height: 85vh;">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="chatbotModalLabel">
-                        <i class="fas fa-robot me-2"></i>Drugly AI Assistant
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-0 d-flex flex-column">
-                    <div id="chatMessages" class="flex-grow-1 p-3" style="overflow-y: auto;">
-                        <div class="text-center text-muted py-5">
-                            <i class="fas fa-comments fa-3x mb-3" style="color: #667eea;"></i>
-                            <p style="font-size: 1.1rem;">Start a conversation with our AI assistant!</p>
-                            <p style="font-size: 0.9rem;">Ask about drugs, interactions, side effects, and more.</p>
-                        </div>
+        <p>Welcome back, <strong>{{ user_email }}</strong>!</p>
+        <a href="/profile" class="btn btn-light btn-lg mx-2">View Profile</a>
+        <a href="/logout" class="btn btn-outline-light btn-lg mx-2">Logout</a>
+    {% else %}
+        <a href="/login" class="btn btn-light btn-lg mx-2">Login</a>
+        <a href="/register" class="btn btn-outline-light btn-lg mx-2">Register</a>
+    {% endif %}
+</div>
+
+<!-- Features Section -->
+<div class="features-section container text-center" id="features">
+    <h2>Our Features</h2>
+    <p>Explore the powerful tools and features we offer:</p>
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Detailed Drug Information</h4>
+                <p>Comprehensive data on active ingredients, salts, and more.</p>
+                <a href="/details" class="btn btn-primary">Learn More</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Drug-Drug Interactions</h4>
+                <p>Analyze and manage potential interactions effectively.</p>
+                <a href="/interactions" class="btn btn-danger">Explore</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Pharmacogenomics</h4>
+                <p>Personalized medicine insights based on genetic data.</p>
+                <a href="/pharmacogenomics/dashboard" class="btn btn-success">Discover</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>ICD-11 Management</h4>
+                <p>Advanced tools for managing ICD-11 codes and indications.</p>
+                <a href="/icd11" class="btn btn-warning">Check it out!</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Receptor-Ligand Interactions</h4>
+                <p>Explore drug-receptor interactions for advanced research.</p>
+                <a href="/receptor-ligand-dashboard" class="btn btn-info">Analyze</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Simulate Dose Response</h4>
+                <p>Model and analyze dose-response relationships with ease. Doesn't require you to sign-in haha :) </p>
+                <a href="/simulate-dose-response" class="btn btn-primary">Simulate</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4>Receptor-Ligand Interaction Simulator</h4>
+                <p>Simulate and analyze receptor-ligand interactions with precision.</p>
+                <a href="/receptor-ligand-simulator" class="btn btn-info">Try Now</a>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card feature-card p-3">
+                <h4><i class="fas fa-robot"></i> AI Chatbot</h4>
+                <p>Get instant answers about drugs, interactions, and medical information.</p>
+                {% if user_email %}
+                    <button class="btn btn-success" onclick="openChatbot()">Chat Now</button>
+                {% else %}
+                    <a href="/login" class="btn btn-secondary">Login to Access</a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-3">
+    <div class="card feature-card p-3">
+        <h4><i class="fas fa-sitemap"></i> ATC Classification</h4>
+        <p>Explore WHO's Anatomical Therapeutic Chemical classification system for drugs.</p>
+        <a href="/atc" class="btn btn-secondary">Browse ATC</a>
+    </div>
+</div>
+    </div>
+</div>
+
+<!-- FDA APPROVALS HERO SECTION -->
+{% if fda_approvals %}
+<div class="container my-5">
+    <div class="text-center mb-4">
+        <h2 class="display-5 fw-bold text-danger">
+            <img src="{{ url_for('static', filename='images/fda_logo.png') }}" alt="FDA" height="50" class="me-3">
+            Latest FDA Approvals
+        </h2>
+        <p class="lead text-muted">Breaking news from the U.S. Food and Drug Administration</p>
+    </div>
+    <div class="row g-4">
+        {% for news in fda_approvals %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 shadow-lg border-0 news-card" style="border-left: 6px solid #dc3545;">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <span class="badge bg-danger fs-6 px-3 py-2">FDA APPROVED</span>
+                        <small class="text-muted">{{ news.publication_date.strftime('%d %B %Y') }}</small>
                     </div>
-                    <div class="chat-input-container">
-                        <div class="input-group">
-                            <input type="text" id="chatInput" class="form-control" placeholder="Ask about drugs, interactions, side effects..." />
-                            <button class="btn btn-primary" type="button" onclick="sendMessage()">
-                                <i class="fas fa-paper-plane"></i> Send
-                            </button>
+                    <h4 class="card-title fw-bold text-dark">{{ news.title }}</h4>
+                    {% if news.drug %}
+                        <div class="mb-3">
+                            <span class="badge bg-primary fs-6 px-4 py-2">
+                                {{ news.drug.name_en }} ({{ news.drug.name_tr }})
+                            </span>
                         </div>
-                        <div class="quick-actions">
-                            <small class="text-muted">Quick actions:</small>
-                            <button class="btn" onclick="quickQuestion('Tell me about aspirin')">💊 Aspirin info</button>
-                            <button class="btn" onclick="quickQuestion('What are the side effects of ibuprofen?')">⚠️ Side effects</button>
-                            <button class="btn" onclick="quickQuestion('Check drug interactions for warfarin')">🔄 Interactions</button>
-                        </div>
+                    {% endif %}
+                    <div class="text-muted flex-grow-1">{{ news.description | safe | truncate(180) }}</div>
+                    <div class="mt-3">
+                        <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-danger btn-sm">
+                            Read Full Announcement →
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="text-center mt-4">
+        <a href="{{ url_for('public_news') }}" class="btn btn-danger btn-lg px-5">View All FDA Approvals</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Classic News Section -->
+<div class="news-section container" id="news">
+    <h2 class="text-center mb-5">Latest News & Updates</h2>
+    <div class="row mt-4">
+        {% for news in announcements + updates + drug_updates %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card news-card p-3 h-100">
+                <span class="news-type-badge 
+                    {{ 'news' if news.category == 'Announcement' else 'update' if news.category == 'Update' else 'drug-update' }}">
+                    {{ news.category.replace('Drug Update', 'Drug Update') }}
+                </span>
+                <h5 class="mt-3">{{ news.title }}</h5>
+                <p>{{ news.description | safe | truncate(150) }}</p>
+                <small class="text-muted">Published on {{ news.publication_date.strftime('%d %B %Y') }}</small>
+            </div>
+        </div>
+        {% endfor %}
+        {% if not (announcements or updates or drug_updates) and not fda_approvals %}
+        <div class="col-12">
+            <p class="text-center text-muted fs-4">No news available at the moment. Stay tuned!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <p>© 2025 Drugly. All rights reserved.</p>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
+</footer>
+
+<!-- Chatbot Modal -->
+{% if user_email %}
+<div class="modal fade" id="chatbotModal" tabindex="-1" aria-labelledby="chatbotModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content" style="height: 85vh;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chatbotModalLabel">
+                    <i class="fas fa-robot me-2"></i>Drugly AI Assistant
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 d-flex flex-column">
+                <div id="chatMessages" class="flex-grow-1 p-3" style="overflow-y: auto;">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-comments fa-3x mb-3" style="color: #667eea;"></i>
+                        <p style="font-size: 1.1rem;">Start a conversation with our AI assistant!</p>
+                        <p style="font-size: 0.9rem;">Ask about drugs, interactions, side effects, and more.</p>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <input type="text" id="chatInput" class="form-control" placeholder="Ask about drugs, interactions, side effects..." />
+                        <button class="btn btn-primary" type="button" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                    <div class="quick-actions">
+                        <small class="text-muted">Quick actions:</small>
+                        <button class="btn" onclick="quickQuestion('Tell me about aspirin')">💊 Aspirin info</button>
+                        <button class="btn" onclick="quickQuestion('What are the side effects of ibuprofen?')">⚠️ Side effects</button>
+                        <button class="btn" onclick="quickQuestion('Check drug interactions for warfarin')">🔄 Interactions</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Hidden audio element for notification sound -->
-    <audio id="notificationSound" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZTRQJSL3j77lpHAY5i9Py0HosBS1/zPLaizsIGGS56OScTxILT6fk9LRlHAU3jtXyznopBSx9zPHajDoIGGW56eSbUBELTqzm8rhlHAU3j9TxzXoqBSt8y/Hbiz0HGGa46OOaUBIMTarh8rZmGgU3jNPxzHopBSp7y/DajD4HGWe36OOZUhELTKrg8rVlGgU1i9Hxy3ooBS1+y+/ajT4HGWi25+OYUxILTKvh8LVkGgUyi9DxyXooBS5+yu7ajT8HGmm25uKXVBMMSqzg77RjGQQwis/xx3koBS1+yO7ciT8IG2625uKXVRQMSazf7rNiGQQwic7xx3YnBSx8yO3ciD8IG2205+GWVhQMSKzf7bFhGQQuh83vxnYmBSx7x+zdhj8IG2w05OCVVhUMSKve7LBgGQQthr3vxXQlBSt6xuvdhT4HGmw04eCUVxYMR6rd7K9fGAQrhb3vw3MlBSp6xuveg" type="audio/wav">
-    </audio>
-    {% endif %}
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toastElements = document.querySelectorAll('.toast');
-            toastElements.forEach(toastElement => {
-                const toast = new bootstrap.Toast(toastElement);
-                toast.show();
-            });
-            // Autocomplete functionality
-            const searchInput = document.getElementById('searchInput');
-            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
-            const searchForm = document.getElementById('searchForm');
-            let debounceTimeout;
-            if (searchInput) {
-                searchInput.addEventListener('input', () => {
-                    clearTimeout(debounceTimeout);
-                    debounceTimeout = setTimeout(() => {
-                        const query = searchInput.value.trim();
-                        if (query.length < 2) {
-                            autocompleteDropdown.classList.remove('show');
-                            autocompleteDropdown.innerHTML = '';
-                            return;
-                        }
-                        fetch('/search_suggestions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ query })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            autocompleteDropdown.innerHTML = '';
-                            if (!data.drugs.length && !data.salts.length && !data.diseases.length && !data.target_molecules.length && !data.side_effects.length && !data.categories.length) {
-                                autocompleteDropdown.classList.remove('show');
-                                return;
-                            }
-                            const createCategory = (title, items, iconClass, type) => {
-                                if (items.length) {
-                                    const categoryDiv = document.createElement('div');
-                                    categoryDiv.className = 'autocomplete-category';
-                                    categoryDiv.textContent = title;
-                                    autocompleteDropdown.appendChild(categoryDiv);
-                                    items.slice(0, 5).forEach(item => {
-                                        const itemDiv = document.createElement('div');
-                                        itemDiv.className = 'autocomplete-item';
-                                        itemDiv.innerHTML = `<i class="${iconClass}"></i><span>${item.name}</span>`;
-                                        itemDiv.addEventListener('click', () => {
-                                            searchInput.value = item.name;
-                                            autocompleteDropdown.classList.remove('show');
-                                            searchForm.submit();
-                                        });
-                                        autocompleteDropdown.appendChild(itemDiv);
-                                    });
-                                }
-                            };
-                            createCategory('Drugs', data.drugs, 'fas fa-capsules', 'drug');
-                            createCategory('Salts', data.salts, 'fas fa-vial', 'salt');
-                            createCategory('Diseases', data.diseases.map(d => ({ name: d.indication.name_en })), 'fas fa-disease', 'disease');
-                            createCategory('Target Molecules', data.target_molecules, 'fas fa-atom', 'target');
-                            createCategory('Side Effects', data.side_effects, 'fas fa-exclamation-triangle', 'side_effect');
-                            createCategory('Categories', data.categories.map(c => ({ name: c.category.name })), 'fas fa-folder', 'category');
-                            autocompleteDropdown.classList.add('show');
-                        })
-                        .catch(error => {
-                            console.error('Error fetching suggestions:', error);
-                            autocompleteDropdown.classList.remove('show');
-                        });
-                    }, 300);
-                });
-                document.addEventListener('click', (e) => {
-                    if (!searchForm.contains(e.target)) {
-                        autocompleteDropdown.classList.remove('show');
-                    }
-                });
-                searchForm.addEventListener('submit', () => {
-                    autocompleteDropdown.classList.remove('show');
-                });
-            }
+</div>
+
+<!-- Hidden audio element for notification sound -->
+<audio id="notificationSound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZTRQJSL3j77lpHAY5i9Py0HosBS1/zPLaizsIGGS56OScTxILT6fk9LRlHAU3jtXyznopBSx9zPHajDoIGGW56eSbUBELTqzm8rhlHAU3j9TxzXoqBSt8y/Hbiz0HGGa46OOaUBIMTarh8rZmGgU3jNPxzHopBSp7y/DajD4HGWe36OOZUhELTKrg8rVlGgU1i9Hxy3ooBS1+y+/ajT4HGWi25+OYUxILTKvh8LVkGgUyi9DxyXooBS5+yu7ajT8HGmm25uKXVBMMSqzg77RjGQQwis/xx3koBS1+yO7ciT8IG2625uKXVRQMSazf7rNiGQQwic7xx3YnBSx8yO3ciD8IG2005+GWVhQMSKzf7bFhGQQuh83vxnYmBSx7x+zdhj8IG2w05OCVVhUMSKve7LBgGQQthr3vxXQlBSt6xuvdhT4HGmw04eCUVxYMR6rd7K9fGAQrhb3vw3MlBSp6xuveg" type="audio/wav">
+</audio>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const toastElements = document.querySelectorAll('.toast');
+        toastElements.forEach(toastElement => {
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
         });
-        
-        // Chatbot functionality
-        let conversationHistory = [];
-        
-        function openChatbot() {
-            const modal = new bootstrap.Modal(document.getElementById('chatbotModal'));
-            modal.show();
-        }
-        
-        function quickQuestion(question) {
-            document.getElementById('chatInput').value = question;
-            sendMessage();
-        }
-        
-        function playNotificationSound() {
-            const audio = document.getElementById('notificationSound');
-            if (audio) {
-                audio.currentTime = 0;
-                audio.play().catch(e => console.log('Audio play failed:', e));
+
+        // Autocomplete functionality
+        const searchInput = document.getElementById('searchInput');
+        const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+        const searchForm = document.getElementById('searchForm');
+        let debounceTimeout;
+
+if (searchInput) {
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => {
+            const query = searchInput.value.trim();
+            if (query.length < 2) {
+                autocompleteDropdown.classList.remove('show');
+                autocompleteDropdown.innerHTML = '';
+                return;
             }
-        }
-        
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            addMessageToChat('user', message);
-            input.value = '';
-            
-            showTypingIndicator();
-            
-            fetch('/api/chatbot', {
+            fetch('/search_suggestions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    message: message,
-                    history: conversationHistory
-                })
+                body: JSON.stringify({ query })
             })
             .then(response => response.json())
             .then(data => {
-                hideTypingIndicator();
-                addMessageToChat('assistant', data.response, data.source);
-                conversationHistory.push({ role: 'user', content: message });
-                conversationHistory.push({ role: 'assistant', content: data.response });
-                
-                // Play notification sound
-                playNotificationSound();
+                autocompleteDropdown.innerHTML = '';
+                if (!data.drugs.length && !data.salts.length && !data.diseases.length && !data.target_molecules.length && !data.side_effects.length && !data.categories.length && !data.atc.length) {
+                    autocompleteDropdown.classList.remove('show');
+                    return;
+                }
+                const createCategory = (title, items, iconClass, nameKey = 'name') => {
+                    if (items.length) {
+                        const categoryDiv = document.createElement('div');
+                        categoryDiv.className = 'autocomplete-category';
+                        categoryDiv.textContent = title;
+                        autocompleteDropdown.appendChild(categoryDiv);
+                        items.slice(0, 5).forEach(item => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = 'autocomplete-item';
+                            const displayName = item[nameKey] || item.name;
+                            const displayText = item.code ? `${item.code} - ${displayName}` : displayName;
+                            itemDiv.innerHTML = `<i class="${iconClass}"></i><span>${displayText}</span>`;
+                            itemDiv.addEventListener('click', () => {
+                                searchInput.value = item.code || displayName;
+                                autocompleteDropdown.classList.remove('show');
+                                searchForm.submit();
+                            });
+                            autocompleteDropdown.appendChild(itemDiv);
+                        });
+                    }
+                };
+                createCategory('Drugs', data.drugs, 'fas fa-capsules');
+                createCategory('ATC Codes', data.atc, 'fas fa-sitemap', 'name');
+                createCategory('Salts', data.salts, 'fas fa-vial');
+                createCategory('Diseases', data.diseases.map(d => ({ name: d.indication.name_en })), 'fas fa-disease');
+                createCategory('Target Molecules', data.target_molecules, 'fas fa-atom');
+                createCategory('Side Effects', data.side_effects, 'fas fa-exclamation-triangle');
+                createCategory('Categories', data.categories.map(c => ({ name: c.category.name })), 'fas fa-folder');
+                autocompleteDropdown.classList.add('show');
             })
             .catch(error => {
-                hideTypingIndicator();
-                addMessageToChat('assistant', 'Sorry, I encountered an error. Please try again.');
-                console.error('Error:', error);
+                console.error('Error fetching suggestions:', error);
+                autocompleteDropdown.classList.remove('show');
             });
-        }
-        
-        function addMessageToChat(role, content, source = null) {
-            const messagesDiv = document.getElementById('chatMessages');
-            
-            if (messagesDiv.querySelector('.text-center')) {
-                messagesDiv.innerHTML = '';
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `chat-message ${role}`;
-            
-            const avatar = document.createElement('div');
-            avatar.className = 'chat-avatar';
-            avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'chat-bubble';
-            
-            // Parse markdown for assistant messages
-            if (role === 'assistant') {
-                bubble.innerHTML = marked.parse(content);
-            } else {
-                bubble.textContent = content;
-            }
-            
-            // Add source badge if available
-            if (source && role === 'assistant') {
-                const sourceBadge = document.createElement('div');
-                sourceBadge.className = `chat-source-badge ${source}`;
-                sourceBadge.innerHTML = source === 'database' 
-                    ? '<i class="fas fa-database"></i> Database' 
-                    : '<i class="fas fa-brain"></i> AI Knowledge';
-                bubble.appendChild(sourceBadge);
-            }
-            
-            messageDiv.appendChild(avatar);
-            messageDiv.appendChild(bubble);
-            messagesDiv.appendChild(messageDiv);
-            
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-        
-        function showTypingIndicator() {
-            const messagesDiv = document.getElementById('chatMessages');
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'chat-message assistant';
-            typingDiv.id = 'typingIndicator';
-            typingDiv.innerHTML = `
-                <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-                <div class="typing-indicator">
-                    <span></span><span></span><span></span>
-                </div>
-            `;
-            messagesDiv.appendChild(typingDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-        
-        function hideTypingIndicator() {
-            const typingIndicator = document.getElementById('typingIndicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
-        }
-        
-        const chatInput = document.getElementById('chatInput');
-        if (chatInput) {
-            chatInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendMessage();
+        }, 300);
+    });
+
+            document.addEventListener('click', (e) => {
+                if (!searchForm.contains(e.target)) {
+                    autocompleteDropdown.classList.remove('show');
                 }
             });
+
+            searchForm.addEventListener('submit', () => {
+                autocompleteDropdown.classList.remove('show');
+            });
         }
-    </script>
-</body>
-</html>
+    });
+    
+    // Chatbot functionality
+    let conversationHistory = [];
+    
+    function openChatbot() {
+        const modal = new bootstrap.Modal(document.getElementById('chatbotModal'));
+        modal.show();
+    }
+    
+    function quickQuestion(question) {
+        document.getElementById('chatInput').value = question;
+        sendMessage();
+    }
+    
+    function playNotificationSound() {
+        const audio = document.getElementById('notificationSound');
+        if (audio) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log('Audio play failed:', e));
+        }
+    }
+    
+    function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        
+        if (!message) return;
+        
+        addMessageToChat('user', message);
+        input.value = '';
+        
+        showTypingIndicator();
+        
+        fetch('/api/chatbot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                history: conversationHistory
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideTypingIndicator();
+            addMessageToChat('assistant', data.response, data.source);
+            conversationHistory.push({ role: 'user', content: message });
+            conversationHistory.push({ role: 'assistant', content: data.response });
+            
+            // Play notification sound
+            playNotificationSound();
+        })
+        .catch(error => {
+            hideTypingIndicator();
+            addMessageToChat('assistant', 'Sorry, I encountered an error. Please try again.');
+            console.error('Error:', error);
+        });
+    }
+    
+    function addMessageToChat(role, content, source = null) {
+        const messagesDiv = document.getElementById('chatMessages');
+        
+        if (messagesDiv.querySelector('.text-center')) {
+            messagesDiv.innerHTML = '';
+        }
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${role}`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'chat-avatar';
+        avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        
+        // Parse markdown for assistant messages
+        if (role === 'assistant') {
+            bubble.innerHTML = marked.parse(content);
+        } else {
+            bubble.textContent = content;
+        }
+        
+        // Add source badge if available
+        if (source && role === 'assistant') {
+            const sourceBadge = document.createElement('div');
+            sourceBadge.className = `chat-source-badge ${source}`;
+            sourceBadge.innerHTML = source === 'database' 
+                ? '<i class="fas fa-database"></i> Database' 
+                : '<i class="fas fa-brain"></i> AI Knowledge';
+            bubble.appendChild(sourceBadge);
+        }
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(bubble);
+        messagesDiv.appendChild(messageDiv);
+        
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    
+    function showTypingIndicator() {
+        const messagesDiv = document.getElementById('chatMessages');
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'chat-message assistant';
+        typingDiv.id = 'typingIndicator';
+        typingDiv.innerHTML = `
+            <div class="chat-avatar"><i class="fas fa-robot"></i></div>
+            <div class="typing-indicator">
+                <span></span><span></span><span></span>
+            </div>
+        `;
+        messagesDiv.appendChild(typingDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    
+    function hideTypingIndicator() {
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
+    }
+    
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
+</script>
+{% endblock %}

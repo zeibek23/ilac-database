@@ -58,6 +58,13 @@
                 <select class="form-select" id="categories" name="category_ids[]" multiple aria-label="Drug Categories"></select>
                 <div id="selected-categories" class="list-group mt-2"></div>
             </div>
+            <!-- ATC Codes Selection -->
+            <div class="mb-3">
+                <label for="atc_codes" class="form-label">ATC Codes (Anatomical Therapeutic Chemical Classification)</label>
+                <select class="form-select" id="atc_codes" name="atc_codes[]" multiple aria-label="ATC Codes"></select>
+                <small class="form-text text-muted">Search and select ATC codes. Hold Ctrl/Cmd to select multiple codes.</small>
+                <div id="selected-atc-codes" class="list-group mt-2"></div>
+            </div>
             <!-- Molecular Formula -->
             <div class="mb-3">
                 <label for="molecular_formula" class="form-label">Molecular Formula</label>
@@ -545,6 +552,61 @@
     };
 
     $(document).ready(function () {
+
+        // ATC Codes Search
+$('#atc_codes').select2({
+    placeholder: "Search for ATC codes...",
+    ajax: {
+        url: "/api/atc/search",
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+            return {
+                q: params.term || '',
+                limit: 20
+            };
+        },
+        processResults: function (data) {
+            console.log("ATC API Response:", data);
+            if (!Array.isArray(data)) {
+                console.error("Invalid ATC API response:", data);
+                return { results: [] };
+            }
+            return {
+                results: data.map(item => ({
+                    id: item.id,
+                    text: `${item.code} - ${item.name}`,
+                    code: item.code,
+                    name: item.name
+                }))
+            };
+        },
+        error: function (xhr, status, error) {
+            console.error("ATC AJAX Error:", status, error, xhr.responseText);
+            return { results: [] };
+        }
+    },
+    minimumInputLength: 1,
+    allowClear: true,
+    width: '100%'
+}).on('change', function () {
+    const selectedATCCodes = $(this).select2('data');
+    const selectedATCList = document.getElementById('selected-atc-codes');
+    selectedATCList.innerHTML = '';
+    
+    selectedATCCodes.forEach(atc => {
+        const listItem = document.createElement('div');
+        listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+        listItem.innerHTML = `
+            <div>
+                <strong>${atc.code || atc.text.split(' - ')[0]}</strong> - 
+                ${atc.name || atc.text.split(' - ').slice(1).join(' - ')}
+            </div>
+        `;
+        selectedATCList.appendChild(listItem);
+    });
+});
+
         // Initialize Quill editors
         const toolbarOptions = [
             ['bold', 'italic', 'underline'],

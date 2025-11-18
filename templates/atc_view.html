@@ -1,0 +1,747 @@
+{% extends "base.html" %}
+{% block title %}ATC Classification System - Drugly.ai{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        color: #2c3e50;
+        margin: 0;
+    }
+    
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    
+    .search-form {
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: 20px;
+    }
+    
+    .search-form .form-control {
+        border-radius: 25px 0 0 25px;
+        border: 1px solid #ced4da;
+        font-size: 0.9rem;
+        padding: 8px 15px;
+    }
+    
+    .search-form .btn {
+        border-radius: 0 25px 25px 0;
+        padding: 8px 15px;
+        background: #00b4d8;
+        border: none;
+        color: #fff;
+    }
+    
+    .search-form .btn:hover {
+        background: #0096b2;
+    }
+    
+    .atc-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 60px 20px;
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 40px;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    
+    .admin-panel-link {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .admin-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 30px;
+        border-radius: 25px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .admin-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .tree-section {
+        background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: fadeInUp 1s ease-in-out;
+    }
+    
+    .tree-section:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .search-bar {
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    
+    .search-bar input {
+        width: 100%;
+        padding: 15px 50px 15px 20px;
+        font-size: 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 30px;
+        transition: all 0.3s ease;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    .search-bar input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #999;
+        font-size: 20px;
+        pointer-events: none;
+    }
+    
+    .search-results {
+        position: absolute;
+        width: 100%;
+        background: white;
+        border-radius: 10px;
+        margin-top: 10px;
+        max-height: 400px;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        z-index: 1000;
+        display: none;
+    }
+    
+    .search-results.active {
+        display: block;
+    }
+    
+    .search-result-item {
+        padding: 15px 20px;
+        border-bottom: 1px solid #f0f0f0;
+        transition: all 0.2s ease;
+    }
+    
+    .search-result-item:hover {
+        background: #f8f9ff;
+    }
+    
+    .search-result-item a {
+        color: #333;
+        text-decoration: none;
+        display: block;
+    }
+    
+    .search-result-code {
+        color: #667eea;
+        font-weight: 600;
+        margin-right: 10px;
+    }
+    
+    .expand-all-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 25px;
+        border-radius: 20px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .expand-all-btn:hover {
+        background: #45a049;
+        transform: translateY(-2px);
+    }
+    
+    .level1-card {
+        margin-bottom: 20px;
+        border: 2px solid #4CAF50;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .level1-card:hover {
+        box-shadow: 0 5px 20px rgba(76, 175, 80, 0.2);
+    }
+    
+    .level1-header {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        color: white;
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+    
+    .level1-header:hover {
+        background: linear-gradient(135deg, #45a049 0%, #4CAF50 100%);
+    }
+    
+    .level1-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .toggle-icon {
+        transition: transform 0.3s ease;
+        font-size: 1.2rem;
+    }
+    
+    .toggle-icon.rotated {
+        transform: rotate(180deg);
+    }
+    
+    .level-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.5s ease;
+    }
+    
+    .level-content.expanded {
+        max-height: 100000px;
+    }
+    
+    .level2-card {
+        margin: 15px;
+        border-left: 4px solid #2196F3;
+        background: #f8f9ff;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .level2-header {
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    
+    .level2-header:hover {
+        background: #e3f2fd;
+    }
+    
+    .level2-title {
+        font-weight: 600;
+        color: #2196F3;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .level3-card {
+        margin: 10px 20px;
+        border-left: 4px solid #FF9800;
+        background: #fff8f0;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    
+    .level3-header {
+        padding: 12px 15px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    
+    .level3-header:hover {
+        background: #ffe0b2;
+    }
+    
+    .level3-title {
+        font-weight: 600;
+        color: #FF9800;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .level4-card {
+        margin: 10px 20px;
+        border-left: 4px solid #9C27B0;
+        background: #f8f0ff;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    
+    .level4-header {
+        padding: 12px 15px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    
+    .level4-header:hover {
+        background: #e1bee7;
+    }
+    
+    .level4-title {
+        font-weight: 600;
+        color: #9C27B0;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .level5-list {
+        padding: 10px 20px;
+        background: white;
+    }
+    
+    .level5-item {
+        padding: 10px 15px;
+        margin: 5px 0;
+        background: #f5f5f5;
+        border-left: 4px solid #F44336;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .level5-item:hover {
+        background: #ffebee;
+        transform: translateX(5px);
+    }
+    
+    .level5-item a {
+        color: #333;
+        text-decoration: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .level5-code {
+        color: #F44336;
+        font-weight: 600;
+        margin-right: 10px;
+    }
+    
+    .level5-details {
+        font-size: 0.85rem;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 5px;
+    }
+    
+    .badge-ddd {
+        background: #e3f2fd;
+        color: #2196F3;
+    }
+    
+    .badge-route {
+        background: #f3e5f5;
+        color: #9C27B0;
+    }
+    
+    .no-results {
+        text-align: center;
+        padding: 40px;
+        color: #999;
+        font-style: italic;
+    }
+    
+    footer {
+        background: #2c3e50;
+        color: #fff;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    
+    footer a:hover {
+        color: #fff;
+    }
+    
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+    
+    .toast {
+        border-radius: 10px;
+    }
+    
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @media (max-width: 768px) {
+        .atc-container {
+            padding: 40px 15px;
+        }
+        h1 {
+            font-size: 2rem;
+        }
+        .tree-section {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+            </ul>
+            {% if user_email %}
+                <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
+                    <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
+                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                </form>
+            {% endif %}
+            {% if user and user.is_admin %}
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<!-- Toast Notifications -->
+<div class="toast-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="toast align-items-center text-bg-{% if category == 'success' %}success{% elif category == 'error' %}danger{% else %}warning{% endif %}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="d-flex">
+            <div class="toast-body">
+                {{ message }}
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
+
+<!-- ATC Hierarchy Section -->
+<div class="atc-container">
+    <h1><i class="fas fa-pills me-3"></i>ATC Classification System</h1>
+    
+    {% if user and user.is_admin %}
+    <div class="admin-panel-link">
+        <a href="{{ url_for('atc_upload') }}" class="admin-btn">
+            <i class="fas fa-cog"></i> Admin Panel
+        </a>
+    </div>
+    {% endif %}
+    
+    <div class="tree-section">
+        <div class="search-bar">
+            <input type="text" class="form-control" id="searchInput" placeholder="Search ATC codes or drug names..." autocomplete="off">
+            <i class="fas fa-search search-icon"></i>
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        
+        <button class="expand-all-btn" onclick="toggleAll()">
+            <i class="fas fa-expand-alt"></i> Expand All
+        </button>
+        
+        <div id="atcHierarchy">
+            {% if atc_hierarchy %}
+                {% for item in atc_hierarchy %}
+                <div class="level1-card">
+                    <div class="level1-header" onclick="toggleLevel('level1_{{ item.level1.id }}')">
+                        <div class="level1-title">
+                            <span class="level1-code">{{ item.level1.code }}</span>
+                            <span>{{ item.level1.name }}</span>
+                        </div>
+                        <i class="fas fa-chevron-down toggle-icon" id="icon_level1_{{ item.level1.id }}"></i>
+                    </div>
+                    
+                    <div id="level1_{{ item.level1.id }}" class="level-content">
+                        {% for level2_item in item.level2_list %}
+                        <div class="level2-card">
+                            <div class="level2-header" onclick="toggleLevel('level2_{{ level2_item.level2.id }}')">
+                                <div class="level2-title">
+                                    <span>{{ level2_item.level2.code }}</span>
+                                    <span>{{ level2_item.level2.name }}</span>
+                                </div>
+                                <i class="fas fa-chevron-down toggle-icon" id="icon_level2_{{ level2_item.level2.id }}"></i>
+                            </div>
+                            
+                            <div id="level2_{{ level2_item.level2.id }}" class="level-content">
+                                {% for level3_item in level2_item.level3_list %}
+                                <div class="level3-card">
+                                    <div class="level3-header" onclick="toggleLevel('level3_{{ level3_item.level3.id }}')">
+                                        <div class="level3-title">
+                                            <span>{{ level3_item.level3.code }}</span>
+                                            <span>{{ level3_item.level3.name }}</span>
+                                        </div>
+                                        <i class="fas fa-chevron-down toggle-icon" id="icon_level3_{{ level3_item.level3.id }}"></i>
+                                    </div>
+                                    
+                                    <div id="level3_{{ level3_item.level3.id }}" class="level-content">
+                                        {% for level4_item in level3_item.level4_list %}
+                                        <div class="level4-card">
+                                            <div class="level4-header" onclick="toggleLevel('level4_{{ level4_item.level4.id }}')">
+                                                <div class="level4-title">
+                                                    <span>{{ level4_item.level4.code }}</span>
+                                                    <span>{{ level4_item.level4.name }}</span>
+                                                </div>
+                                                <i class="fas fa-chevron-down toggle-icon" id="icon_level4_{{ level4_item.level4.id }}"></i>
+                                            </div>
+                                            
+                                            <div id="level4_{{ level4_item.level4.id }}" class="level-content">
+                                                <div class="level5-list">
+                                                    {% for level5 in level4_item.level5_list %}
+                                                    <div class="level5-item">
+                                                        <a href="{{ url_for('atc_detail', code=level5.code) }}">
+                                                            <div>
+                                                                <span class="level5-code">{{ level5.code }}</span>
+                                                                <span>{{ level5.name }}</span>
+                                                                {% if level5.ddd %}
+                                                                <span class="badge badge-ddd">DDD: {{ level5.ddd }} {{ level5.uom }}</span>
+                                                                {% endif %}
+                                                                {% if level5.adm_r %}
+                                                                <span class="badge badge-route">{{ level5.adm_r }}</span>
+                                                                {% endif %}
+                                                            </div>
+                                                        </a>
+                                                        {% if level5.note %}
+                                                        <div class="level5-details">
+                                                            <i class="fas fa-info-circle"></i> {{ level5.note }}
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-results">
+                    <i class="fas fa-inbox fa-3x"></i>
+                    <p>No ATC codes found. Please upload data from the Admin Panel.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <p>© 2025 Drugly. All rights reserved.</p>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize toasts
+        const toastElements = document.querySelectorAll('.toast');
+        toastElements.forEach(toastElement => {
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+        });
+    });
+    
+    let allExpanded = false;
+    
+    function toggleLevel(id) {
+        const element = document.getElementById(id);
+        const icon = document.getElementById('icon_' + id);
+        
+        if (element.classList.contains('expanded')) {
+            element.classList.remove('expanded');
+            if (icon) icon.classList.remove('rotated');
+        } else {
+            element.classList.add('expanded');
+            if (icon) icon.classList.add('rotated');
+        }
+    }
+    
+    function toggleAll() {
+        const allContents = document.querySelectorAll('.level-content');
+        const allIcons = document.querySelectorAll('.toggle-icon');
+        const btn = document.querySelector('.expand-all-btn');
+        
+        allExpanded = !allExpanded;
+        
+        if (allExpanded) {
+            allContents.forEach(content => content.classList.add('expanded'));
+            allIcons.forEach(icon => icon.classList.add('rotated'));
+            btn.innerHTML = '<i class="fas fa-compress-alt"></i> Collapse All';
+        } else {
+            allContents.forEach(content => content.classList.remove('expanded'));
+            allIcons.forEach(icon => icon.classList.remove('rotated'));
+            btn.innerHTML = '<i class="fas fa-expand-alt"></i> Expand All';
+        }
+    }
+    
+    // Search functionality
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+    
+    searchInput.addEventListener('input', function(e) {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            searchResults.classList.remove('active');
+            searchResults.innerHTML = '';
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            fetch(`/api/atc/search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        searchResults.innerHTML = '<div class="search-result-item"><em>No results found</em></div>';
+                    } else {
+                        let html = '';
+                        data.forEach(item => {
+                            html += `
+                                <div class="search-result-item">
+                                    <a href="/atc/${item.code}">
+                                        <span class="search-result-code">${item.code}</span>
+                                        <span>${item.name}</span>
+                                    </a>
+                                </div>
+                            `;
+                        });
+                        searchResults.innerHTML = html;
+                    }
+                    searchResults.classList.add('active');
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    searchResults.innerHTML = '<div class="search-result-item"><em>Error loading results</em></div>';
+                    searchResults.classList.add('active');
+                });
+        }, 300);
+    });
+    
+    // Close search results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.remove('active');
+        }
+    });
+    
+    // Prevent closing when clicking inside search results
+    searchResults.addEventListener('click', function(e) {
+        if (e.target.tagName === 'A') {
+            searchResults.classList.remove('active');
+        }
+    });
+</script>
+{% endblock %}

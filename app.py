@@ -228,7 +228,7 @@ drug_category_association = db.Table(
     schema='public'
 )
 
-# Veritabanı Modeli
+# Veritabanı Modeli - DATABASE SCHEMA
 class DrugCategory(db.Model):
     __tablename__ = 'drug_category'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
@@ -243,6 +243,81 @@ class Salt(db.Model):
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     name_tr = db.Column(db.String(100), nullable=False)
     name_en = db.Column(db.String(100), nullable=False)    
+
+# ATC Models
+class ATCLevel1(db.Model):
+    __tablename__ = 'atc_level1'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(1), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    
+    level2_children = db.relationship('ATCLevel2', back_populates='level1_parent', cascade='all, delete-orphan')
+
+class ATCLevel2(db.Model):
+    __tablename__ = 'atc_level2'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(3), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    level1_id = db.Column(db.Integer, db.ForeignKey('public.atc_level1.id'), nullable=False)
+    
+    level1_parent = db.relationship('ATCLevel1', back_populates='level2_children')
+    level3_children = db.relationship('ATCLevel3', back_populates='level2_parent', cascade='all, delete-orphan')
+
+class ATCLevel3(db.Model):
+    __tablename__ = 'atc_level3'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(4), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    level2_id = db.Column(db.Integer, db.ForeignKey('public.atc_level2.id'), nullable=False)
+    
+    level2_parent = db.relationship('ATCLevel2', back_populates='level3_children')
+    level4_children = db.relationship('ATCLevel4', back_populates='level3_parent', cascade='all, delete-orphan')
+
+class ATCLevel4(db.Model):
+    __tablename__ = 'atc_level4'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(5), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    level3_id = db.Column(db.Integer, db.ForeignKey('public.atc_level3.id'), nullable=False)
+    
+    level3_parent = db.relationship('ATCLevel3', back_populates='level4_children')
+    level5_children = db.relationship('ATCLevel5', back_populates='level4_parent', cascade='all, delete-orphan')
+
+class ATCLevel5(db.Model):
+    __tablename__ = 'atc_level5'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(7), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    level4_id = db.Column(db.Integer, db.ForeignKey('public.atc_level4.id'), nullable=False)
+    ddd = db.Column(db.String(50), nullable=True)
+    uom = db.Column(db.String(50), nullable=True)
+    adm_r = db.Column(db.String(50), nullable=True)  # Changed from 10 to 50
+    note = db.Column(db.Text, nullable=True)
+    
+    level4_parent = db.relationship('ATCLevel4', back_populates='level5_children')
+    drug_mappings = db.relationship('DrugATCMapping', back_populates='atc_level5', cascade='all, delete-orphan')
+
+class DrugATCMapping(db.Model):
+    __tablename__ = 'drug_atc_mapping'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
+    atc_level5_id = db.Column(db.Integer, db.ForeignKey('public.atc_level5.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    drug = db.relationship('Drug', backref=db.backref('atc_mappings', lazy='dynamic'))
+    atc_level5 = db.relationship('ATCLevel5', back_populates='drug_mappings')
 
 # Updated Drug model
 class Drug(db.Model):
@@ -1656,6 +1731,10 @@ def login_required(f):
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    if 'user_id' in session:
+        flash("You are already logged in.", "info")
+        return redirect(url_for('home'))
+
     occupations = Occupation.query.order_by(Occupation.name).all()
     if request.method == 'POST':
         email = request.form['email']
@@ -1993,6 +2072,500 @@ def icd11_view():
     
     return render_template('icd11_view.html', user_email=user.email)
 
+# ATC CODES
+ALLOWED_EXTENSIONS = {'csv'}
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def import_atc_codes(csv_file_path):
+    level1_cache = {}
+    level2_cache = {}
+    level3_cache = {}
+    level4_cache = {}
+    level5_cache = {}
+    
+    with open(csv_file_path, 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        
+        for row in reader:
+            atc_code = row['atc_code'].strip()
+            atc_name = row['atc_name'].strip()
+            ddd = row['ddd'].strip() if row['ddd'].strip() != 'NA' else None
+            uom = row['uom'].strip() if row['uom'].strip() != 'NA' else None
+            adm_r = row['adm_r'].strip() if row['adm_r'].strip() != 'NA' else None
+            note = row['note'].strip() if row['note'].strip() != 'NA' else None
+            
+            code_length = len(atc_code)
+            
+            if code_length == 1:
+                if atc_code not in level1_cache:
+                    level1 = ATCLevel1.query.filter_by(code=atc_code).first()
+                    if not level1:
+                        level1 = ATCLevel1(code=atc_code, name=atc_name)
+                        db.session.add(level1)
+                        db.session.flush()
+                    else:
+                        level1.name = atc_name
+                    level1_cache[atc_code] = level1
+            
+            elif code_length == 3:
+                level1_code = atc_code[0]
+                if level1_code not in level1_cache:
+                    level1_cache[level1_code] = ATCLevel1.query.filter_by(code=level1_code).first()
+                
+                if atc_code not in level2_cache:
+                    level2 = ATCLevel2.query.filter_by(code=atc_code).first()
+                    if not level2:
+                        level2 = ATCLevel2(
+                            code=atc_code,
+                            name=atc_name,
+                            level1_id=level1_cache[level1_code].id
+                        )
+                        db.session.add(level2)
+                        db.session.flush()
+                    else:
+                        level2.name = atc_name
+                        level2.level1_id = level1_cache[level1_code].id
+                    level2_cache[atc_code] = level2
+            
+            elif code_length == 4:
+                level2_code = atc_code[:3]
+                if level2_code not in level2_cache:
+                    level2_cache[level2_code] = ATCLevel2.query.filter_by(code=level2_code).first()
+                
+                if atc_code not in level3_cache:
+                    level3 = ATCLevel3.query.filter_by(code=atc_code).first()
+                    if not level3:
+                        level3 = ATCLevel3(
+                            code=atc_code,
+                            name=atc_name,
+                            level2_id=level2_cache[level2_code].id
+                        )
+                        db.session.add(level3)
+                        db.session.flush()
+                    else:
+                        level3.name = atc_name
+                        level3.level2_id = level2_cache[level2_code].id
+                    level3_cache[atc_code] = level3
+            
+            elif code_length == 5:
+                level3_code = atc_code[:4]
+                if level3_code not in level3_cache:
+                    level3_cache[level3_code] = ATCLevel3.query.filter_by(code=level3_code).first()
+                
+                if atc_code not in level4_cache:
+                    level4 = ATCLevel4.query.filter_by(code=atc_code).first()
+                    if not level4:
+                        level4 = ATCLevel4(
+                            code=atc_code,
+                            name=atc_name,
+                            level3_id=level3_cache[level3_code].id
+                        )
+                        db.session.add(level4)
+                        db.session.flush()
+                    else:
+                        level4.name = atc_name
+                        level4.level3_id = level3_cache[level3_code].id
+                    level4_cache[atc_code] = level4
+            
+            elif code_length == 7:
+                level4_code = atc_code[:5]
+                if level4_code not in level4_cache:
+                    level4_cache[level4_code] = ATCLevel4.query.filter_by(code=level4_code).first()
+                
+                cache_key = f"{atc_code}_{adm_r}"
+                if cache_key not in level5_cache:
+                    level5 = ATCLevel5.query.filter_by(code=atc_code, adm_r=adm_r).first()
+                    if not level5:
+                        level5 = ATCLevel5(
+                            code=atc_code,
+                            name=atc_name,
+                            level4_id=level4_cache[level4_code].id,
+                            ddd=ddd,
+                            uom=uom,
+                            adm_r=adm_r,
+                            note=note
+                        )
+                        db.session.add(level5)
+                        db.session.flush()
+                    else:
+                        level5.name = atc_name
+                        level5.level4_id = level4_cache[level4_code].id
+                        level5.ddd = ddd
+                        level5.uom = uom
+                        level5.note = note
+                    level5_cache[cache_key] = level5
+    
+    db.session.commit()
+    print("ATC codes imported successfully!")
+
+def match_drugs_to_atc():
+    drugs = Drug.query.all()
+    matched_count = 0
+    unmatched_count = 0
+    
+    for drug in drugs:
+        drug_name = drug.name_en.lower().strip()
+        
+        atc_level5_entries = ATCLevel5.query.filter(
+            db.func.lower(ATCLevel5.name) == drug_name
+        ).all()
+        
+        if atc_level5_entries:
+            for atc_entry in atc_level5_entries:
+                existing_mapping = DrugATCMapping.query.filter_by(
+                    drug_id=drug.id,
+                    atc_level5_id=atc_entry.id
+                ).first()
+                
+                if not existing_mapping:
+                    mapping = DrugATCMapping(
+                        drug_id=drug.id,
+                        atc_level5_id=atc_entry.id
+                    )
+                    db.session.add(mapping)
+            
+            matched_count += 1
+            print(f"Matched: {drug.name_en} -> {len(atc_level5_entries)} ATC code(s)")
+        else:
+            unmatched_count += 1
+            print(f"No match: {drug.name_en}")
+    
+    db.session.commit()
+    print(f"\nMatching complete!")
+    print(f"Matched drugs: {matched_count}")
+    print(f"Unmatched drugs: {unmatched_count}")
+
+
+@app.route('/atc')
+def atc_view():
+    if 'user_id' not in session:
+        flash('Please log in to view the ATC hierarchy.', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found. Please log in again.', 'error')
+        return redirect(url_for('login'))
+    
+    from sqlalchemy.orm import joinedload
+    
+    try:
+        level1_entries = ATCLevel1.query.options(
+            joinedload(ATCLevel1.level2_children)
+            .joinedload(ATCLevel2.level3_children)
+            .joinedload(ATCLevel3.level4_children)
+            .joinedload(ATCLevel4.level5_children)
+        ).order_by(ATCLevel1.code).all()
+        
+        atc_hierarchy = []
+        for level1 in level1_entries:
+            level1_data = {
+                'level1': level1,
+                'level2_list': []
+            }
+            
+            for level2 in sorted(level1.level2_children, key=lambda x: x.code):
+                level2_data = {
+                    'level2': level2,
+                    'level3_list': []
+                }
+                
+                for level3 in sorted(level2.level3_children, key=lambda x: x.code):
+                    level3_data = {
+                        'level3': level3,
+                        'level4_list': []
+                    }
+                    
+                    for level4 in sorted(level3.level4_children, key=lambda x: x.code):
+                        level4_data = {
+                            'level4': level4,
+                            'level5_list': sorted(level4.level5_children, key=lambda x: x.code)
+                        }
+                        level3_data['level4_list'].append(level4_data)
+                    
+                    level2_data['level3_list'].append(level3_data)
+                
+                level1_data['level2_list'].append(level2_data)
+            
+            atc_hierarchy.append(level1_data)
+        
+        return render_template('atc_view.html', atc_hierarchy=atc_hierarchy, user_email=user.email, user=user)
+        
+    except Exception as e:
+        print(f"Error loading ATC hierarchy: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error loading ATC hierarchy: {str(e)}', 'danger')
+        return render_template('atc_view.html', atc_hierarchy=[], user_email=user.email, user=user)
+
+@app.route('/atc/<string:code>')
+def atc_detail(code):
+    code = code.upper().strip()
+    code_length = len(code)
+    
+    if code_length == 1:
+        level1 = ATCLevel1.query.filter_by(code=code).first_or_404()
+        return render_template('atc_detail.html', level='1', data=level1)
+    elif code_length == 3:
+        level2 = ATCLevel2.query.filter_by(code=code).first_or_404()
+        return render_template('atc_detail.html', level='2', data=level2)
+    elif code_length == 4:
+        level3 = ATCLevel3.query.filter_by(code=code).first_or_404()
+        return render_template('atc_detail.html', level='3', data=level3)
+    elif code_length == 5:
+        level4 = ATCLevel4.query.filter_by(code=code).first_or_404()
+        return render_template('atc_detail.html', level='4', data=level4)
+    elif code_length == 7:
+        level5_entries = ATCLevel5.query.filter_by(code=code).all()
+        if not level5_entries:
+            flash('ATC code not found!', 'danger')
+            return redirect(url_for('atc_view'))
+        return render_template('atc_detail.html', level='5', data=level5_entries)
+    else:
+        flash('Invalid ATC code format!', 'danger')
+        return redirect(url_for('atc_view'))
+
+@app.route('/atc_upload', methods=['GET', 'POST'])
+@admin_required
+def atc_upload():
+    if request.method == 'POST':
+        if 'file' not in request.files:
+            flash('No file selected!', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            flash('No file selected!', 'danger')
+            return redirect(request.url)
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"atc_{timestamp}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(filepath)
+            
+            try:
+                import_atc_codes(filepath)
+                flash('ATC codes imported successfully!', 'success')
+            except Exception as e:
+                flash(f'Error importing ATC codes: {str(e)}', 'danger')
+                db.session.rollback()
+            
+            return redirect(url_for('atc_upload'))
+        else:
+            flash('Invalid file type! Only CSV files are allowed.', 'danger')
+            return redirect(request.url)
+    
+    total_level1 = ATCLevel1.query.count()
+    total_level2 = ATCLevel2.query.count()
+    total_level3 = ATCLevel3.query.count()
+    total_level4 = ATCLevel4.query.count()
+    total_level5 = ATCLevel5.query.count()
+    total_mappings = DrugATCMapping.query.count()
+    
+    recent_uploads = []
+    if os.path.exists(app.config['UPLOAD_FOLDER']):
+        files = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) if f.startswith('atc_') and f.endswith('.csv')]
+        files.sort(reverse=True)
+        recent_uploads = files[:10]
+    
+    return render_template('atc_upload.html', 
+                         total_level1=total_level1,
+                         total_level2=total_level2,
+                         total_level3=total_level3,
+                         total_level4=total_level4,
+                         total_level5=total_level5,
+                         total_mappings=total_mappings,
+                         recent_uploads=recent_uploads)
+
+@app.route('/atc_upload/manual', methods=['GET', 'POST'])
+@admin_required
+def atc_manual_add():
+    if request.method == 'POST':
+        level = request.form.get('level')
+        code = request.form.get('code').upper().strip()
+        name = request.form.get('name').strip()
+        
+        try:
+            if level == '1':
+                if ATCLevel1.query.filter_by(code=code).first():
+                    flash('ATC Level 1 code already exists!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                new_entry = ATCLevel1(code=code, name=name)
+                db.session.add(new_entry)
+                db.session.commit()
+                flash(f'ATC Level 1 code {code} added successfully!', 'success')
+            
+            elif level == '2':
+                level1_id = request.form.get('level1_id', type=int)
+                if not level1_id:
+                    flash('Parent Level 1 is required!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                if ATCLevel2.query.filter_by(code=code).first():
+                    flash('ATC Level 2 code already exists!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                new_entry = ATCLevel2(code=code, name=name, level1_id=level1_id)
+                db.session.add(new_entry)
+                db.session.commit()
+                flash(f'ATC Level 2 code {code} added successfully!', 'success')
+            
+            elif level == '3':
+                level2_id = request.form.get('level2_id', type=int)
+                if not level2_id:
+                    flash('Parent Level 2 is required!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                if ATCLevel3.query.filter_by(code=code).first():
+                    flash('ATC Level 3 code already exists!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                new_entry = ATCLevel3(code=code, name=name, level2_id=level2_id)
+                db.session.add(new_entry)
+                db.session.commit()
+                flash(f'ATC Level 3 code {code} added successfully!', 'success')
+            
+            elif level == '4':
+                level3_id = request.form.get('level3_id', type=int)
+                if not level3_id:
+                    flash('Parent Level 3 is required!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                if ATCLevel4.query.filter_by(code=code).first():
+                    flash('ATC Level 4 code already exists!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                new_entry = ATCLevel4(code=code, name=name, level3_id=level3_id)
+                db.session.add(new_entry)
+                db.session.commit()
+                flash(f'ATC Level 4 code {code} added successfully!', 'success')
+            
+            elif level == '5':
+                level4_id = request.form.get('level4_id', type=int)
+                ddd = request.form.get('ddd')
+                uom = request.form.get('uom')
+                adm_r = request.form.get('adm_r')
+                note = request.form.get('note')
+                
+                if not level4_id:
+                    flash('Parent Level 4 is required!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                ddd = ddd if ddd and ddd.upper() != 'NA' else None
+                uom = uom if uom and uom.upper() != 'NA' else None
+                adm_r = adm_r if adm_r and adm_r.upper() != 'NA' else None
+                note = note if note and note.upper() != 'NA' else None
+                
+                existing = ATCLevel5.query.filter_by(code=code, adm_r=adm_r).first()
+                if existing:
+                    flash('ATC Level 5 code with this administration route already exists!', 'danger')
+                    return redirect(url_for('atc_manual_add'))
+                
+                new_entry = ATCLevel5(
+                    code=code, 
+                    name=name, 
+                    level4_id=level4_id,
+                    ddd=ddd,
+                    uom=uom,
+                    adm_r=adm_r,
+                    note=note
+                )
+                db.session.add(new_entry)
+                db.session.commit()
+                flash(f'ATC Level 5 code {code} added successfully!', 'success')
+            
+            return redirect(url_for('atc_upload'))
+        
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding ATC code: {str(e)}', 'danger')
+            return redirect(url_for('atc_manual_add'))
+    
+    level1_list = ATCLevel1.query.order_by(ATCLevel1.code).all()
+    level2_list = ATCLevel2.query.order_by(ATCLevel2.code).all()
+    level3_list = ATCLevel3.query.order_by(ATCLevel3.code).all()
+    level4_list = ATCLevel4.query.order_by(ATCLevel4.code).all()
+    
+    return render_template('atc_manual_add.html',
+                         level1_list=level1_list,
+                         level2_list=level2_list,
+                         level3_list=level3_list,
+                         level4_list=level4_list)
+
+@app.route('/atc_upload/match_drugs', methods=['POST'])
+@admin_required
+def match_drugs_route():
+    try:
+        match_drugs_to_atc()
+        flash('Drug matching completed successfully!', 'success')
+    except Exception as e:
+        flash(f'Error matching drugs: {str(e)}', 'danger')
+    
+    return redirect(url_for('atc_upload'))
+
+@app.route('/atc_upload/delete/<string:level>/<int:id>', methods=['POST'])
+@admin_required
+def delete_atc(level, id):
+    try:
+        if level == '1':
+            entry = ATCLevel1.query.get_or_404(id)
+        elif level == '2':
+            entry = ATCLevel2.query.get_or_404(id)
+        elif level == '3':
+            entry = ATCLevel3.query.get_or_404(id)
+        elif level == '4':
+            entry = ATCLevel4.query.get_or_404(id)
+        elif level == '5':
+            entry = ATCLevel5.query.get_or_404(id)
+        else:
+            flash('Invalid level!', 'danger')
+            return redirect(url_for('atc_upload'))
+        
+        code = entry.code
+        db.session.delete(entry)
+        db.session.commit()
+        flash(f'ATC code {code} deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting ATC code: {str(e)}', 'danger')
+    
+    return redirect(url_for('atc_upload'))
+
+@app.route('/api/atc/search')
+def atc_search():
+    query = request.args.get('q', '').lower()
+    if len(query) < 2:
+        return jsonify([])
+    
+    results = []
+    
+    level5_results = ATCLevel5.query.filter(
+        db.or_(
+            ATCLevel5.code.ilike(f'%{query}%'),
+            ATCLevel5.name.ilike(f'%{query}%')
+        )
+    ).limit(20).all()
+    
+    for item in level5_results:
+        results.append({
+            'code': item.code,
+            'name': item.name,
+            'level': 5,
+            'id': item.id
+        })
+    
+    return jsonify(results)
+
+
+
+
 # Yeni ilaç ekleme
 @app.route('/add', methods=['GET', 'POST'])
 def add_drug():
@@ -2131,6 +2704,7 @@ def sanitize_field(field_value):
         attributes={'a': ['href'], 'span': allow_style_attrs, 'p': allow_style_attrs},
         strip=True
     )
+
 @app.route('/details/add', methods=['GET', 'POST'])
 def add_detail():
     drugs = Drug.query.all()
@@ -2145,16 +2719,17 @@ def add_detail():
     units = Unit.query.all()
     safety_categories = SafetyCategory.query.all()
     categories = DrugCategory.query.order_by(DrugCategory.name).all()
+    atc_level5_list = ATCLevel5.query.order_by(ATCLevel5.code).all()  # NEW: Get all ATC codes
     units_json = [{'id': unit.id, 'name': unit.name} for unit in units]
-
+    
     if request.method == 'POST':
         logger.debug("Entering POST block")
         logger.debug(f"Form data: {request.form}")
-
         drug_id = request.form.get('drug_id')
         salt_id = request.form.get('salt_id')
         selected_category_ids = request.form.getlist('category_ids[]')
-
+        selected_atc_codes = request.form.getlist('atc_codes[]')  # NEW: Get selected ATC codes
+        
         # Validate drug_id
         if not drug_id or not drug_id.isdigit():
             logger.error("Invalid drug_id: must be an integer")
@@ -2163,9 +2738,9 @@ def add_detail():
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
                 units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                atc_level5_list=atc_level5_list,  # NEW
                 error_message="Drug ID is required and must be an integer!"
             )
-
         drug_id = int(drug_id)
         drug = Drug.query.get(drug_id)
         if not drug:
@@ -2175,9 +2750,10 @@ def add_detail():
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
                 units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                atc_level5_list=atc_level5_list,  # NEW
                 error_message="Drug not found!"
             )
-
+        
         # Validate and convert salt_id
         if salt_id == '' or salt_id is None:
             salt_id = None
@@ -2191,9 +2767,10 @@ def add_detail():
                     targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                     metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
                     units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                    atc_level5_list=atc_level5_list,  # NEW
                     error_message="Invalid salt_id. Must be an integer or empty."
                 )
-
+        
         # Validate category IDs
         valid_category_ids = []
         if selected_category_ids:
@@ -2207,7 +2784,21 @@ def add_detail():
                 except ValueError:
                     logger.warning(f"Invalid category ID format: {cat_id}")
         logger.debug(f"Valid category IDs: {valid_category_ids}")
-
+        
+        # NEW: Validate ATC codes
+        valid_atc_ids = []
+        if selected_atc_codes:
+            for atc_id in selected_atc_codes:
+                try:
+                    atc_id = int(atc_id)
+                    if ATCLevel5.query.get(atc_id):
+                        valid_atc_ids.append(atc_id)
+                    else:
+                        logger.warning(f"Invalid ATC ID: {atc_id}")
+                except ValueError:
+                    logger.warning(f"Invalid ATC ID format: {atc_id}")
+        logger.debug(f"Valid ATC IDs: {valid_atc_ids}")
+        
         # Check for existing detail
         existing_detail = DrugDetail.query.filter_by(drug_id=drug_id, salt_id=salt_id).first()
         if existing_detail:
@@ -2217,9 +2808,10 @@ def add_detail():
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
                 units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                atc_level5_list=atc_level5_list,  # NEW
                 error_message="Bu etken madde ve tuz kombinasyonu için zaten detaylı bilgi mevcut!"
             )
-
+        
         try:
             # Sanitize rich text fields
             def clean_text(field):
@@ -2237,14 +2829,14 @@ def add_detail():
                         tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'ul', 'ol', 'li', 'a'],
                         attributes={'span': ['style'], 'a': ['href']}
                     ) if field else None
-
+            
             mechanism_of_action = clean_text(request.form.get('mechanism_of_action'))
             references = clean_text(request.form.get('references'))
             synthesis = clean_text(request.form.get('synthesis'))
             pharmacodynamics = clean_text(request.form.get('pharmacodynamics'))
             pharmacokinetics = clean_text(request.form.get('pharmacokinetics'))
             black_box_details = clean_text(request.form.get('black_box_details')) if 'black_box_warning' in request.form else None
-
+            
             # Pregnancy safety for each trimester
             pregnancy_safety_trimester1_id = request.form.get('pregnancy_safety_trimester1_id', type=int)
             pregnancy_details_trimester1 = None
@@ -2252,44 +2844,46 @@ def add_detail():
                 pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester1_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
                     pregnancy_details_trimester1 = clean_text(request.form.get('pregnancy_details_trimester1'))
-
+            
             pregnancy_safety_trimester2_id = request.form.get('pregnancy_safety_trimester2_id', type=int)
             pregnancy_details_trimester2 = None
             if pregnancy_safety_trimester2_id:
                 pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester2_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
                     pregnancy_details_trimester2 = clean_text(request.form.get('pregnancy_details_trimester2'))
-
+            
             pregnancy_safety_trimester3_id = request.form.get('pregnancy_safety_trimester3_id', type=int)
             pregnancy_details_trimester3 = None
             if pregnancy_safety_trimester3_id:
                 pregnancy_safety = SafetyCategory.query.get(pregnancy_safety_trimester3_id)
                 if pregnancy_safety and pregnancy_safety.name in ['Caution', 'Contraindicated']:
                     pregnancy_details_trimester3 = clean_text(request.form.get('pregnancy_details_trimester3'))
-
+            
             lactation_safety_id = request.form.get('lactation_safety_id', type=int)
             lactation_details = None
             if lactation_safety_id:
                 lactation_safety = SafetyCategory.query.get(lactation_safety_id)
                 if lactation_safety and lactation_safety.name in ['Caution', 'Contraindicated']:
                     lactation_details = clean_text(request.form.get('lactation_details'))
-
+            
             smiles = request.form.get('smiles')
             logger.debug(f"SMILES received: {smiles}")
             logger.debug(f"drug_id={drug_id}, salt_id={salt_id} (type: {type(salt_id)})")
-
+            
             selected_routes = request.form.getlist('route_id[]')
             selected_side_effects = request.form.getlist('side_effects[]')
+            
             fda_approved = 'fda_approved' in request.form
             ema_approved = 'ema_approved' in request.form
             titck_approved = 'titck_approved' in request.form
+            
             molecular_formula = request.form.get('molecular_formula')
-
+            
             # Retrieve metabolism-related IDs from form
             metabolism_organs_ids = request.form.getlist('metabolism_organs[]')
             metabolism_enzymes_ids = request.form.getlist('metabolism_enzymes[]')
             metabolite_ids = request.form.getlist('metabolites[]')
-
+            
             # Validate metabolism-related IDs
             valid_metabolism_organs_ids = []
             valid_metabolism_enzymes_ids = []
@@ -2302,7 +2896,7 @@ def add_detail():
                         valid_metabolism_organs_ids.append(organ_id)
                 except ValueError:
                     logger.warning(f"Invalid metabolism organ ID: {organ_id}")
-
+            
             for enzyme_id in metabolism_enzymes_ids:
                 try:
                     enzyme_id = int(enzyme_id)
@@ -2310,7 +2904,7 @@ def add_detail():
                         valid_metabolism_enzymes_ids.append(enzyme_id)
                 except ValueError:
                     logger.warning(f"Invalid metabolism enzyme ID: {enzyme_id}")
-
+            
             for metabolite_id in metabolite_ids:
                 try:
                     metabolite_id = int(metabolite_id)
@@ -2318,11 +2912,11 @@ def add_detail():
                         valid_metabolite_ids.append(metabolite_id)
                 except ValueError:
                     logger.warning(f"Invalid metabolite ID: {metabolite_id}")
-
+            
             logger.debug(f"Valid metabolism organs IDs: {valid_metabolism_organs_ids}")
             logger.debug(f"Valid metabolism enzymes IDs: {valid_metabolism_enzymes_ids}")
             logger.debug(f"Valid metabolite IDs: {valid_metabolite_ids}")
-
+            
             # Handle uploaded structure file (priority)
             structure_filename = None
             structure = request.files.get('structure')
@@ -2352,7 +2946,7 @@ def add_detail():
                     logger.error(f"Error generating SVG: {str(e)}")
             else:
                 logger.warning("No structure file uploaded or SMILES provided")
-
+            
             # Generate 3D PDB
             structure_3d_filename = None
             if smiles:
@@ -2365,7 +2959,7 @@ def add_detail():
                     logger.info(f"3D structure saved as {structure_3d_filename}")
             else:
                 logger.debug("No SMILES provided, skipping 3D structure generation")
-
+            
             # DrugDetail fields with units
             molecular_weight = request.form.get('molecular_weight', type=float)
             molecular_weight_unit_id = request.form.get('molecular_weight_unit_id', type=int)
@@ -2384,7 +2978,7 @@ def add_detail():
             clearance_rate = request.form.get('clearance_rate', type=float)
             clearance_rate_unit_id = request.form.get('clearance_rate_unit_id', type=int)
             bioavailability = request.form.get('bioavailability', type=float)
-
+            
             # Remaining form fields
             iupac_name = request.form.get('iupac_name')
             inchikey = request.form.get('inchikey')
@@ -2397,9 +2991,10 @@ def add_detail():
             snomed_id = request.form.get('snomed_id')
             black_box_warning = 'black_box_warning' in request.form
             indications = ','.join(request.form.getlist('indications[]')) if request.form.getlist('indications[]') else None
+            
             selected_target_molecules = request.form.getlist('target_molecules[]')
             target_molecules = ','.join(selected_target_molecules) if selected_target_molecules else None
-
+            
             # Create new DrugDetail
             new_detail = DrugDetail(
                 drug_id=drug_id,
@@ -2457,7 +3052,7 @@ def add_detail():
             )
             db.session.add(new_detail)
             db.session.flush()  # Ensure new_detail.id is available
-
+            
             # Update drug categories
             if valid_category_ids:
                 drug.categories.clear()  # Clear existing categories
@@ -2466,15 +3061,33 @@ def add_detail():
                 logger.info(f"Updated categories for drug_id={drug_id}: {valid_category_ids}")
             else:
                 logger.debug(f"No categories selected for drug_id={drug_id}")
-
+            
+            # NEW: Add ATC code mappings
+            if valid_atc_ids:
+                for atc_id in valid_atc_ids:
+                    # Check if mapping already exists
+                    existing_mapping = DrugATCMapping.query.filter_by(
+                        drug_id=drug.id,
+                        atc_level5_id=atc_id
+                    ).first()
+                    
+                    if not existing_mapping:
+                        new_mapping = DrugATCMapping(
+                            drug_id=drug.id,
+                            atc_level5_id=atc_id
+                        )
+                        db.session.add(new_mapping)
+                logger.info(f"Added {len(valid_atc_ids)} ATC code mappings for drug_id={drug_id}")
+            
             # Process DrugRoute entries
             if not selected_routes:
                 logger.warning("No routes selected")
+            
             for route_id in selected_routes:
                 logger.debug(f"Processing route_id={route_id}")
                 pd = request.form.get(f'route_pharmacodynamics_{route_id}', '')
                 pk = request.form.get(f'route_pharmacokinetics_{route_id}', '')
-
+                
                 # PK parameters with units
                 absorption_rate = request.form.get(f'absorption_rate_{route_id}', '')
                 absorption_rate_unit_id = request.form.get(f'absorption_rate_unit_id_{route_id}', type=int)
@@ -2492,7 +3105,7 @@ def add_detail():
                 cmax_unit_id = request.form.get(f'cmax_unit_id_{route_id}', type=int)
                 therapeutic_range = request.form.get(f'therapeutic_range_{route_id}', '')
                 therapeutic_unit_id = request.form.get(f'therapeutic_unit_id_{route_id}', type=int)
-
+                
                 # Parse PK ranges
                 def parse_range(value):
                     if not value:
@@ -2511,7 +3124,7 @@ def add_detail():
                     except ValueError:
                         logger.error(f"Failed to parse single value '{value}'")
                         return None, None
-
+                
                 absorption_min, absorption_max = parse_range(absorption_rate)
                 vod_min, vod_max = parse_range(vod_rate)
                 protein_min, protein_max = parse_range(protein_binding)
@@ -2527,7 +3140,7 @@ def add_detail():
                 tmax_min, tmax_max = parse_range(tmax)
                 cmax_min, cmax_max = parse_range(cmax)
                 therapeutic_min, therapeutic_max = parse_range(therapeutic_range)
-
+                
                 logger.debug(f"Route ID {route_id} -> "
                              f"Absorption: {absorption_min}-{absorption_max}, Unit ID: {absorption_rate_unit_id}, "
                              f"VoD: {vod_min}-{vod_max}, Unit ID: {vod_rate_unit_id}, "
@@ -2542,11 +3155,11 @@ def add_detail():
                              f"Enzymes IDs: {valid_metabolism_enzymes_ids}, "
                              f"Metabolite IDs: {valid_metabolite_ids}, "
                              f"PD: {pd}, PK: {pk}")
-
+                
                 if not RouteOfAdministration.query.get(route_id):
                     logger.error(f"Invalid route_id {route_id}")
                     continue
-
+                
                 new_drug_route = DrugRoute(
                     drug_detail_id=new_detail.id,
                     route_id=route_id,
@@ -2580,18 +3193,20 @@ def add_detail():
                 )
                 db.session.add(new_drug_route)
                 db.session.flush()
-
+                
                 # Link metabolism data via relationships
                 if valid_metabolism_organs_ids:
                     organs = MetabolismOrgan.query.filter(MetabolismOrgan.id.in_([int(id) for id in valid_metabolism_organs_ids])).all()
                     new_drug_route.metabolism_organs.extend(organs)
+                
                 if valid_metabolism_enzymes_ids:
                     enzymes = MetabolismEnzyme.query.filter(MetabolismEnzyme.id.in_([int(id) for id in valid_metabolism_enzymes_ids])).all()
                     new_drug_route.metabolism_enzymes.extend(enzymes)
+                
                 if valid_metabolite_ids:
                     metabolites = Metabolite.query.filter(Metabolite.id.in_([int(id) for id in valid_metabolite_ids])).all()
                     new_drug_route.metabolites.extend(metabolites)
-
+                
                 # Route-specific indications
                 selected_route_indications = request.form.getlist(f'route_indications_{route_id}[]')
                 for indication_id in selected_route_indications:
@@ -2601,16 +3216,16 @@ def add_detail():
                         indication_id=indication_id
                     )
                     db.session.add(new_route_indication)
-
+            
             # Add side effects
             for side_effect_id in selected_side_effects:
                 side_effect = SideEffect.query.get(side_effect_id)
                 if side_effect:
                     new_detail.side_effects.append(side_effect)
-
+            
             db.session.commit()
             logger.info("All records saved successfully")
-
+            
             # Create a News entry for the new DrugDetail
             drug_name = drug.name_en if hasattr(drug, 'name_en') and drug.name_en else f"Drug ID {drug_id}"
             news = News(
@@ -2622,10 +3237,10 @@ def add_detail():
             db.session.add(news)
             db.session.commit()
             logger.info(f"News entry created for drug_id={drug_id}: {drug_name}")
+            
             flash('Drug details added and announced on the homepage!', 'success')
-
             return redirect(url_for('view_details'))
-
+        
         except Exception as e:
             db.session.rollback()
             logger.error(f"Exception occurred: {str(e)}")
@@ -2634,14 +3249,16 @@ def add_detail():
                 targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
                 metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
                 units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+                atc_level5_list=atc_level5_list,  # NEW
                 error_message=f"Error saving details: {str(e)}"
             )
-
+    
     return render_template(
         'add_detail.html', drugs=drugs, salts=salts, indications=indications,
         targets=targets, routes=routes, side_effects=side_effects, metabolites=metabolites,
         metabolism_organs=metabolism_organs, metabolism_enzymes=metabolism_enzymes,
-        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories
+        units=units, units_json=units_json, safety_categories=safety_categories, categories=categories,
+        atc_level5_list=atc_level5_list  # NEW
     )
 
 def generate_and_update_structures():
@@ -2700,7 +3317,6 @@ if __name__ == '__main__':
 def view_details():
     details = DrugDetail.query.all()
     enriched_details = []
-
     for detail in details:
         # Define paths
         svg_filename = f'sketcher_{detail.drug_id}_salt_{detail.salt_id or "none"}.svg'
@@ -2709,7 +3325,7 @@ def view_details():
         pdb_path = os.path.join('static', 'Uploads', '3d_structures', pdb_filename)
         db_svg_path = f'uploads/{svg_filename}'
         db_pdb_path = f'uploads/3d_structures/{pdb_filename}'
-
+        
         # Generate 2D SVG if missing
         if detail.smiles and (not detail.structure or not os.path.exists(svg_path)):
             try:
@@ -2721,7 +3337,7 @@ def view_details():
                     db.session.commit()
             except Exception as e:
                 print(f"Error generating SVG for drug_id={detail.drug_id}: {e}")
-
+        
         # Generate 3D PDB if missing
         if detail.smiles and (not detail.structure_3d or not os.path.exists(pdb_path)):
             try:
@@ -2731,7 +3347,7 @@ def view_details():
                     db.session.commit()
             except Exception as e:
                 print(f"Error generating PDB for drug_id={detail.drug_id}: {e}")
-
+        
         # Prepare routes and other data
         routes_info = []
         for route in detail.routes:
@@ -2762,13 +3378,13 @@ def view_details():
                 'therapeutic_range': f"{route.therapeutic_min or ''}-{route.therapeutic_max or ''}" if route.therapeutic_min or route.therapeutic_max else 'N/A',
                 'therapeutic_unit': Unit.query.get(route.therapeutic_unit_id).name if route.therapeutic_unit_id else 'N/A'
             })
-
+        
         indications_list = []
         if detail.indications:
             indication_ids = [int(ind_id) for ind_id in detail.indications.split(',') if ind_id.isdigit()]
             indications = Indication.query.filter(Indication.id.in_(indication_ids)).all()
             indications_list = [f"{ind.name_en} ({ind.name_tr})" if ind.name_tr else ind.name_en for ind in indications]
-
+        
         target_molecules_list = []
         if detail.target_molecules:
             target_ids = detail.target_molecules.split(',')
@@ -2777,24 +3393,44 @@ def view_details():
                 for target_id in target_ids
                 if db.session.get(Target, int(target_id))
             ]
-
+        
         side_effects_list = [
             {"id": se.id, "name_en": se.name_en, "name_tr": se.name_tr or 'N/A'}
             for se in detail.side_effects
         ]
-
+        
         # Fetch categories
         categories_list = [
             {"id": cat.id, "name": cat.name}
             for cat in detail.drug.categories
         ]
-
+        
+        # NEW: Fetch ATC codes for this drug
+        atc_codes_list = []
+        drug_atc_mappings = DrugATCMapping.query.filter_by(drug_id=detail.drug_id).all()
+        for mapping in drug_atc_mappings:
+            atc5 = mapping.atc_level5
+            atc4 = atc5.level4_parent
+            atc3 = atc4.level3_parent
+            atc2 = atc3.level2_parent
+            atc1 = atc2.level1_parent
+            
+            atc_codes_list.append({
+                'code': atc5.code,
+                'name': atc5.name,
+                'ddd': atc5.ddd or 'N/A',
+                'uom': atc5.uom or 'N/A',
+                'adm_r': atc5.adm_r or 'N/A',
+                'hierarchy': f"{atc1.code} > {atc2.code} > {atc3.code} > {atc4.code} > {atc5.code}",
+                'full_path': f"{atc1.name} / {atc2.name} / {atc3.name} / {atc4.name} / {atc5.name}"
+            })
+        
         # Fetch pregnancy (trimester-specific) and lactation safety info
         pregnancy_safety_t1 = detail.pregnancy_safety_trimester1.name if detail.pregnancy_safety_trimester1 else 'N/A'
         pregnancy_safety_t2 = detail.pregnancy_safety_trimester2.name if detail.pregnancy_safety_trimester2 else 'N/A'
         pregnancy_safety_t3 = detail.pregnancy_safety_trimester3.name if detail.pregnancy_safety_trimester3 else 'N/A'
         lactation_safety = detail.lactation_safety.name if detail.lactation_safety else 'N/A'
-
+        
         enriched_details.append({
             'id': detail.id,
             'drug_name': detail.drug.name_en,
@@ -2838,7 +3474,6 @@ def view_details():
             'black_box_details': detail.black_box_details,
             'mechanism_of_action': detail.mechanism_of_action,
             'references': detail.references,
-            # New fields for pregnancy and lactation
             'pregnancy_safety_trimester1': pregnancy_safety_t1,
             'pregnancy_details_trimester1': detail.pregnancy_details_trimester1 or 'N/A',
             'pregnancy_safety_trimester2': pregnancy_safety_t2,
@@ -2847,10 +3482,19 @@ def view_details():
             'pregnancy_details_trimester3': detail.pregnancy_details_trimester3 or 'N/A',
             'lactation_safety': lactation_safety,
             'lactation_details': detail.lactation_details or 'N/A',
-            'categories': categories_list
+            'categories': categories_list,
+            'atc_codes': atc_codes_list  # NEW: ATC codes
         })
-
+    
     return render_template('details_list.html', details=enriched_details)
+
+
+
+@app.route('/details', methods=['GET'])
+def manage_details():
+    details = DrugDetail.query.all()
+    return render_template('details_list.html', details=details)
+
 
 #ICD-11 Başlangıç
 # Helper Functions
@@ -3468,6 +4112,8 @@ def manage_targets():
     # targets_paginated değişkenini şablona gönder
     return render_template('targets.html', targets_paginated=targets_paginated)
 
+
+#SEARCH ROUTE
 @app.route('/search', methods=['GET', 'POST'])
 def search():
     # Check if user is logged in
@@ -3475,11 +4121,11 @@ def search():
     if not user_id:
         flash("Please log in to access the search page.", "danger")
         return redirect(url_for('login'))
-
+    
     # Fetch user from database
     user = User.query.get(user_id)
     user_email = user.email if user else None
-
+    
     query = request.form.get('query', '').strip()
     drugs = set()
     diseases = []
@@ -3487,72 +4133,153 @@ def search():
     target_molecules = []
     side_effects = []
     categories = []
-
+    atc_results = []
+    
     if query:
+        search_pattern = f'%{query}%'
+        
+        # Drugs - Search both English and Turkish names
         drugs.update(Drug.query.filter(
-            (Drug.name_en.ilike(f'%{query}%')) | (Drug.name_tr.ilike(f'%{query}%'))
-        ).all())
-
+            db.or_(
+                Drug.name_en.ilike(search_pattern),
+                Drug.name_tr.ilike(search_pattern)
+            )
+        ).limit(50).all())
+        
+        # Salts
         salts = Salt.query.filter(
-            (Salt.name_en.ilike(f'%{query}%')) | (Salt.name_tr.ilike(f'%{query}%'))
-        ).all()
-
+            db.or_(
+                Salt.name_en.ilike(search_pattern),
+                Salt.name_tr.ilike(search_pattern)
+            )
+        ).limit(50).all()
+        
+        # Indications/Diseases
         indications = Indication.query.filter(
-            (Indication.name_en.ilike(f'%{query}%')) | (Indication.name_tr.ilike(f'%{query}%'))
-        ).all()
-
+            db.or_(
+                Indication.name_en.ilike(search_pattern),
+                Indication.name_tr.ilike(search_pattern)
+            )
+        ).limit(50).all()
+        
         for indication in indications:
             related_details = DrugDetail.query.filter(
                 DrugDetail.indications.contains(str(indication.id))
-            ).all()
-            for detail in related_details:
-                drugs.add(detail.drug)
+            ).limit(20).all()
+            
+            related_drugs_list = [detail.drug for detail in related_details if detail.drug]
+            for drug in related_drugs_list:
+                drugs.add(drug)
+            
             diseases.append({
                 'indication': indication,
-                'related_drugs': [detail.drug for detail in related_details]
+                'related_drugs': related_drugs_list
             })
-
+        
+        # Target Molecules
         target_molecules = Target.query.filter(
-            Target.name_en.ilike(f'%{query}%')
-        ).all()
-
+            Target.name_en.ilike(search_pattern)
+        ).limit(50).all()
+        
         for target in target_molecules:
             related_details = DrugDetail.query.filter(
                 DrugDetail.target_molecules.contains(str(target.id))
-            ).all()
+            ).limit(20).all()
             for detail in related_details:
-                drugs.add(detail.drug)
-
+                if detail.drug:
+                    drugs.add(detail.drug)
+        
+        # Side Effects
         side_effects = SideEffect.query.filter(
-            (SideEffect.name_en.ilike(f'%{query}%')) | (SideEffect.name_tr.ilike(f'%{query}%'))
-        ).all()
-
+            db.or_(
+                SideEffect.name_en.ilike(search_pattern),
+                SideEffect.name_tr.ilike(search_pattern)
+            )
+        ).limit(50).all()
+        
         for side_effect in side_effects:
-            related_details = side_effect.details.all()
+            related_details = side_effect.details.limit(20).all()
             for detail in related_details:
-                drugs.add(detail.drug)
-
+                if detail.drug:
+                    drugs.add(detail.drug)
+        
+        # Categories
         matching_categories = DrugCategory.query.filter(
-            DrugCategory.name.ilike(f'%{query}%')
-        ).all()
-
+            DrugCategory.name.ilike(search_pattern)
+        ).limit(50).all()
+        
         for category in matching_categories:
-            related_drugs = Drug.query.filter(Drug.category_id == category.id).all()
+            related_drugs = category.drugs.limit(20).all()
+            
             categories.append({
                 'category': category,
                 'related_drugs': related_drugs
             })
             drugs.update(related_drugs)
-
+        
+        # ATC Search - All levels
+        atc1_results = ATCLevel1.query.filter(
+            db.or_(
+                ATCLevel1.code.ilike(search_pattern),
+                ATCLevel1.name.ilike(search_pattern)
+            )
+        ).limit(10).all()
+        
+        atc2_results = ATCLevel2.query.filter(
+            db.or_(
+                ATCLevel2.code.ilike(search_pattern),
+                ATCLevel2.name.ilike(search_pattern)
+            )
+        ).limit(10).all()
+        
+        atc3_results = ATCLevel3.query.filter(
+            db.or_(
+                ATCLevel3.code.ilike(search_pattern),
+                ATCLevel3.name.ilike(search_pattern)
+            )
+        ).limit(10).all()
+        
+        atc4_results = ATCLevel4.query.filter(
+            db.or_(
+                ATCLevel4.code.ilike(search_pattern),
+                ATCLevel4.name.ilike(search_pattern)
+            )
+        ).limit(10).all()
+        
+        atc5_results = ATCLevel5.query.filter(
+            db.or_(
+                ATCLevel5.code.ilike(search_pattern),
+                ATCLevel5.name.ilike(search_pattern)
+            )
+        ).limit(10).all()
+        
+        # Collect all ATC results
+        for atc in atc1_results:
+            atc_results.append({'level': 1, 'code': atc.code, 'name': atc.name, 'atc': atc})
+        for atc in atc2_results:
+            atc_results.append({'level': 2, 'code': atc.code, 'name': atc.name, 'atc': atc})
+        for atc in atc3_results:
+            atc_results.append({'level': 3, 'code': atc.code, 'name': atc.name, 'atc': atc})
+        for atc in atc4_results:
+            atc_results.append({'level': 4, 'code': atc.code, 'name': atc.name, 'atc': atc})
+        for atc in atc5_results:
+            related_drugs_via_atc = [mapping.drug for mapping in atc.drug_mappings if mapping.drug]
+            drugs.update(related_drugs_via_atc)
+            atc_results.append({'level': 5, 'code': atc.code, 'name': atc.name, 'atc': atc, 'related_drugs': related_drugs_via_atc})
+    
+    # Sort drugs alphabetically
+    drugs_list = sorted(list(drugs), key=lambda x: x.name_en or x.name_tr or '')
+    
     return render_template(
         'search.html',
         query=query,
-        drugs=list(drugs),
+        drugs=drugs_list,
         diseases=diseases,
         salts=salts,
         target_molecules=target_molecules,
         side_effects=side_effects,
         categories=categories,
+        atc_results=atc_results,
         user=user,
         user_email=user_email
     )
@@ -3563,7 +4290,6 @@ def search_suggestions():
     user_id = session.get('user_id')
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
-
     query = request.json.get('query', '').strip()
     suggestions = {
         'drugs': [],
@@ -3571,55 +4297,87 @@ def search_suggestions():
         'diseases': [],
         'target_molecules': [],
         'side_effects': [],
-        'categories': []
+        'categories': [],
+        'atc': []
     }
-
     if query:
         # Drugs
         drugs = Drug.query.filter(
             (Drug.name_en.ilike(f'%{query}%')) | (Drug.name_tr.ilike(f'%{query}%'))
         ).limit(5).all()
         suggestions['drugs'] = [{'id': d.id, 'name': d.name_en or d.name_tr} for d in drugs]
-
         # Salts
         salts = Salt.query.filter(
             (Salt.name_en.ilike(f'%{query}%')) | (Salt.name_tr.ilike(f'%{query}%'))
         ).limit(5).all()
         suggestions['salts'] = [{'id': s.id, 'name': s.name_en or s.name_tr} for s in salts]
-
         # Diseases (Indications)
         indications = Indication.query.filter(
             (Indication.name_en.ilike(f'%{query}%')) | (Indication.name_tr.ilike(f'%{query}%'))
         ).limit(5).all()
         suggestions['diseases'] = [{'indication': {'id': i.id, 'name_en': i.name_en or i.name_tr}} for i in indications]
-
         # Target Molecules
         targets = Target.query.filter(
             Target.name_en.ilike(f'%{query}%')
         ).limit(5).all()
         suggestions['target_molecules'] = [{'id': t.id, 'name': t.name_en} for t in targets]
-
         # Side Effects
         side_effects = SideEffect.query.filter(
             (SideEffect.name_en.ilike(f'%{query}%')) | (SideEffect.name_tr.ilike(f'%{query}%'))
         ).limit(5).all()
         suggestions['side_effects'] = [{'id': s.id, 'name': s.name_en or s.name_tr} for s in side_effects]
-
         # Categories
         categories = DrugCategory.query.filter(
             DrugCategory.name.ilike(f'%{query}%')
         ).limit(5).all()
         suggestions['categories'] = [{'category': {'id': c.id, 'name': c.name}} for c in categories]
-
+        
+        # ATC Codes - All levels
+        atc_suggestions = []
+        
+        atc5 = ATCLevel5.query.filter(
+            db.or_(
+                ATCLevel5.code.ilike(f'%{query}%'),
+                ATCLevel5.name.ilike(f'%{query}%')
+            )
+        ).limit(3).all()
+        atc_suggestions.extend([{'id': a.id, 'code': a.code, 'name': a.name, 'level': 5} for a in atc5])
+        
+        atc4 = ATCLevel4.query.filter(
+            db.or_(
+                ATCLevel4.code.ilike(f'%{query}%'),
+                ATCLevel4.name.ilike(f'%{query}%')
+            )
+        ).limit(2).all()
+        atc_suggestions.extend([{'id': a.id, 'code': a.code, 'name': a.name, 'level': 4} for a in atc4])
+        
+        atc3 = ATCLevel3.query.filter(
+            db.or_(
+                ATCLevel3.code.ilike(f'%{query}%'),
+                ATCLevel3.name.ilike(f'%{query}%')
+            )
+        ).limit(2).all()
+        atc_suggestions.extend([{'id': a.id, 'code': a.code, 'name': a.name, 'level': 3} for a in atc3])
+        
+        atc2 = ATCLevel2.query.filter(
+            db.or_(
+                ATCLevel2.code.ilike(f'%{query}%'),
+                ATCLevel2.name.ilike(f'%{query}%')
+            )
+        ).limit(1).all()
+        atc_suggestions.extend([{'id': a.id, 'code': a.code, 'name': a.name, 'level': 2} for a in atc2])
+        
+        atc1 = ATCLevel1.query.filter(
+            db.or_(
+                ATCLevel1.code.ilike(f'%{query}%'),
+                ATCLevel1.name.ilike(f'%{query}%')
+            )
+        ).limit(1).all()
+        atc_suggestions.extend([{'id': a.id, 'code': a.code, 'name': a.name, 'level': 1} for a in atc1])
+        
+        suggestions['atc'] = atc_suggestions
     return jsonify(suggestions)
 
-
-
-
-@app.route('/details', methods=['GET'])
-def manage_details():
-    details = DrugDetail.query.all()
-    return render_template('details_list.html', details=details)
 
 
 
@@ -3754,6 +4512,33 @@ def delete_drug(drug_id):
 def drug_detail(drug_id):
     drug = Drug.query.get_or_404(drug_id)
     
+    # NEW: Fetch ATC codes for this drug
+    atc_codes_list = []
+    drug_atc_mappings = DrugATCMapping.query.filter_by(drug_id=drug_id).all()
+    for mapping in drug_atc_mappings:
+        atc5 = mapping.atc_level5
+        atc4 = atc5.level4_parent
+        atc3 = atc4.level3_parent
+        atc2 = atc3.level2_parent
+        atc1 = atc2.level1_parent
+        
+        atc_codes_list.append({
+            'code': atc5.code,
+            'name': atc5.name,
+            'ddd': atc5.ddd or 'N/A',
+            'uom': atc5.uom or 'N/A',
+            'adm_r': atc5.adm_r or 'N/A',
+            'note': atc5.note or 'N/A',
+            'hierarchy': f"{atc1.code} > {atc2.code} > {atc3.code} > {atc4.code} > {atc5.code}",
+            'hierarchy_names': {
+                'level1': {'code': atc1.code, 'name': atc1.name},
+                'level2': {'code': atc2.code, 'name': atc2.name},
+                'level3': {'code': atc3.code, 'name': atc3.name},
+                'level4': {'code': atc4.code, 'name': atc4.name},
+                'level5': {'code': atc5.code, 'name': atc5.name}
+            }
+        })
+        
     # Fetch salts
     salts = drug.salts.all()
     
@@ -4008,7 +4793,8 @@ def drug_detail(drug_id):
         'drug_detail.html',
         drug=drug_info,
         salts=salts,
-        details=enriched_details
+        details=enriched_details,
+        atc_codes=atc_codes_list
     )
 
 import qrcode

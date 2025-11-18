@@ -1,494 +1,421 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receptor-Ligand Interaction Simulator</title>
-    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+{% extends "base.html" %}
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #1f2937;
-            min-height: 100vh;
-            padding: 1rem;
-        }
+{% block title %}Receptor-Ligand Interaction Simulator - Drugly{% endblock %}
 
-        .container {
-            width: 100%;
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 1rem;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-            color: white;
-            padding: 2.5rem 2rem;
-            text-align: center;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .header p {
-            font-size: 1.125rem;
-            opacity: 0.95;
-        }
-
-        .content-wrapper {
-            padding: 2rem;
-        }
-
-        .form-section {
-            background: #f9fafb;
-            padding: 2rem;
-            border-radius: 0.75rem;
-            margin-bottom: 2rem;
-            border: 2px solid #e5e7eb;
-        }
-
+{% block extra_css %}
+<script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #1f2937;
+        min-height: 100vh;
+        padding: 1rem;
+    }
+    .container {
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+    }
+    .header {
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+    }
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .header p {
+        font-size: 1.125rem;
+        opacity: 0.95;
+    }
+    .content-wrapper {
+        padding: 2rem;
+    }
+    .form-section {
+        background: #f9fafb;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 2rem;
+        border: 2px solid #e5e7eb;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    @media (max-width: 768px) {
         .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
+            grid-template-columns: 1fr;
         }
+    }
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .form-group label {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #374151;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .form-group label i {
+        color: #3b82f6;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.875rem;
+        border: 2px solid #d1d5db;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        transition: all 0.3s;
+        background: white;
+    }
+    .form-control:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+    .form-text {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-top: 0.375rem;
+    }
+    .btn {
+        padding: 0.875rem 2rem;
+        border: none;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.3s;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+    }
+    .btn-primary:active:not(:disabled) {
+        transform: translateY(0);
+    }
+    .btn-primary:disabled {
+        background: #93c5fd;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+    }
+    .btn-secondary:hover:not(:disabled) {
+        background: #4b5563;
+        transform: translateY(-1px);
+    }
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+    .btn-success:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    .btn-center {
+        display: flex;
+        justify-content: center;
+    }
+    .visualization-section {
+        margin-bottom: 2rem;
+    }
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 3px solid #e5e7eb;
+    }
+    .section-header h3 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e40af;
+    }
+    .section-header i {
+        font-size: 1.5rem;
+        color: #3b82f6;
+    }
+    .visualization-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 0.5rem;
+    }
+    .control-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: white;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+    }
+    .control-group input[type="checkbox"] {
+        width: 1.25rem;
+        height: 1.25rem;
+        cursor: pointer;
+    }
+    .control-group label {
+        cursor: pointer;
+        font-weight: 500;
+        color: #374151;
+        user-select: none;
+    }
+    #viewer {
+        width: 100%;
+        height: 600px;
+        border: 3px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        position: relative;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    }
+    .data-table-section {
+        margin-bottom: 2rem;
+    }
+    .table-wrapper {
+        overflow-x: auto;
+        border-radius: 0.75rem;
+        border: 2px solid #e5e7eb;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    table#interaction-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+    }
+    table#interaction-table th {
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        color: white;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+    }
+    table#interaction-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    table#interaction-table tbody tr {
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+    table#interaction-table tbody tr:hover {
+        background: #eff6ff;
+        transform: scale(1.01);
+    }
+    table#interaction-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .error-message {
+        display: none;
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        color: #b91c1c;
+        padding: 1rem 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc2626;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+    .error-message i {
+        font-size: 1.25rem;
+    }
+    .success-message {
+        display: none;
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        color: #065f46;
+        padding: 1rem 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #10b981;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+    .success-message i {
+        font-size: 1.25rem;
+    }
+    #loading {
+        display: none;
+        text-align: center;
+        padding: 2rem;
+        background: #eff6ff;
+        border-radius: 0.75rem;
+        margin: 1.5rem 0;
+    }
+    #loading p {
+        font-size: 1.125rem;
+        color: #1e40af;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        font-weight: 600;
+    }
+    .spinner {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        background: #f9fafb;
+        color: #6b7280;
+        border-top: 2px solid #e5e7eb;
+    }
+    .footer a {
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s;
+    }
+    .footer a:hover {
+        color: #2563eb;
+        text-decoration: underline;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border: 2px solid #bfdbfe;
+        text-align: center;
+    }
+    .stat-card h4 {
+        font-size: 0.875rem;
+        color: #1e40af;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+    .stat-card p {
+        font-size: 1.5rem;
+        color: #1f2937;
+        font-weight: 700;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6b7280;
+    }
+    .empty-state i {
+        font-size: 4rem;
+        color: #d1d5db;
+        margin-bottom: 1rem;
+    }
+    .empty-state h4 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+    .badge-primary {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    .badge-success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    .badge-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .select2-container--default .select2-selection--single {
+        height: 46px !important;
+        border: 2px solid #d1d5db !important;
+        border-radius: 0.5rem !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 42px !important;
+        padding-left: 1rem !important;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 42px !important;
+    }
+    .select2-container--default.select2-container--focus .select2-selection--single {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+    }
+</style>
+{% endblock %}
 
-        @media (max-width: 768px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #374151;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .form-group label i {
-            color: #3b82f6;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 0.875rem;
-            border: 2px solid #d1d5db;
-            border-radius: 0.5rem;
-            font-size: 1rem;
-            transition: all 0.3s;
-            background: white;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-        }
-
-        .form-text {
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin-top: 0.375rem;
-        }
-
-        .btn {
-            padding: 0.875rem 2rem;
-            border: none;
-            border-radius: 0.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
-        }
-
-        .btn-primary:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        .btn-primary:disabled {
-            background: #93c5fd;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-
-        .btn-secondary:hover:not(:disabled) {
-            background: #4b5563;
-            transform: translateY(-1px);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-        }
-
-        .btn-success:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-        }
-
-        .btn-center {
-            display: flex;
-            justify-content: center;
-        }
-
-        .visualization-section {
-            margin-bottom: 2rem;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 0.75rem;
-            border-bottom: 3px solid #e5e7eb;
-        }
-
-        .section-header h3 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #1e40af;
-        }
-
-        .section-header i {
-            font-size: 1.5rem;
-            color: #3b82f6;
-        }
-
-        .visualization-controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            justify-content: center;
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background: #f9fafb;
-            border-radius: 0.5rem;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background: white;
-            border-radius: 0.5rem;
-            border: 1px solid #e5e7eb;
-        }
-
-        .control-group input[type="checkbox"] {
-            width: 1.25rem;
-            height: 1.25rem;
-            cursor: pointer;
-        }
-
-        .control-group label {
-            cursor: pointer;
-            font-weight: 500;
-            color: #374151;
-            user-select: none;
-        }
-
-        #viewer {
-            width: 100%;
-            height: 600px;
-            border: 3px solid #e5e7eb;
-            border-radius: 0.75rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-            position: relative;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-        }
-
-        .data-table-section {
-            margin-bottom: 2rem;
-        }
-
-        .table-wrapper {
-            overflow-x: auto;
-            border-radius: 0.75rem;
-            border: 2px solid #e5e7eb;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        table#interaction-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-
-        table#interaction-table th {
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-            color: white;
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.875rem;
-            letter-spacing: 0.5px;
-        }
-
-        table#interaction-table td {
-            padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        table#interaction-table tbody tr {
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        table#interaction-table tbody tr:hover {
-            background: #eff6ff;
-            transform: scale(1.01);
-        }
-
-        table#interaction-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .error-message {
-            display: none;
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #b91c1c;
-            padding: 1rem 1.5rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid #dc2626;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-weight: 500;
-        }
-
-        .error-message i {
-            font-size: 1.25rem;
-        }
-
-        .success-message {
-            display: none;
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            color: #065f46;
-            padding: 1rem 1.5rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid #10b981;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-weight: 500;
-        }
-
-        .success-message i {
-            font-size: 1.25rem;
-        }
-
-        #loading {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-            background: #eff6ff;
-            border-radius: 0.75rem;
-            margin: 1.5rem 0;
-        }
-
-        #loading p {
-            font-size: 1.125rem;
-            color: #1e40af;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            font-weight: 600;
-        }
-
-        .spinner {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .footer {
-            text-align: center;
-            padding: 2rem;
-            background: #f9fafb;
-            color: #6b7280;
-            border-top: 2px solid #e5e7eb;
-        }
-
-        .footer a {
-            color: #3b82f6;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.3s;
-        }
-
-        .footer a:hover {
-            color: #2563eb;
-            text-decoration: underline;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            border: 2px solid #bfdbfe;
-            text-align: center;
-        }
-
-        .stat-card h4 {
-            font-size: 0.875rem;
-            color: #1e40af;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card p {
-            font-size: 1.5rem;
-            color: #1f2937;
-            font-weight: 700;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 3rem 1rem;
-            color: #6b7280;
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            color: #d1d5db;
-            margin-bottom: 1rem;
-        }
-
-        .empty-state h4 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
-        .badge-primary {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .badge-success {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .select2-container--default .select2-selection--single {
-            height: 46px !important;
-            border: 2px solid #d1d5db !important;
-            border-radius: 0.5rem !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 42px !important;
-            padding-left: 1rem !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 42px !important;
-        }
-
-        .select2-container--default.select2-container--focus .select2-selection--single {
-            border-color: #3b82f6 !important;
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
-        }
-    </style>
-</head>
+{% block content %}
 <body>
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-atom"></i> Receptor-Ligand Interaction Simulator</h1>
             <p>Explore and visualize human receptor-ligand interactions with advanced 3D molecular visualization</p>
         </div>
-
         <div class="content-wrapper">
             <div id="error-message" class="error-message">
                 <i class="fas fa-exclamation-circle"></i>
                 <span></span>
             </div>
-
             <div id="success-message" class="success-message">
                 <i class="fas fa-check-circle"></i>
                 <span></span>
             </div>
-
             <div class="form-section">
                 <div class="form-grid">
                     <div class="form-group">
@@ -500,7 +427,6 @@
                         </select>
                         <small class="form-text">Search by drug name (e.g., Amlodipine, Benidipine)</small>
                     </div>
-
                     <div class="form-group">
                         <label for="receptor">
                             <i class="fas fa-dna"></i> Receptor
@@ -511,18 +437,15 @@
                         <small class="form-text">Search by receptor name (e.g., Calcium channel)</small>
                     </div>
                 </div>
-
                 <div class="btn-center">
                     <button id="simulate-btn" class="btn btn-primary">
                         <i class="fas fa-play"></i> Simulate Interaction
                     </button>
                 </div>
             </div>
-
             <div id="loading">
                 <p><i class="fas fa-spinner spinner"></i> Processing molecular data...</p>
             </div>
-
             <div id="stats-section" class="stats-grid" style="display: none;">
                 <div class="stat-card">
                     <h4>Affinity</h4>
@@ -541,13 +464,11 @@
                     <p id="stat-mechanism">-</p>
                 </div>
             </div>
-
             <div class="visualization-section">
                 <div class="section-header">
                     <i class="fas fa-cube"></i>
                     <h3>3D Molecular Visualization</h3>
                 </div>
-
                 <div class="visualization-controls">
                     <div class="control-group">
                         <input type="checkbox" id="toggle-surface" checked />
@@ -580,16 +501,13 @@
                         <i class="fas fa-download"></i> Export PNG
                     </button>
                 </div>
-
                 <div id="viewer"></div>
             </div>
-
             <div class="data-table-section">
                 <div class="section-header">
                     <i class="fas fa-table"></i>
                     <h3>Interaction Details</h3>
                 </div>
-
                 <div class="table-wrapper">
                     <table id="interaction-table">
                         <thead>
@@ -615,210 +533,160 @@
                 </div>
             </div>
         </div>
-
         <div class="footer">
             <p><i class="fas fa-info-circle"></i> All data shown is for human (Homo sapiens) receptors only | Need help? <a href="/contact">Contact support</a></p>
         </div>
     </div>
+</body>
+{% endblock %}
 
-    <script>
-        let viewer;
-        let receptorModel;
-        let ligandModel;
-        let bindingSiteSphere;
-        let currentView;
-
-        function computeModelCenter(glModel) {
-            const atoms = glModel.selectedAtoms({});
-            if (atoms.length === 0) return { x: 0, y: 0, z: 0 };
-            let cx = 0, cy = 0, cz = 0;
-            for (const atom of atoms) {
-                cx += atom.x;
-                cy += atom.y;
-                cz += atom.z;
-            }
-            return { x: cx / atoms.length, y: cy / atoms.length, z: cz / atoms.length };
+{% block extra_js %}
+<script>
+    let viewer;
+    let receptorModel;
+    let ligandModel;
+    let bindingSiteSphere;
+    let currentView;
+    function computeModelCenter(glModel) {
+        const atoms = glModel.selectedAtoms({});
+        if (atoms.length === 0) return { x: 0, y: 0, z: 0 };
+        let cx = 0, cy = 0, cz = 0;
+        for (const atom of atoms) {
+            cx += atom.x;
+            cy += atom.y;
+            cz += atom.z;
         }
-
-        function translateModel(glModel, dx, dy, dz) {
-            const atoms = glModel.selectedAtoms({});
-            atoms.forEach(atom => {
-                atom.x += dx;
-                atom.y += dy;
-                atom.z += dz;
-            });
+        return { x: cx / atoms.length, y: cy / atoms.length, z: cz / atoms.length };
+    }
+    function translateModel(glModel, dx, dy, dz) {
+        const atoms = glModel.selectedAtoms({});
+        atoms.forEach(atom => {
+            atom.x += dx;
+            atom.y += dy;
+            atom.z += dz;
+        });
+    }
+    function showError(message) {
+        $('#error-message').find('span').text(message);
+        $('#error-message').fadeIn();
+        setTimeout(() => $('#error-message').fadeOut(), 6000);
+    }
+    function showSuccess(message) {
+        $('#success-message').find('span').text(message);
+        $('#success-message').fadeIn();
+        setTimeout(() => $('#success-message').fadeOut(), 4000);
+    }
+    function updateStats(data) {
+        $('#stat-affinity').text(data.affinity || 'N/A');
+        $('#stat-parameter').text(data.affinity_parameter || 'N/A');
+        $('#stat-type').text(data.interaction_type || 'N/A');
+        $('#stat-mechanism').text(data.mechanism || 'N/A');
+        $('#stats-section').fadeIn();
+    }
+    function initViewer() {
+        if (!viewer) {
+            viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
         }
-
-        function showError(message) {
-            $('#error-message').find('span').text(message);
-            $('#error-message').fadeIn();
-            setTimeout(() => $('#error-message').fadeOut(), 6000);
-        }
-
-        function showSuccess(message) {
-            $('#success-message').find('span').text(message);
-            $('#success-message').fadeIn();
-            setTimeout(() => $('#success-message').fadeOut(), 4000);
-        }
-
-        function updateStats(data) {
-            $('#stat-affinity').text(data.affinity || 'N/A');
-            $('#stat-parameter').text(data.affinity_parameter || 'N/A');
-            $('#stat-type').text(data.interaction_type || 'N/A');
-            $('#stat-mechanism').text(data.mechanism || 'N/A');
-            $('#stats-section').fadeIn();
-        }
-
-        function initViewer() {
-            if (!viewer) {
-                viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
-            }
-        }
-
-        $(document).ready(function () {
-            initViewer();
-
-            $('#ligand').select2({
-                placeholder: "Search for active ingredients...",
-                ajax: {
-                    url: '/api/active_ingredients',
-                    dataType: 'json',
-                    delay: 250,
-                    data: params => ({
-                        q: params.term,
-                        page: params.page || 1
-                    }),
-                    processResults: data => ({
-                        results: data.results.map(item => ({ id: item.id, text: item.text })),
-                        pagination: { more: data.has_next }
-                    }),
-                    cache: true
-                },
-                minimumInputLength: 2
-            });
-
-            $('#receptor').select2({
-                placeholder: "Search for receptors...",
-                ajax: {
-                    url: '/api/receptors',
-                    dataType: 'json',
-                    delay: 250,
-                    data: params => ({
-                        search: params.term,
-                        page: params.page || 1
-                    }),
-                    processResults: data => ({
-                        results: data.results.map(item => ({ id: item.id, text: item.text })),
-                        pagination: { more: data.has_next }
-                    }),
-                    cache: true
-                },
-                minimumInputLength: 2
-            });
-
-            $('#simulate-btn').on('click', async (e) => {
-                e.preventDefault();
-                $('#error-message').hide();
-                $('#success-message').hide();
-                $('#loading').show();
-                $('#simulate-btn').html('<i class="fas fa-spinner spinner"></i> Processing...').prop('disabled', true);
-
-                try {
-                    const drugId = $('#ligand').val();
-                    const receptorId = $('#receptor').val();
-
-                    if (!drugId || !receptorId) {
-                        showError("Please select both a ligand and a receptor.");
-                        return;
+    }
+    $(document).ready(function () {
+        initViewer();
+        $('#ligand').select2({
+            placeholder: "Search for active ingredients...",
+            ajax: {
+                url: '/api/active_ingredients',
+                dataType: 'json',
+                delay: 250,
+                data: params => ({
+                    q: params.term,
+                    page: params.page || 1
+                }),
+                processResults: data => ({
+                    results: data.results.map(item => ({ id: item.id, text: item.text })),
+                    pagination: { more: data.has_next }
+                }),
+                cache: true
+            },
+            minimumInputLength: 2
+        });
+        $('#receptor').select2({
+            placeholder: "Search for receptors...",
+            ajax: {
+                url: '/api/receptors',
+                dataType: 'json',
+                delay: 250,
+                data: params => ({
+                    search: params.term,
+                    page: params.page || 1
+                }),
+                processResults: data => ({
+                    results: data.results.map(item => ({ id: item.id, text: item.text })),
+                    pagination: { more: data.has_next }
+                }),
+                cache: true
+            },
+            minimumInputLength: 2
+        });
+        $('#simulate-btn').on('click', async (e) => {
+            e.preventDefault();
+            $('#error-message').hide();
+            $('#success-message').hide();
+            $('#loading').show();
+            $('#simulate-btn').html('<i class="fas fa-spinner spinner"></i> Processing...').prop('disabled', true);
+            try {
+                const drugId = $('#ligand').val();
+                const receptorId = $('#receptor').val();
+                if (!drugId || !receptorId) {
+                    showError("Please select both a ligand and a receptor.");
+                    return;
+                }
+                const [receptorResponse, ligandResponse, interactionResponse] = await Promise.all([
+                    fetch(`/api/get_receptor_structure?receptor_id=${receptorId}`),
+                    fetch(`/api/convert_ligand?drug_id=${drugId}`),
+                    fetch(`/api/get_interaction_data?drug_id=${drugId}&receptor_id=${receptorId}`)
+                ]);
+                const receptorResult = await receptorResponse.json();
+                if (!ligandResponse.ok) {
+                    const errorData = await ligandResponse.json();
+                    showError(errorData.error || "Failed to fetch ligand data. Try another ligand.");
+                    return;
+                }
+                const ligandResult = await ligandResponse.json();
+                if (!interactionResponse.ok) {
+                    const errorData = await interactionResponse.json();
+                    showError(errorData.error || "No interaction data found for this combination.");
+                    return;
+                }
+                const interactionData = await interactionResponse.json();
+                viewer.removeAllModels();
+                viewer.removeAllShapes();
+                viewer.clear();
+                if (receptorResult.pdb) {
+                    let receptorModelIndex = viewer.addModel(receptorResult.pdb, "pdb");
+                    receptorModel = viewer.getModel(receptorModelIndex);
+                    
+                    updateReceptorStyle();
+                    if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
+                        const site = receptorResult.binding_site;
+                        bindingSiteSphere = viewer.addSphere({
+                            center: { x: site.x, y: site.y, z: site.z },
+                            radius: 3.0,
+                            color: 'yellow',
+                            opacity: 0.5
+                        });
                     }
-
-                    const [receptorResponse, ligandResponse, interactionResponse] = await Promise.all([
-                        fetch(`/api/get_receptor_structure?receptor_id=${receptorId}`),
-                        fetch(`/api/convert_ligand?drug_id=${drugId}`),
-                        fetch(`/api/get_interaction_data?drug_id=${drugId}&receptor_id=${receptorId}`)
-                    ]);
-
-                    const receptorResult = await receptorResponse.json();
-
-                    if (!ligandResponse.ok) {
-                        const errorData = await ligandResponse.json();
-                        showError(errorData.error || "Failed to fetch ligand data. Try another ligand.");
-                        return;
-                    }
-
-                    const ligandResult = await ligandResponse.json();
-
-                    if (!interactionResponse.ok) {
-                        const errorData = await interactionResponse.json();
-                        showError(errorData.error || "No interaction data found for this combination.");
-                        return;
-                    }
-
-                    const interactionData = await interactionResponse.json();
-
-                    viewer.removeAllModels();
-                    viewer.removeAllShapes();
-                    viewer.clear();
-
-                    if (receptorResult.pdb) {
-                        let receptorModelIndex = viewer.addModel(receptorResult.pdb, "pdb");
-                        receptorModel = viewer.getModel(receptorModelIndex);
-                        
-                        updateReceptorStyle();
-
-                        if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
-                            const site = receptorResult.binding_site;
-                            bindingSiteSphere = viewer.addSphere({
-                                center: { x: site.x, y: site.y, z: site.z },
-                                radius: 3.0,
-                                color: 'yellow',
-                                opacity: 0.5
-                            });
-                        }
-                    }
-
-                    if (interactionData.pdb_file) {
-                        const dockedResponse = await fetch(interactionData.pdb_file);
-                        if (dockedResponse.ok) {
-                            const dockedPdb = await dockedResponse.text();
-                            let dockedModelIndex = viewer.addModel(dockedPdb, "pdb");
-                            ligandModel = viewer.getModel(dockedModelIndex);
-                            viewer.setStyle({ model: dockedModelIndex }, {
-                                stick: { colorscheme: "greenCarbon", radius: 0.3 }
-                            });
-                            const center = computeModelCenter(ligandModel);
-                            viewer.addLabel("Docked Ligand", {
-                                position: { x: center.x + 2, y: center.y + 2, z: center.z + 2 },
-                                fontSize: 14,
-                                fontColor: "red",
-                                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                                borderColor: "red",
-                                borderThickness: 2
-                            });
-                        }
-                    } else if (ligandResult.pdb) {
-                        let ligandModelIndex = viewer.addModel(ligandResult.pdb, "pdb");
-                        ligandModel = viewer.getModel(ligandModelIndex);
-                        viewer.setStyle({ model: ligandModelIndex }, {
+                }
+                if (interactionData.pdb_file) {
+                    const dockedResponse = await fetch(interactionData.pdb_file);
+                    if (dockedResponse.ok) {
+                        const dockedPdb = await dockedResponse.text();
+                        let dockedModelIndex = viewer.addModel(dockedPdb, "pdb");
+                        ligandModel = viewer.getModel(dockedModelIndex);
+                        viewer.setStyle({ model: dockedModelIndex }, {
                             stick: { colorscheme: "greenCarbon", radius: 0.3 }
                         });
-
-                        let labelText = "Binding Site";
-                        let position;
-
-                        if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
-                            const site = receptorResult.binding_site;
-                            translateModel(ligandModel, site.x, site.y, site.z);
-                            position = { x: site.x + 2, y: site.y + 2, z: site.z + 2 };
-                        } else {
-                            const receptorCenter = computeModelCenter(receptorModel);
-                            translateModel(ligandModel, receptorCenter.x + 10, receptorCenter.y + 10, receptorCenter.z + 10);
-                            position = computeModelCenter(ligandModel);
-                            labelText = "Approx. Position";
-                        }
-
-                        viewer.addLabel(labelText, {
-                            position: position,
+                        const center = computeModelCenter(ligandModel);
+                        viewer.addLabel("Docked Ligand", {
+                            position: { x: center.x + 2, y: center.y + 2, z: center.z + 2 },
                             fontSize: 14,
                             fontColor: "red",
                             backgroundColor: "rgba(255, 255, 255, 0.9)",
@@ -826,119 +694,130 @@
                             borderThickness: 2
                         });
                     }
-
-                    viewer.zoomTo();
-                    currentView = viewer.getView();
-                    viewer.render();
-
-                    updateStats(interactionData);
-
-                    const tableBody = $('#interaction-table tbody');
-                    tableBody.empty();
-                    const row = `
-                        <tr data-drug-id="${drugId}" data-receptor-id="${receptorId}">
-                            <td>${interactionData.ligand}</td>
-                            <td>${interactionData.receptor}</td>
-                            <td><span class="badge badge-primary">${interactionData.affinity || "N/A"}</span></td>
-                            <td>${interactionData.affinity_parameter || "N/A"}</td>
-                            <td><span class="badge badge-success">${interactionData.interaction_type || "N/A"}</span></td>
-                            <td>${interactionData.mechanism || "N/A"}</td>
-                        </tr>
-                    `;
-                    tableBody.append(row);
-
-                    showSuccess("Interaction successfully visualized!");
-
-                } catch (error) {
-                    console.error("ERROR:", error);
-                    showError("An unexpected error occurred. Please try again.");
-                } finally {
-                    $('#loading').hide();
-                    $('#simulate-btn').html('<i class="fas fa-play"></i> Simulate Interaction').prop('disabled', false);
-                }
-            });
-
-            function updateReceptorStyle() {
-                if (!receptorModel) return;
-                const receptorModelIndex = receptorModel.id;
-                const showSurface = $('#toggle-surface').is(':checked');
-                const showCartoon = $('#toggle-cartoon').is(':checked');
-
-                let style = {};
-                if (showCartoon) {
-                    style.cartoon = { color: "blue" };
-                }
-                if (showSurface) {
-                    style.surface = { opacity: 0.7, color: "lightblue" };
-                }
-
-                viewer.setStyle({ model: receptorModelIndex }, style);
-                viewer.render();
-            }
-
-            $('#toggle-surface').on('change', updateReceptorStyle);
-            $('#toggle-cartoon').on('change', updateReceptorStyle);
-
-            $('#toggle-ligand').on('change', function() {
-                if (!ligandModel) return;
-                const ligandModelIndex = ligandModel.id;
-                if ($(this).is(':checked')) {
+                } else if (ligandResult.pdb) {
+                    let ligandModelIndex = viewer.addModel(ligandResult.pdb, "pdb");
+                    ligandModel = viewer.getModel(ligandModelIndex);
                     viewer.setStyle({ model: ligandModelIndex }, {
                         stick: { colorscheme: "greenCarbon", radius: 0.3 }
                     });
-                } else {
-                    viewer.setStyle({ model: ligandModelIndex }, {});
+                    let labelText = "Binding Site";
+                    let position;
+                    if (receptorResult.binding_site && receptorResult.binding_site.x !== 0) {
+                        const site = receptorResult.binding_site;
+                        translateModel(ligandModel, site.x, site.y, site.z);
+                        position = { x: site.x + 2, y: site.y + 2, z: site.z + 2 };
+                    } else {
+                        const receptorCenter = computeModelCenter(receptorModel);
+                        translateModel(ligandModel, receptorCenter.x + 10, receptorCenter.y + 10, receptorCenter.z + 10);
+                        position = computeModelCenter(ligandModel);
+                        labelText = "Approx. Position";
+                    }
+                    viewer.addLabel(labelText, {
+                        position: position,
+                        fontSize: 14,
+                        fontColor: "red",
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        borderColor: "red",
+                        borderThickness: 2
+                    });
                 }
+                viewer.zoomTo();
+                currentView = viewer.getView();
                 viewer.render();
-            });
-
-            $('#zoom-in-btn').on('click', function() {
-                if (viewer) {
-                    viewer.zoom(1.2);
-                    viewer.render();
-                }
-            });
-
-            $('#zoom-out-btn').on('click', function() {
-                if (viewer) {
-                    viewer.zoom(0.8);
-                    viewer.render();
-                }
-            });
-
-            $('#reset-view-btn').on('click', function() {
-                if (viewer) {
-                    viewer.zoomTo();
-                    viewer.render();
-                }
-            });
-
-            $('#interaction-table tbody').on('click', 'tr', function() {
-                if (!viewer || !ligandModel || $(this).hasClass('empty-state')) return;
-                const center = computeModelCenter(ligandModel);
-                viewer.setView({
-                    x: center.x,
-                    y: center.y,
-                    z: center.z,
-                    zoom: viewer.getView().zoom
-                });
-                viewer.render();
-            });
-
-            $('#export-btn').on('click', function() {
-                if (!viewer) {
-                    showError("No visualization to export yet!");
-                    return;
-                }
-                viewer.render();
-                const dataUrl = viewer.pngURI();
-                const link = document.createElement('a');
-                link.download = 'receptor-ligand-visualization.png';
-                link.href = dataUrl;
-                link.click();
-                showSuccess("Visualization exported successfully!");
-            });
+                updateStats(interactionData);
+                const tableBody = $('#interaction-table tbody');
+                tableBody.empty();
+                const row = `
+                    <tr data-drug-id="${drugId}" data-receptor-id="${receptorId}">
+                        <td>${interactionData.ligand}</td>
+                        <td>${interactionData.receptor}</td>
+                        <td><span class="badge badge-primary">${interactionData.affinity || "N/A"}</span></td>
+                        <td>${interactionData.affinity_parameter || "N/A"}</td>
+                        <td><span class="badge badge-success">${interactionData.interaction_type || "N/A"}</span></td>
+                        <td>${interactionData.mechanism || "N/A"}</td>
+                    </tr>
+                `;
+                tableBody.append(row);
+                showSuccess("Interaction successfully visualized!");
+            } catch (error) {
+                console.error("ERROR:", error);
+                showError("An unexpected error occurred. Please try again.");
+            } finally {
+                $('#loading').hide();
+                $('#simulate-btn').html('<i class="fas fa-play"></i> Simulate Interaction').prop('disabled', false);
+            }
         });
-    </script>
-</body>
-</html>
+        function updateReceptorStyle() {
+            if (!receptorModel) return;
+            const receptorModelIndex = receptorModel.id;
+            const showSurface = $('#toggle-surface').is(':checked');
+            const showCartoon = $('#toggle-cartoon').is(':checked');
+            let style = {};
+            if (showCartoon) {
+                style.cartoon = { color: "blue" };
+            }
+            if (showSurface) {
+                style.surface = { opacity: 0.7, color: "lightblue" };
+            }
+            viewer.setStyle({ model: receptorModelIndex }, style);
+            viewer.render();
+        }
+        $('#toggle-surface').on('change', updateReceptorStyle);
+        $('#toggle-cartoon').on('change', updateReceptorStyle);
+        $('#toggle-ligand').on('change', function() {
+            if (!ligandModel) return;
+            const ligandModelIndex = ligandModel.id;
+            if ($(this).is(':checked')) {
+                viewer.setStyle({ model: ligandModelIndex }, {
+                    stick: { colorscheme: "greenCarbon", radius: 0.3 }
+                });
+            } else {
+                viewer.setStyle({ model: ligandModelIndex }, {});
+            }
+            viewer.render();
+        });
+        $('#zoom-in-btn').on('click', function() {
+            if (viewer) {
+                viewer.zoom(1.2);
+                viewer.render();
+            }
+        });
+        $('#zoom-out-btn').on('click', function() {
+            if (viewer) {
+                viewer.zoom(0.8);
+                viewer.render();
+            }
+        });
+        $('#reset-view-btn').on('click', function() {
+            if (viewer) {
+                viewer.zoomTo();
+                viewer.render();
+            }
+        });
+        $('#interaction-table tbody').on('click', 'tr', function() {
+            if (!viewer || !ligandModel || $(this).hasClass('empty-state')) return;
+            const center = computeModelCenter(ligandModel);
+            viewer.setView({
+                x: center.x,
+                y: center.y,
+                z: center.z,
+                zoom: viewer.getView().zoom
+            });
+            viewer.render();
+        });
+        $('#export-btn').on('click', function() {
+            if (!viewer) {
+                showError("No visualization to export yet!");
+                return;
+            }
+            viewer.render();
+            const dataUrl = viewer.pngURI();
+            const link = document.createElement('a');
+            link.download = 'receptor-ligand-visualization.png';
+            link.href = dataUrl;
+            link.click();
+            showSuccess("Visualization exported successfully!");
+        });
+    });
+</script>
+{% endblock %}

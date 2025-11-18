@@ -1,305 +1,641 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drug Interaction Check</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
+{% extends "base.html" %}
+
+{% block title %}Drug Interaction Checker - Drugly.AI{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --success-gradient: linear-gradient(135deg, #0cebeb 0%, #20e3b2 100%);
+        --danger-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    }
+
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 40px 0;
+    }
+
+    .main-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        text-align: center;
+        color: white;
+        margin-bottom: 50px;
+        animation: fadeInDown 0.8s ease;
+    }
+
+    .page-header h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        text-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        margin-bottom: 10px;
+    }
+
+    .page-header p {
+        font-size: 1.2rem;
+        opacity: 0.95;
+        font-weight: 300;
+    }
+
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        padding: 35px;
+        margin-bottom: 30px;
+        animation: fadeInUp 0.8s ease;
+    }
+
+    .card-header-custom {
+        background: var(--primary-gradient);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 15px 15px 0 0;
+        margin: -35px -35px 30px -35px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .card-header-custom h4 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.5rem;
+    }
+
+    .card-header-custom i {
+        font-size: 1.8rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        font-size: 1rem;
+    }
+
+    .info-icon {
+        margin-left: 8px;
+        color: #667eea;
+        cursor: help;
+        transition: all 0.3s ease;
+    }
+
+    .info-icon:hover {
+        color: #764ba2;
+        transform: scale(1.2);
+    }
+
+    .form-select, .select2-container--default .select2-selection--single,
+    .select2-container--default .select2-selection--multiple {
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        height: auto !important;
+        min-height: 50px;
+    }
+
+    .form-select:focus, .select2-container--default.select2-container--focus .select2-selection {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
+    .select2-container {
+        width: 100% !important;
+    }
+
+    .select2-dropdown {
+        border: 2px solid #667eea;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-primary-custom {
+        background: var(--primary-gradient);
+        border: none;
+        border-radius: 12px;
+        padding: 15px 40px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .btn-primary-custom:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .btn-primary-custom:active {
+        transform: translateY(0);
+    }
+
+    .severity-legend {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 15px;
+        padding: 25px;
+        margin-top: 30px;
+        border: none;
+    }
+
+    .severity-legend h5 {
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 20px;
+        font-size: 1.3rem;
+    }
+
+    .severity-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: white;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .severity-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .severity-color {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        margin-right: 15px;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .results-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        animation: fadeInUp 0.8s ease;
+    }
+
+    .results-header {
+        background: var(--success-gradient);
+        color: white;
+        padding: 25px 35px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .results-header h4 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.5rem;
+    }
+
+    .results-count {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .table-container {
+        padding: 30px;
+        overflow-x: auto;
+    }
+
+    .table {
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+    }
+
+    .table thead th {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        padding: 18px 15px;
+        border: none;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .table thead th:first-child {
+        border-radius: 10px 0 0 0;
+    }
+
+    .table thead th:last-child {
+        border-radius: 0 10px 0 0;
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .table tbody tr:hover {
+        background: #f8f9ff;
+        transform: scale(1.01);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .table tbody td {
+        padding: 18px 15px;
+        vertical-align: middle;
+        font-size: 0.95rem;
+        border: none;
+    }
+
+    .severity-Mild, .severity-Hafif {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%) !important;
+        color: #155724 !important;
+        font-weight: 600;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+
+    .severity-Moderate, .severity-Orta {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+        color: #856404 !important;
+        font-weight: 600;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+
+    .severity-Severe, .severity-Şiddetli {
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%) !important;
+        color: #721c24 !important;
+        font-weight: 700;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+
+    .severity-Critical, .severity-Hayati {
+        background: linear-gradient(135deg, #d9534f 0%, #c9302c 100%) !important;
+        color: white !important;
+        font-weight: 700;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+        box-shadow: 0 4px 10px rgba(217, 83, 79, 0.4);
+    }
+
+    .severity-Unknown, .severity-Bilinmiyor {
+        background: #e9ecef !important;
+        color: #495057 !important;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+
+    .alert-custom {
+        border-radius: 15px;
+        padding: 20px 25px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        animation: fadeIn 0.5s ease;
+    }
+
+    .alert-info-custom {
+        background: linear-gradient(135deg, #d4f1f4 0%, #b8e6f0 100%);
+        color: #0c5460;
+    }
+
+    .alert-danger-custom {
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+        color: #721c24;
+    }
+
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(102, 126, 234, 0.95);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .loading-overlay.show {
+        display: flex;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        color: white;
+    }
+
+    .loading-spinner .spinner-border {
+        width: 4rem;
+        height: 4rem;
+        border-width: 0.4rem;
+    }
+
+    .loading-spinner p {
+        font-size: 1.3rem;
+        margin-top: 20px;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 30px;
+        color: #667eea;
+    }
+
+    .empty-state i {
+        font-size: 5rem;
+        margin-bottom: 20px;
+        opacity: 0.7;
+    }
+
+    .empty-state h5 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .empty-state p {
+        font-size: 1.1rem;
+        color: #6c757d;
+    }
+
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
         }
-        h1 {
-            font-family: 'Arial', sans-serif;
-            color: #343a40;
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-        .card {
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
         }
-        .table thead {
-            background-color: #343a40;
-            color: white;
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-        .table tbody tr:hover {
-            background-color: #f1f1f1;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
         }
-        .severity-Hafif, .severity-Mild {
-            background-color: #d4edda !important;
-            color: #155724 !important;
-            font-weight: 500;
+        to {
+            opacity: 1;
         }
-        .severity-Orta, .severity-Moderate {
-            background-color: #fff3cd !important;
-            color: #856404 !important;
-            font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+        .page-header h1 {
+            font-size: 2rem;
         }
-        .severity-Şiddetli, .severity-Severe {
-            background-color: #f8d7da !important;
-            color: #721c24 !important;
-            font-weight: 600;
+
+        .glass-card {
+            padding: 20px;
         }
-        .severity-Critical, .severity-Hayati {
-            background-color: #d9534f !important;
-            color: white !important;
-            font-weight: bold;
+
+        .card-header-custom {
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
         }
-        .severity-Unknown, .severity-Bilinmiyor {
-            background-color: #e9ecef !important;
-            color: #495057 !important;
+
+        .table {
+            font-size: 0.85rem;
         }
-        td {
-            visibility: visible !important;
-            opacity: 1 !important;
-            vertical-align: middle;
+
+        .table thead th, .table tbody td {
+            padding: 12px 8px;
         }
-        .severity-legend {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #fff;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-        }
-        .severity-legend h5 {
-            margin-bottom: 15px;
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-        .severity-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .severity-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            margin-right: 10px;
-            flex-shrink: 0;
-        }
-        .info-icon {
-            cursor: help;
-            color: #0d6efd;
-            margin-left: 5px;
-        }
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-        }
-        .loading-overlay.show {
-            display: flex;
-        }
-        .loading-spinner {
-            text-align: center;
-            color: white;
-        }
-        .loading-spinner .spinner-border {
-            width: 3rem;
-            height: 3rem;
-        }
-        .select2-container {
-            width: 100% !important;
-        }
-        .confidence-badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            margin-left: 0.5rem;
-        }
-        .table-responsive {
-            overflow-x: auto;
-        }
-        @media (max-width: 768px) {
-            .table {
-                font-size: 0.85rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-3">Checking interactions...</p>
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
         </div>
+        <p class="mt-3">🔬 Analyzing drug interactions...</p>
+    </div>
+</div>
+
+<div class="main-container container">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1><i class="fas fa-pills me-3"></i>Drug Interaction Checker</h1>
+        <p>Powered by AI • Evidence-Based • Clinical Grade</p>
     </div>
 
-    <div class="container my-5">
-        <h1 class="text-center mb-4">Drug Interaction Check</h1>
-        
-        <!-- Form Section -->
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Select Drugs and Routes of Administration</h4>
-            </div>
-            <div class="card-body">
-                {% if error %}
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <strong>Error!</strong> {{ error }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endif %}
-
-                <form method="POST" id="interactionForm">
-                    <div class="mb-3">
-                        <label for="drug1" class="form-label">
-                            Select Drug 1 
-                            <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
-                                  title="Choose the first drug to check for interactions. Start typing to search.">
-                                &#9432;
-                            </span>
-                        </label>
-                        <select name="drug1_id" id="drug1" class="form-select" required>
-                            <option value="">Select Drug 1...</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="drug2" class="form-label">
-                            Select Drug 2 
-                            <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
-                                  title="Choose the second drug to check for interactions. Start typing to search.">
-                                &#9432;
-                            </span>
-                        </label>
-                        <select name="drug2_id" id="drug2" class="form-select" required>
-                            <option value="">Select Drug 2...</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="routes" class="form-label">
-                            Routes of Administration (Optional) 
-                            <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
-                                  title="Select one or more routes if the interaction depends on how the drugs are administered. Leave blank for general interactions.">
-                                &#9432;
-                            </span>
-                        </label>
-                        <select name="route_ids[]" id="routes" class="form-select" multiple>
-                        </select>
-                        <small class="text-muted">You can select multiple routes or leave blank for all routes</small>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" id="submitBtn">
-                        <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
-                        Check Interaction
-                    </button>
-                </form>
-
-                <!-- Severity Legend -->
-                <div class="severity-legend">
-                    <h5>Severity Levels Explanation</h5>
-                    <div class="severity-item">
-                        <div class="severity-color" style="background-color: #d4edda;"></div>
-                        <span><strong>Mild (Hafif):</strong> Minimal clinical impact, no significant risks or interventions needed.</span>
-                    </div>
-                    <div class="severity-item">
-                        <div class="severity-color" style="background-color: #fff3cd;"></div>
-                        <span><strong>Moderate (Orta):</strong> Noticeable effects requiring monitoring or minor adjustments.</span>
-                    </div>
-                    <div class="severity-item">
-                        <div class="severity-color" style="background-color: #f8d7da;"></div>
-                        <span><strong>Severe (Şiddetli):</strong> High risk of harm, requires careful management or avoidance.</span>
-                    </div>
-                    <div class="severity-item">
-                        <div class="severity-color" style="background-color: #d9534f;"></div>
-                        <span><strong>Critical (Hayati Risk İçeren):</strong> Life-threatening, contraindicated, must avoid combination.</span>
-                    </div>
-                </div>
-            </div>
+    <!-- Form Section -->
+    <div class="glass-card">
+        <div class="card-header-custom">
+            <h4><i class="fas fa-flask me-2"></i>Check Drug Interactions</h4>
+            <i class="fas fa-shield-alt"></i>
         </div>
 
-        <!-- Results Section -->
-        {% if interaction_results %}
-        <div class="card shadow-sm">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0">Interaction Results ({{ interaction_results|length }} found)</h4>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>Drug 1</th>
-                                <th>Drug 2</th>
-                                <th>Route(s)</th>
-                                <th>Type</th>
-                                <th>Description</th>
-                                <th>Manual Severity</th>
-                                <th>AI Predicted Severity</th>
-                                <th>Mechanism</th>
-                                <th>Monitoring</th>
-                                <th>Alternatives</th>
-                                <th>Reference</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for interaction in interaction_results %}
-                            <tr>
-                                <td><strong>{{ interaction.drug1 }}</strong></td>
-                                <td><strong>{{ interaction.drug2 }}</strong></td>
-                                <td>{{ interaction.route }}</td>
-                                <td>{{ interaction.interaction_type }}</td>
-                                <td>{{ interaction.interaction_description | safe }}</td>
-                                <td class="severity-{{ interaction.severity | replace(' ', '-') }}">
-                                    {{ interaction.severity }}
-                                </td>
-                                <td class="severity-{{ interaction.predicted_severity | replace(' ', '-') }}">
-                                    {{ interaction.predicted_severity }}
-                                </td>
-                                <td>{{ interaction.mechanism }}</td>
-                                <td>{{ interaction.monitoring }}</td>
-                                <td>{{ interaction.alternatives }}</td>
-                                <td>
-                                    {% if interaction.reference and interaction.reference != "Belirtilmemiş" %}
-                                        {{ interaction.reference }}
-                                    {% else %}
-                                        <em class="text-muted">Not provided</em>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="alert alert-info mt-3">
-                    <strong>Note:</strong> The "AI Predicted Severity" is generated using machine learning analysis of the interaction description and scientific literature. Always consult with a healthcare professional before making clinical decisions.
-                </div>
-            </div>
-        </div>
-        {% elif request.method == 'POST' %}
-        <div class="alert alert-info text-center mt-4">
-            <h5>No interactions found</h5>
-            <p class="mb-0">No documented interactions were found between the selected drugs. However, this doesn't guarantee safety - always consult with a healthcare professional.</p>
-        </div>
-        {% else %}
-        <div class="text-center mt-4">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <i class="bi bi-search" style="font-size: 3rem; color: #6c757d;"></i>
-                    <p class="text-muted mt-3">Select two drugs above to check for potential interactions.</p>
-                </div>
-            </div>
+        {% if error %}
+        <div class="alert alert-danger-custom alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Error!</strong> {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         {% endif %}
+
+        <form method="POST" id="interactionForm">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <label for="drug1" class="form-label">
+                        <i class="fas fa-capsules me-2"></i>Select Drug 1
+                        <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
+                              title="Choose the first drug to check for interactions. Start typing to search.">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                    </label>
+                    <select name="drug1_id" id="drug1" class="form-select" required>
+                        <option value="">🔍 Search for Drug 1...</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <label for="drug2" class="form-label">
+                        <i class="fas fa-tablets me-2"></i>Select Drug 2
+                        <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
+                              title="Choose the second drug to check for interactions. Start typing to search.">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                    </label>
+                    <select name="drug2_id" id="drug2" class="form-select" required>
+                        <option value="">🔍 Search for Drug 2...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="routes" class="form-label">
+                    <i class="fas fa-route me-2"></i>Routes of Administration (Optional)
+                    <span class="info-icon" data-bs-toggle="tooltip" data-bs-placement="top" 
+                          title="Select one or more routes if the interaction depends on how the drugs are administered. Leave blank for general interactions.">
+                        <i class="fas fa-info-circle"></i>
+                    </span>
+                </label>
+                <select name="route_ids[]" id="routes" class="form-select" multiple>
+                </select>
+                <small class="text-muted"><i class="fas fa-lightbulb me-1"></i>You can select multiple routes or leave blank for all routes</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100" id="submitBtn">
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                <i class="fas fa-search-plus"></i>
+                <span>Check Interaction</span>
+            </button>
+        </form>
+
+        <!-- Severity Legend -->
+        <div class="severity-legend">
+            <h5><i class="fas fa-info-circle me-2"></i>Severity Levels Explanation</h5>
+            <div class="severity-item">
+                <div class="severity-color" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);"></div>
+                <span><strong>Mild (Hafif):</strong> Minimal clinical impact, no significant risks or interventions needed.</span>
+            </div>
+            <div class="severity-item">
+                <div class="severity-color" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);"></div>
+                <span><strong>Moderate (Orta):</strong> Noticeable effects requiring monitoring or minor adjustments.</span>
+            </div>
+            <div class="severity-item">
+                <div class="severity-color" style="background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);"></div>
+                <span><strong>Severe (Şiddetli):</strong> High risk of harm, requires careful management or avoidance.</span>
+            </div>
+            <div class="severity-item">
+                <div class="severity-color" style="background: linear-gradient(135deg, #d9534f 0%, #c9302c 100%);"></div>
+                <span><strong>Critical (Hayati Risk):</strong> Life-threatening, contraindicated, must avoid combination.</span>
+            </div>
+        </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+    <!-- Results Section -->
+    {% if interaction_results %}
+    <div class="results-card">
+        <div class="results-header">
+            <h4><i class="fas fa-check-circle me-2"></i>Interaction Results</h4>
+            <span class="results-count">{{ interaction_results|length }} found</span>
+        </div>
+        <div class="table-container">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-pills me-1"></i>Drug 1</th>
+                            <th><i class="fas fa-pills me-1"></i>Drug 2</th>
+                            <th><i class="fas fa-route me-1"></i>Route(s)</th>
+                            <th><i class="fas fa-tag me-1"></i>Type</th>
+                            <th><i class="fas fa-file-alt me-1"></i>Description</th>
+                            <th><i class="fas fa-exclamation-triangle me-1"></i>Manual Severity</th>
+                            <th><i class="fas fa-robot me-1"></i>AI Predicted</th>
+                            <th><i class="fas fa-cogs me-1"></i>Mechanism</th>
+                            <th><i class="fas fa-heartbeat me-1"></i>Monitoring</th>
+                            <th><i class="fas fa-exchange-alt me-1"></i>Alternatives</th>
+                            <th><i class="fas fa-book me-1"></i>Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for interaction in interaction_results %}
+                        <tr>
+                            <td><strong>{{ interaction.drug1 }}</strong></td>
+                            <td><strong>{{ interaction.drug2 }}</strong></td>
+                            <td>{{ interaction.route }}</td>
+                            <td><span class="badge bg-primary">{{ interaction.interaction_type }}</span></td>
+                            <td>{{ interaction.interaction_description | safe }}</td>
+                            <td>
+                                <span class="severity-{{ interaction.severity | replace(' ', '-') }}">
+                                    {{ interaction.severity }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="severity-{{ interaction.predicted_severity | replace(' ', '-') }}">
+                                    {{ interaction.predicted_severity }}
+                                </span>
+                            </td>
+                            <td>{{ interaction.mechanism }}</td>
+                            <td>{{ interaction.monitoring }}</td>
+                            <td>{{ interaction.alternatives }}</td>
+                            <td>
+                                {% if interaction.reference and interaction.reference != "Belirtilmemiş" %}
+                                    <small>{{ interaction.reference }}</small>
+                                {% else %}
+                                    <em class="text-muted">Not provided</em>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="alert alert-info-custom mt-4">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Note:</strong> The "AI Predicted Severity" is generated using machine learning analysis of the interaction description and scientific literature. Always consult with a healthcare professional before making clinical decisions.
+            </div>
+        </div>
+    </div>
+    {% elif request.method == 'POST' %}
+    <div class="glass-card">
+        <div class="empty-state">
+            <i class="fas fa-check-circle"></i>
+            <h5>No Interactions Found</h5>
+            <p>No documented interactions were found between the selected drugs. However, this doesn't guarantee safety - always consult with a healthcare professional.</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="glass-card">
+        <div class="empty-state">
+            <i class="fas fa-search"></i>
+            <h5>Ready to Check Interactions</h5>
+            <p>Select two drugs above to check for potential interactions.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
+<script>
 $(document).ready(function() {
     // Initialize Select2 for drug and route selection
     function initSelect2(selector, placeholder, url, multiple = false) {
@@ -345,13 +681,14 @@ $(document).ready(function() {
             minimumInputLength: 0,
             allowClear: true,
             multiple: multiple,
-            width: '100%'
+            width: '100%',
+            theme: 'default'
         });
     }
 
     // Initialize all select2 dropdowns
-    initSelect2("#drug1", "Select Drug 1...", "/api/active_ingredients");
-    initSelect2("#drug2", "Select Drug 2...", "/api/active_ingredients");
+    initSelect2("#drug1", "🔍 Search for Drug 1...", "/api/active_ingredients");
+    initSelect2("#drug2", "🔍 Search for Drug 2...", "/api/active_ingredients");
     initSelect2("#routes", "Select routes (optional)...", "/api/routes", true);
 
     // Enable Bootstrap tooltips
@@ -368,14 +705,14 @@ $(document).ready(function() {
         // Validate that both drugs are selected
         if (!drug1Val || !drug2Val) {
             e.preventDefault();
-            alert('Please select both drugs.');
+            alert('⚠️ Please select both drugs.');
             return false;
         }
 
         // Validate that drugs are different
         if (drug1Val === drug2Val) {
             e.preventDefault();
-            alert('Please select two different drugs.');
+            alert('⚠️ Please select two different drugs.');
             return false;
         }
 
@@ -383,8 +720,9 @@ $(document).ready(function() {
         $('#loadingOverlay').addClass('show');
         $('#submitBtn').prop('disabled', true);
         $('#submitBtn').find('.spinner-border').removeClass('d-none');
+        $('#submitBtn').find('i.fa-search-plus').hide();
 
-        // Let the form submit normally (no AJAX needed)
+        // Let the form submit normally
         return true;
     });
 
@@ -393,15 +731,24 @@ $(document).ready(function() {
         $('.alert-dismissible').alert('close');
     }, 5000);
 
-    // Scroll to results if they exist
+    // Smooth scroll to results if they exist
     {% if interaction_results %}
     setTimeout(function() {
         $('html, body').animate({
-            scrollTop: $('.card.shadow-sm:last').offset().top - 100
-        }, 500);
-    }, 100);
+            scrollTop: $('.results-card').offset().top - 100
+        }, 800);
+    }, 300);
     {% endif %}
+
+    // Add hover effect to table rows
+    $('.table tbody tr').hover(
+        function() {
+            $(this).css('cursor', 'pointer');
+        },
+        function() {
+            $(this).css('cursor', 'default');
+        }
+    );
 });
-    </script>
-</body>
-</html>
+</script>
+{% endblock %}

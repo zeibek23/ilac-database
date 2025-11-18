@@ -1,575 +1,579 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICD-11 Hierarchy - Drugly</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
-            color: #2c3e50;
-            margin: 0;
-        }
-        .navbar {
-            background: #2c3e50 !important;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-            padding: 15px 0;
-        }
-        .navbar-brand {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: #fff !important;
-        }
-        .nav-link {
-            color: #fff !important;
-            font-weight: 400;
-            transition: color 0.3s ease;
-        }
-        .nav-link:hover, .nav-link.active {
-            color: #00b4d8 !important;
-        }
-        .btn-outline-light, .btn-light, .btn-warning {
-            border-radius: 25px;
-            padding: 8px 20px;
-            font-weight: 500;
-        }
-        .search-form {
-            max-width: 300px;
-            margin-left: auto;
-            margin-right: 20px;
-        }
-        .search-form .form-control {
-            border-radius: 25px 0 0 25px;
-            border: 1px solid #ced4da;
-            font-size: 0.9rem;
-            padding: 8px 15px;
-        }
-        .search-form .btn {
-            border-radius: 0 25px 25px 0;
-            padding: 8px 15px;
-            background: #00b4d8;
-            border: none;
-            color: #fff;
-        }
-        .search-form .btn:hover {
-            background: #0096b2;
-        }
+{% extends "base.html" %}
+
+{% block title %}ICD-11 Hierarchy - Drugly{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        color: #2c3e50;
+        margin: 0;
+    }
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .search-form {
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: 20px;
+    }
+    .search-form .form-control {
+        border-radius: 25px 0 0 25px;
+        border: 1px solid #ced4da;
+        font-size: 0.9rem;
+        padding: 8px 15px;
+    }
+    .search-form .btn {
+        border-radius: 0 25px 25px 0;
+        padding: 8px 15px;
+        background: #00b4d8;
+        border: none;
+        color: #fff;
+    }
+    .search-form .btn:hover {
+        background: #0096b2;
+    }
+    .container {
+        max-width: 1200px;
+        padding: 60px 20px;
+    }
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        text-align: center;
+        margin-bottom: 40px;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .tree-section {
+        background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: fadeInUp 1s ease-in-out;
+    }
+    .tree-section:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+    .tree {
+        list-style: none;
+        padding: 1rem;
+        margin: 0;
+        background: #f8f9fa;
+        border-radius: 10px;
+    }
+    .tree li {
+        margin: 0;
+    }
+    .tree .node {
+        display: flex;
+        align-items: center;
+        padding: 12px 8px;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: background 0.2s, transform 0.2s;
+        margin-bottom: 4px;
+    }
+    .tree .node:hover {
+        background-color: #e9ecef;
+        transform: translateX(5px);
+    }
+    .tree .node .children {
+        display: none;
+    }
+    .tree .node.expanded .children {
+        display: block;
+    }
+    .tree .toggle {
+        width: 28px;
+        height: 28px;
+        margin-right: 12px;
+        font-size: 18px;
+        line-height: 28px;
+        text-align: center;
+        cursor: pointer;
+        color: #2b4c7e;
+        transition: transform 0.3s;
+    }
+    .tree .toggle::before {
+        content: "\f054";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+    }
+    .tree .node.expanded .toggle::before {
+        content: "\f078";
+        transform: rotate(180deg);
+        display: inline-block;
+    }
+    .tree .leaf .toggle::before {
+        content: "";
+    }
+    .tree .node-details .label {
+        font-size: 16px;
+        color: #2b4c7e;
+        font-weight: 500;
+    }
+    .tree .node-details .label.chapter {
+        font-weight: 700;
+        color: #1a3c5e;
+        font-size: 18px;
+    }
+    .tree .node-details .block {
+        font-weight: 600;
+        color: #34495e;
+    }
+    .tree .node-details .category {
+        font-weight: normal;
+        color: #495057;
+    }
+    .tree .node-details .badge {
+        font-size: 12px;
+        margin-left: 10px;
+        vertical-align: middle;
+        background: linear-gradient(45deg, #007bff, #00d4ff);
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+    .tree .node-details .badge.bg-primary {
+        background: linear-gradient(45deg, #007bff, #00d4ff);
+    }
+    .tree .node-details .badge.bg-info {
+        background: linear-gradient(45deg, #17a2b8, #3ec9d6);
+    }
+    .tree .node-details .badge.bg-secondary {
+        background: linear-gradient(45deg, #6c757d, #adb5bd);
+    }
+    .search-bar {
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+    #tree-search {
+        padding: 12px 45px 12px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #ced4da;
+        transition: border-color 0.3s;
+    }
+    #tree-search:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    .search-bar .clear-search {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        color: #6c757d;
+        font-size: 22px;
+        display: none;
+        transition: color 0.2s;
+    }
+    .search-bar .clear-search:hover {
+        color: #dc3545;
+    }
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+    .toast {
+        border-radius: 10px;
+    }
+    footer {
+        background: #2c3e50;
+        color: #fff;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    footer a:hover {
+        color: #fff;
+    }
+    .tree .node-level-0 { margin-left: 0px !important; }
+    .tree .node-level-1 { margin-left: 20px !important; }
+    .tree .node-level-2 { margin-left: 40px !important; }
+    .tree .node-level-3 { margin-left: 60px !important; }
+    .tree .node-level-4 { margin-left: 80px !important; }
+    .tree .node-level-5 { margin-left: 100px !important; }
+    .tree .node-level-6 { margin-left: 120px !important; }
+    .tree .node-level-7 { margin-left: 140px !important; }
+    
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
         .container {
-            max-width: 1200px;
-            padding: 60px 20px;
+            padding: 40px 15px;
         }
         h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 40px;
-            animation: fadeInDown 1s ease-in-out;
+            font-size: 2rem;
         }
         .tree-section {
-            background: linear-gradient(135deg, #ffffff, #f1f1f1);
-            border-radius: 15px;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fadeInUp 1s ease-in-out;
-        }
-        .tree-section:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
-        }
-        .tree {
-            list-style: none;
-            padding: 1rem;
-            margin: 0;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-        .tree li {
-            margin: 0;
+            padding: 1.5rem;
         }
         .tree .node {
-            display: flex;
-            align-items: center;
-            padding: 12px 8px;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: background 0.2s, transform 0.2s;
-            margin-bottom: 4px;
-        }
-        .tree .node:hover {
-            background-color: #e9ecef;
-            transform: translateX(5px);
-        }
-        .tree .node .children {
-            display: none;
-        }
-        .tree .node.expanded .children {
-            display: block;
+            padding: 8px 4px;
         }
         .tree .toggle {
-            width: 28px;
-            height: 28px;
-            margin-right: 12px;
-            font-size: 18px;
-            line-height: 28px;
-            text-align: center;
-            cursor: pointer;
-            color: #2b4c7e;
-            transition: transform 0.3s;
-        }
-        .tree .toggle::before {
-            content: "\f054"; /* Font Awesome chevron-right */
-            font-family: "Font Awesome 6 Free";
-            font-weight: 900;
-        }
-        .tree .node.expanded .toggle::before {
-            content: "\f078"; /* Chevron-down */
-            transform: rotate(180deg);
-            display: inline-block;
-        }
-        .tree .leaf .toggle::before {
-            content: "";
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
         }
         .tree .node-details .label {
-            font-size: 16px;
-            color: #2b4c7e;
-            font-weight: 500;
+            font-size: 14px;
         }
-        .tree .node-details .label.chapter {
-            font-weight: 700;
-            color: #1a3c5e;
-            font-size: 18px;
-        }
-        .tree .node-details .block {
-            font-weight: 600;
-            color: #34495e;
-        }
-        .tree .node-details .category {
-            font-weight: normal;
-            color: #495057;
-        }
-        .tree .node-details .badge {
-            font-size: 12px;
-            margin-left: 10px;
-            vertical-align: middle;
-            background: linear-gradient(45deg, #007bff, #00d4ff);
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 12px;
-        }
-        .tree .node-details .badge.bg-primary {
-            background: linear-gradient(45deg, #007bff, #00d4ff);
-        }
-        .tree .node-details .badge.bg-info {
-            background: linear-gradient(45deg, #17a2b8, #3ec9d6);
-        }
-        .tree .node-details .badge.bg-secondary {
-            background: linear-gradient(45deg, #6c757d, #adb5bd);
-        }
-        .search-bar {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-        #tree-search {
-            padding: 12px 45px 12px 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            border: 1px solid #ced4da;
-            transition: border-color 0.3s;
-        }
-        #tree-search:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-        }
-        .search-bar .clear-search {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            color: #6c757d;
-            font-size: 22px;
-            display: none;
-            transition: color 0.2s;
-        }
-        .search-bar .clear-search:hover {
-            color: #dc3545;
-        }
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-        .toast {
-            border-radius: 10px;
-        }
-        footer {
-            background: #2c3e50;
-            color: #fff;
-            padding: 30px 0;
-            font-size: 0.9rem;
-            text-align: center;
-        }
-        footer a {
-            color: #00b4d8;
-            margin: 0 15px;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        footer a:hover {
-            color: #fff;
-        }
-        .tree .node-level-0 { margin-left: 0px !important; }
-        .tree .node-level-1 { margin-left: 20px !important; }
-        .tree .node-level-2 { margin-left: 40px !important; }
-        .tree .node-level-3 { margin-left: 60px !important; }
-        .tree .node-level-4 { margin-left: 80px !important; }
-        .tree .node-level-5 { margin-left: 100px !important; }
-        .tree .node-level-6 { margin-left: 120px !important; }
-        .tree .node-level-7 { margin-left: 140px !important; }
-        /* Animations */
-        @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 768px) {
-            .container {
-                padding: 40px 15px;
-            }
-            h1 {
-                font-size: 2rem;
-            }
-            .tree-section {
-                padding: 1.5rem;
-            }
-            .tree .node {
-                padding: 8px 4px;
-            }
-            .tree .toggle {
-                width: 24px;
-                height: 24px;
-                font-size: 16px;
-            }
-            .tree .node-details .label {
-                font-size: 14px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Drugly</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="druglyNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
-                </ul>
-                {% if user_email %}
-                    <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
-                        <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
-                        <button class="btn" type="submit"><i class="fas fa-search"></i></button>
-                    </form>
-                {% endif %}
-                {% if user and user.is_admin %}
-                    <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
-                {% endif %}
-                {% if user_email %}
-                    <a href="/profile" class="btn btn-light me-2">Profile</a>
-                    <a href="/logout" class="btn btn-outline-light">Logout</a>
-                {% else %}
-                    <a href="/login" class="btn btn-light me-2">Login</a>
-                    <a href="/register" class="btn btn-outline-light">Register</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
+    }
+</style>
+{% endblock %}
 
-    <!-- Toast Notifications -->
-    <div class="toast-container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="toast align-items-center text-bg-{% if category == 'success' %}success{% elif category == 'error' %}danger{% else %}warning{% endif %}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
-            <div class="d-flex">
-                <div class="toast-body">
-                    {{ message }}
-                </div>
-                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-    </div>
-
-    <!-- Hierarchy Section -->
-    <div class="container">
-        <h1>ICD-11 Hierarchy</h1>
-        <div class="tree-section">
-            <div class="search-bar">
-                <input type="text" class="form-control" id="tree-search" placeholder="Search indications (e.g., Dengue, 1A2Z)" aria-label="Search indications">
-                <span class="clear-search" role="button" aria-label="Clear search">×</span>
-                <span class="loading" aria-hidden="true">Loading...</span>
-            </div>
-            <!-- Tree View -->
-            <ul class="tree">
-                <li>
-                    <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="" aria-expanded="false">
-                        <span class="toggle" aria-hidden="true"></span>
-                        <div class="node-details">
-                            <span class="label"><i class="fas fa-book-medical me-2"></i>ICD-11 for Mortality and Morbidity Statistics</span>
-                        </div>
-                        <ul class="children" data-loaded="false"></ul>
-                    </div>
-                </li>
+{% block content %}
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
             </ul>
+            {% if user_email %}
+                <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST">
+                    <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required>
+                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                </form>
+            {% endif %}
+            {% if user and user.is_admin %}
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
+            {% endif %}
         </div>
     </div>
+</nav>
 
-    <!-- Footer -->
-    <footer>
-        <p>© 2025 Drugly. All rights reserved.</p>
-        <a href="/contact">Contact Us</a> |
-        <a href="/about">About Us</a> |
-        <a href="/terms">Terms of Service</a>
-    </footer>
+<!-- Toast Notifications -->
+<div class="toast-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="toast align-items-center text-bg-{% if category == 'success' %}success{% elif category == 'error' %}danger{% else %}warning{% endif %}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="d-flex">
+            <div class="toast-body">
+                {{ message }}
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+</div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const searchInput = document.getElementById('tree-search');
-            const clearSearch = document.querySelector('.clear-search');
-            const loadingIndicator = document.querySelector('.loading');
-            const rootNode = document.querySelector('.tree .node[data-id="0"]');
+<!-- Hierarchy Section -->
+<div class="container">
+    <h1>ICD-11 Hierarchy</h1>
+    <div class="tree-section">
+        <div class="search-bar">
+            <input type="text" class="form-control" id="tree-search" placeholder="Search indications (e.g., Dengue, 1A2Z)" aria-label="Search indications">
+            <span class="clear-search" role="button" aria-label="Clear search">×</span>
+            <span class="loading" aria-hidden="true">Loading...</span>
+        </div>
+        <!-- Tree View -->
+        <ul class="tree">
+            <li>
+                <div class="node collapsed node-level-0" data-id="0" data-name="icd-11 for mortality and morbidity statistics" data-code="" aria-expanded="false">
+                    <span class="toggle" aria-hidden="true"></span>
+                    <div class="node-details">
+                        <span class="label"><i class="fas fa-book-medical me-2"></i>ICD-11 for Mortality and Morbidity Statistics</span>
+                    </div>
+                    <ul class="children" data-loaded="false"></ul>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
 
-            // Initialize toasts
-            const toastElements = document.querySelectorAll('.toast');
-            toastElements.forEach(toastElement => {
-                const toast = new bootstrap.Toast(toastElement);
-                toast.show();
-            });
+<!-- Footer -->
+<footer>
+    <p>© 2025 Drugly. All rights reserved.</p>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
+</footer>
+{% endblock %}
 
-            // Tree View Logic
-            function attachToggleListeners() {
-                const toggles = document.querySelectorAll('.tree .toggle');
-                toggles.forEach(toggle => {
-                    toggle.removeEventListener('click', toggleHandler);
-                    toggle.addEventListener('click', toggleHandler);
-                    toggle.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleHandler.call(this, e);
-                        }
-                    });
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('tree-search');
+        const clearSearch = document.querySelector('.clear-search');
+        const loadingIndicator = document.querySelector('.loading');
+        const rootNode = document.querySelector('.tree .node[data-id="0"]');
+        
+        // Initialize toasts
+        const toastElements = document.querySelectorAll('.toast');
+        toastElements.forEach(toastElement => {
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+        });
+        
+        // Tree View Logic
+        function attachToggleListeners() {
+            const toggles = document.querySelectorAll('.tree .toggle');
+            toggles.forEach(toggle => {
+                toggle.removeEventListener('click', toggleHandler);
+                toggle.addEventListener('click', toggleHandler);
+                toggle.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleHandler.call(this, e);
+                    }
                 });
+            });
+        }
+        
+        function toggleHandler(e) {
+            e.stopPropagation();
+            const node = this.parentElement;
+            const childrenUl = node.querySelector('.children');
+            const nodeId = node.getAttribute('data-id');
+            const level = parseInt(node.className.match(/node-level-(\d+)/)?.[1] || 0);
+            
+            if (!childrenUl) return;
+            
+            const isLoaded = childrenUl.getAttribute('data-loaded') === 'true';
+            
+            if (node.classList.contains('leaf')) return;
+            
+            if (node.classList.contains('expanded')) {
+                node.classList.remove('expanded');
+                node.setAttribute('aria-expanded', 'false');
+            } else {
+                if (!isLoaded) {
+                    fetchChildren(nodeId, 1, childrenUl, node, level);
+                } else {
+                    node.classList.add('expanded');
+                    node.setAttribute('aria-expanded', 'true');
+                }
             }
-
-            function toggleHandler(e) {
-                e.stopPropagation();
-                const node = this.parentElement;
-                const childrenUl = node.querySelector('.children');
-                const nodeId = node.getAttribute('data-id');
-                const level = parseInt(node.className.match(/node-level-(\d+)/)?.[1] || 0);
-
-                if (!childrenUl) return;
-
-                const isLoaded = childrenUl.getAttribute('data-loaded') === 'true';
-
-                if (node.classList.contains('leaf')) return;
-
-                if (node.classList.contains('expanded')) {
+        }
+        
+        function fetchChildren(nodeId, page, childrenUl, node, level) {
+            loadingIndicator.style.display = 'inline';
+            fetch(`/indications/children/${nodeId}?page=${page}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    if (page === 1) childrenUl.innerHTML = '';
+                    data.children.forEach(child => {
+                        const li = document.createElement('li');
+                        const hasChildren = child.has_children;
+                        const isLeaf = child.is_leaf && !hasChildren;
+                        const className = hasChildren ? 'collapsed' : 'leaf';
+                        const icon = child.class_kind === 'chapter' ? 'fa-book' : child.class_kind === 'block' ? 'fa-cubes' : 'fa-leaf';
+                        li.innerHTML = `
+                            <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}" aria-expanded="false">
+                                <span class="toggle" tabindex="0" aria-hidden="true"></span>
+                                <div class="node-details">
+                                    <span class="label ${child.class_kind}">
+                                        <i class="fas ${icon} me-2"></i>
+                                        ${child.chapter_no && child.class_kind === 'chapter' ? `${child.chapter_no} ${child.name_en}` : (child.code ? `${child.code} ${child.name_en}` : child.name_en)}
+                                        <span class="badge bg-${child.class_kind === 'chapter' ? 'primary' : child.class_kind === 'block' ? 'info' : 'secondary'}">${child.class_kind}</span>
+                                    </span>
+                                </div>
+                                <ul class="children" data-loaded="false"></ul>
+                            </div>
+                        `;
+                        childrenUl.appendChild(li);
+                    });
+                    
+                    childrenUl.setAttribute('data-loaded', 'true');
+                    node.classList.add('expanded');
+                    node.setAttribute('aria-expanded', 'true');
+                    
+                    if (!data.children.length) node.classList.add('leaf');
+                    
+                    attachToggleListeners();
+                    
+                    if (data.has_next) {
+                        fetchChildren(nodeId, page + 1, childrenUl, node, level);
+                    }
+                    
+                    loadingIndicator.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error(`Error fetching children for node ID: ${nodeId}:`, error);
+                    loadingIndicator.style.display = 'none';
+                    alert(`Failed to load child nodes: ${error.message}`);
+                });
+        }
+        
+        // Debounced Search
+        let searchTimeout;
+        if (searchInput && clearSearch) {
+            searchInput.addEventListener('input', function() {
+                const query = this.value.trim().toLowerCase();
+                clearSearch.style.display = query ? 'block' : 'none';
+                
+                if (!query) {
+                    resetTree();
+                    return;
+                }
+                
+                if (query.length < 3) return;
+                
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    loadingIndicator.style.display = 'inline';
+                    fetch(`/indications/search?search=${encodeURIComponent(query)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const allNodes = document.querySelectorAll('.tree .node');
+                            allNodes.forEach(node => {
+                                node.closest('li').style.display = 'none';
+                            });
+                            
+                            data.results.forEach(result => {
+                                let node = document.querySelector(`.node[data-id="${result.id}"]`);
+                                if (!node && result.depth > 1) {
+                                    loadAncestors(result.id, result);
+                                } else if (node) {
+                                    expandToNode(node);
+                                }
+                            });
+                            
+                            loadingIndicator.style.display = 'none';
+                        })
+                        .catch(error => {
+                            console.error('Error searching:', error);
+                            loadingIndicator.style.display = 'none';
+                        });
+                }, 300);
+            });
+            
+            clearSearch.addEventListener('click', function() {
+                searchInput.value = '';
+                clearSearch.style.display = 'none';
+                resetTree();
+            });
+        }
+        
+        function resetTree() {
+            const allNodes = document.querySelectorAll('.tree .node');
+            allNodes.forEach(node => {
+                node.closest('li').style.display = 'list-item';
+                if (node.getAttribute('data-id') === '0') {
                     node.classList.remove('expanded');
                     node.setAttribute('aria-expanded', 'false');
+                    const childrenUl = node.querySelector('.children');
+                    if (childrenUl) {
+                        childrenUl.setAttribute('data-loaded', 'false');
+                        childrenUl.innerHTML = '';
+                    }
+                    fetchChildren('0', 1, childrenUl, node, 0);
                 } else {
-                    if (!isLoaded) {
-                        fetchChildren(nodeId, 1, childrenUl, node, level);
-                    } else {
-                        node.classList.add('expanded');
-                        node.setAttribute('aria-expanded', 'true');
+                    node.classList.remove('expanded');
+                    node.setAttribute('aria-expanded', 'false');
+                    const childrenUl = node.querySelector('.children');
+                    if (childrenUl) {
+                        childrenUl.setAttribute('data-loaded', 'false');
+                        childrenUl.innerHTML = '';
                     }
                 }
+            });
+            loadingIndicator.style.display = 'none';
+        }
+        
+        function expandToNode(node) {
+            const li = node.closest('li');
+            li.style.display = 'list-item';
+            node.classList.add('expanded');
+            node.setAttribute('aria-expanded', 'true');
+            
+            let parent = node.parentElement.closest('.node');
+            while (parent) {
+                parent.classList.add('expanded');
+                parent.setAttribute('aria-expanded', 'true');
+                parent.closest('li').style.display = 'list-item';
+                parent = parent.parentElement.closest('.node');
             }
-
-            function fetchChildren(nodeId, page, childrenUl, node, level) {
-                loadingIndicator.style.display = 'inline';
-                fetch(`/indications/children/${nodeId}?page=${page}`)
-                    .then(response => {
-                        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (page === 1) childrenUl.innerHTML = '';
-                        data.children.forEach(child => {
-                            const li = document.createElement('li');
-                            const hasChildren = child.has_children;
-                            const isLeaf = child.is_leaf && !hasChildren;
-                            const className = hasChildren ? 'collapsed' : 'leaf';
-                            const icon = child.class_kind === 'chapter' ? 'fa-book' : child.class_kind === 'block' ? 'fa-cubes' : 'fa-leaf';
-                            li.innerHTML = `
-                                <div class="node ${className} node-level-${level + 1}" data-id="${child.id}" data-name="${child.name_en.toLowerCase()}" data-code="${child.code ? child.code.toLowerCase() : ''}" aria-expanded="false">
-                                    <span class="toggle" tabindex="0" aria-hidden="true"></span>
-                                    <div class="node-details">
-                                        <span class="label ${child.class_kind}">
-                                            <i class="fas ${icon} me-2"></i>
-                                            ${child.chapter_no && child.class_kind === 'chapter' ? `${child.chapter_no} ${child.name_en}` : (child.code ? `${child.code} ${child.name_en}` : child.name_en)}
-                                            <span class="badge bg-${child.class_kind === 'chapter' ? 'primary' : child.class_kind === 'block' ? 'info' : 'secondary'}">${child.class_kind}</span>
-                                        </span>
-                                    </div>
-                                    <ul class="children" data-loaded="false"></ul>
-                                </div>
-                            `;
-                            childrenUl.appendChild(li);
-                        });
-                        childrenUl.setAttribute('data-loaded', 'true');
-                        node.classList.add('expanded');
-                        node.setAttribute('aria-expanded', 'true');
-                        if (!data.children.length) node.classList.add('leaf');
-                        attachToggleListeners();
-                        if (data.has_next) {
-                            fetchChildren(nodeId, page + 1, childrenUl, node, level);
-                        }
-                        loadingIndicator.style.display = 'none';
-                    })
-                    .catch(error => {
-                        console.error(`Error fetching children for node ID: ${nodeId}:`, error);
-                        loadingIndicator.style.display = 'none';
-                        alert(`Failed to load child nodes: ${error.message}`);
-                    });
-            }
-
-            // Debounced Search
-            let searchTimeout;
-            if (searchInput && clearSearch) {
-                searchInput.addEventListener('input', function() {
-                    const query = this.value.trim().toLowerCase();
-                    clearSearch.style.display = query ? 'block' : 'none';
-
-                    if (!query) {
-                        resetTree();
-                        return;
-                    }
-
-                    if (query.length < 3) return;
-
-                    clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(() => {
-                        loadingIndicator.style.display = 'inline';
-                        fetch(`/indications/search?search=${encodeURIComponent(query)}`)
-                            .then(response => response.json())
-                            .then(data => {
-                                const allNodes = document.querySelectorAll('.tree .node');
-                                allNodes.forEach(node => {
-                                    node.closest('li').style.display = 'none';
-                                });
-
-                                data.results.forEach(result => {
-                                    let node = document.querySelector(`.node[data-id="${result.id}"]`);
-                                    if (!node && result.depth > 1) {
-                                        loadAncestors(result.id, result);
-                                    } else if (node) {
-                                        expandToNode(node);
-                                    }
-                                });
-                                loadingIndicator.style.display = 'none';
-                            })
-                            .catch(error => {
-                                console.error('Error searching:', error);
-                                loadingIndicator.style.display = 'none';
-                            });
-                    }, 300); // 300ms debounce
-                });
-
-                clearSearch.addEventListener('click', function() {
-                    searchInput.value = '';
-                    clearSearch.style.display = 'none';
-                    resetTree();
-                });
-            }
-
-            function resetTree() {
-                const allNodes = document.querySelectorAll('.tree .node');
-                allNodes.forEach(node => {
-                    node.closest('li').style.display = 'list-item';
-                    if (node.getAttribute('data-id') === '0') {
-                        node.classList.remove('expanded');
-                        node.setAttribute('aria-expanded', 'false');
-                        const childrenUl = node.querySelector('.children');
-                        if (childrenUl) {
-                            childrenUl.setAttribute('data-loaded', 'false');
-                            childrenUl.innerHTML = '';
-                        }
-                        fetchChildren('0', 1, childrenUl, node, 0);
-                    } else {
-                        node.classList.remove('expanded');
-                        node.setAttribute('aria-expanded', 'false');
-                        const childrenUl = node.querySelector('.children');
-                        if (childrenUl) {
-                            childrenUl.setAttribute('data-loaded', 'false');
-                            childrenUl.innerHTML = '';
+        }
+        
+        function loadAncestors(nodeId, result) {
+            fetch(`/indications/children/${nodeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.children && data.children.length > 0) {
+                        let parentNode = document.querySelector(`.node[data-id="${data.children[0].parent_id}"]`);
+                        if (!parentNode && data.children[0].parent_id) {
+                            loadAncestors(data.children[0].parent_id, result);
+                        } else if (parentNode) {
+                            const childrenUl = parentNode.querySelector('.children');
+                            const level = parseInt(parentNode.className.match(/node-level-(\d+)/)?.[1] || 0);
+                            fetchChildren(parentNode.getAttribute('data-id'), 1, childrenUl, parentNode, level);
+                            setTimeout(() => {
+                                const node = document.querySelector(`.node[data-id="${nodeId}"]`);
+                                if (node) expandToNode(node);
+                            }, 100);
                         }
                     }
-                });
-                loadingIndicator.style.display = 'none';
-            }
-
-            function expandToNode(node) {
-                const li = node.closest('li');
-                li.style.display = 'list-item';
-                node.classList.add('expanded');
-                node.setAttribute('aria-expanded', 'true');
-                let parent = node.parentElement.closest('.node');
-                while (parent) {
-                    parent.classList.add('expanded');
-                    parent.setAttribute('aria-expanded', 'true');
-                    parent.closest('li').style.display = 'list-item';
-                    parent = parent.parentElement.closest('.node');
-                }
-            }
-
-            function loadAncestors(nodeId, result) {
-                fetch(`/indications/children/${nodeId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.children && data.children.length > 0) {
-                            let parentNode = document.querySelector(`.node[data-id="${data.children[0].parent_id}"]`);
-                            if (!parentNode && data.children[0].parent_id) {
-                                loadAncestors(data.children[0].parent_id, result);
-                            } else if (parentNode) {
-                                const childrenUl = parentNode.querySelector('.children');
-                                const level = parseInt(parentNode.className.match(/node-level-(\d+)/)?.[1] || 0);
-                                fetchChildren(parentNode.getAttribute('data-id'), 1, childrenUl, parentNode, level);
-                                setTimeout(() => {
-                                    const node = document.querySelector(`.node[data-id="${nodeId}"]`);
-                                    if (node) expandToNode(node);
-                                }, 100);
-                            }
-                        }
-                    })
-                    .catch(error => console.error('Error loading ancestors:', error));
-            }
-
-            // Initialize tree
-            attachToggleListeners();
-            fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
-        });
-    </script>
-</body>
-</html>
+                })
+                .catch(error => console.error('Error loading ancestors:', error));
+        }
+        
+        // Initialize tree
+        attachToggleListeners();
+        fetchChildren('0', 1, rootNode.querySelector('.children'), rootNode, 0);
+    });
+</script>
+{% endblock %}
