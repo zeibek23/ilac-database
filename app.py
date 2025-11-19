@@ -520,7 +520,6 @@ class Severity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=True, unique=True)
     description = db.Column(db.Text, nullable=True)
-    interactions = db.relationship('DrugInteraction', backref='severity_level', lazy='dynamic')
 
 class DrugInteraction(db.Model):
     __tablename__ = 'drug_interaction'
@@ -537,12 +536,15 @@ class DrugInteraction(db.Model):
     monitoring = db.Column(db.Text, nullable=True)
     alternatives = db.Column(db.Text, nullable=True)
     reference = db.Column(db.Text, nullable=True)
-    predicted_severity = db.Column(db.String(50), nullable=True)
+    predicted_severity_id = db.Column(db.Integer, db.ForeignKey('public.severity.id'), nullable=True)
     prediction_confidence = db.Column(db.Float, nullable=True)
     processed = db.Column(db.Boolean, default=False)
     time_to_peak = db.Column(db.Float, nullable=True)
+    
     drug1 = db.relationship("Drug", foreign_keys=[drug1_id])
     drug2 = db.relationship("Drug", foreign_keys=[drug2_id])
+    severity_level = db.relationship("Severity", foreign_keys=[severity_id], backref='manual_severity_interactions')
+    predicted_severity_level = db.relationship("Severity", foreign_keys=[predicted_severity_id], backref='predicted_severity_interactions')
     routes = db.relationship(
         "RouteOfAdministration",
         secondary='public.interaction_route',
@@ -5618,41 +5620,50 @@ def get_salts():
 def check_interactions():
     drugs = Drug.query.all()
     interaction_results = []
-
+    
+    # Get current user information - MATCHING YOUR WORKING PATTERN
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    
     if request.method == 'POST':
         drug1_id = request.form.get('drug1_id')
         drug2_id = request.form.get('drug2_id')
-        route_ids = request.form.getlist('route_ids[]')  # Get list of route IDs
+        route_ids = request.form.getlist('route_ids[]')
         logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}, route_ids={route_ids}")
-
         try:
             drug1_id = int(drug1_id) if drug1_id else None
             drug2_id = int(drug2_id) if drug2_id else None
             route_ids = [int(route_id) for route_id in route_ids if route_id] if route_ids else []
-
             if not drug1_id or not drug2_id or drug1_id == drug2_id:
                 logger.error("Invalid or identical drug IDs provided")
-                return render_template('interactions.html', drugs=drugs, interaction_results=[], error="Please select two different drugs.")
-
-            # Base query for drug interactions
+                return render_template('interactions.html', 
+                                     drugs=drugs, 
+                                     interaction_results=[], 
+                                     error="Please select two different drugs.",
+                                     user_email=user_email,
+                                     user=user)
+            
             query = DrugInteraction.query.filter(
                 or_(
                     and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
                     and_(DrugInteraction.drug1_id == drug2_id, DrugInteraction.drug2_id == drug1_id)
                 )
             )
-
-            # Filter by routes if provided, using outerjoin to include general interactions
+            
             if route_ids:
                 query = query.outerjoin(
                     DrugInteraction.routes
                 ).filter(
                     or_(RouteOfAdministration.id.in_(route_ids), RouteOfAdministration.id.is_(None))
-                ).distinct()  # Avoid duplicates
-
+                ).distinct()
+            
             interactions = query.all()
             logger.debug(f"Found {len(interactions)} interactions")
-
+            
             for interaction in interactions:
                 predicted_severity = getattr(interaction, 'predicted_severity', 'Bilinmiyor')
                 interaction_results.append({
@@ -5662,26 +5673,39 @@ def check_interactions():
                     'interaction_type': interaction.interaction_type,
                     'interaction_description': interaction.interaction_description,
                     'severity': interaction.severity_level.name if interaction.severity_level else "Bilinmiyor",
-                    'predicted_severity': predicted_severity,
+                    'predicted_severity': interaction.predicted_severity_level.name if interaction.predicted_severity_level else "Bilinmiyor",
                     'mechanism': interaction.mechanism or "Belirtilmemiş",
                     'monitoring': interaction.monitoring or "Belirtilmemiş",
                     'alternatives': interaction.alternatives or "Belirtilmemiş",
                     'reference': interaction.reference or "Belirtilmemiş",
                 })
-
         except ValueError as e:
             logger.error(f"Invalid ID format: {e}")
-            return render_template('interactions.html', drugs=drugs, interaction_results=[], error="Invalid input format.")
+            return render_template('interactions.html', 
+                                 drugs=drugs, 
+                                 interaction_results=[], 
+                                 error="Invalid input format.",
+                                 user_email=user_email,
+                                 user=user)
         except Exception as e:
             logger.error(f"Error querying interactions: {e}")
-            return render_template('interactions.html', drugs=drugs, interaction_results=[], error="An error occurred while querying interactions.")
-
-    return render_template('interactions.html', drugs=drugs, interaction_results=interaction_results)
+            return render_template('interactions.html', 
+                                 drugs=drugs, 
+                                 interaction_results=[], 
+                                 error="An error occurred while querying interactions.",
+                                 user_email=user_email,
+                                 user=user)
+    
+    return render_template('interactions.html', 
+                         drugs=drugs, 
+                         interaction_results=interaction_results,
+                         user_email=user_email,
+                         user=user)
 
 # Cache for PubMed abstracts
 ABSTRACT_CACHE = {}
 
-# Initialize zero-shot classifier with an improved model
+# Initialize zero-shot classifier
 device = 0 if torch.cuda.is_available() else -1
 classifier = None
 
@@ -5710,53 +5734,60 @@ def get_classifier():
                 raise RuntimeError("Could not initialize severity classifier")
     return classifier
 
+
 def fetch_pubmed_abstracts(drug1, drug2, max_retries=3):
-    """Fetch relevant PubMed abstracts for drug interactions with improved filtering."""
+    """Fetch relevant PubMed abstracts for drug interactions."""
     cache_key = f"{drug1}:{drug2}"
     if cache_key in ABSTRACT_CACHE:
         logger.info(f"Using cached PubMed abstracts for {drug1} and {drug2}")
         return ABSTRACT_CACHE[cache_key]
-
+    
     Entrez.email = os.environ.get('PUBMED_EMAIL')
     Entrez.api_key = os.environ.get('PUBMED_API_KEY')
+    
     term = f'("{drug1}" AND "{drug2}" AND (drug interaction OR contraindication OR adverse effect OR pharmacodynamic OR pharmacokinetic))'
     logger.info(f"Fetching PubMed abstracts for term: {term}")
-
+    
     for attempt in range(max_retries):
         try:
-            handle = Entrez.esearch(db="pubmed", term=term, retmax=20)  # Increased retmax for more potential results
+            handle = Entrez.esearch(db="pubmed", term=term, retmax=20)
             record = Entrez.read(handle)
             ids = record["IdList"]
             handle.close()
+            
             if not ids:
                 logger.info(f"No PubMed results for: {drug1} AND {drug2}")
                 ABSTRACT_CACHE[cache_key] = []
                 return []
-
+            
             time.sleep(0.5)
+            
             fetch_handle = Entrez.efetch(db="pubmed", id=ids, rettype="abstract", retmode="text")
             raw_data = fetch_handle.read()
             abstracts = [
                 a.strip() for a in raw_data.split("\n\n")
-                if a.strip() and len(a) > 100 and any(term in a.lower() for term in ["interaction", "adverse", "contraindication", "severe", "critical", "risk", "effect"])  # Stricter filtering
+                if a.strip() and len(a) > 100 and any(term in a.lower() for term in ["interaction", "adverse", "contraindication", "severe", "critical", "risk", "effect"])
             ]
             fetch_handle.close()
+            
             logger.info(f"Fetched {len(abstracts)} relevant abstracts for {drug1} and {drug2}")
-            ABSTRACT_CACHE[cache_key] = abstracts[:5]  # Limit to top 5
+            ABSTRACT_CACHE[cache_key] = abstracts[:5]
             return ABSTRACT_CACHE[cache_key]
+            
         except Exception as e:
             logger.error(f"PubMed fetch attempt {attempt + 1}/{max_retries} failed: {e}")
             time.sleep(2 ** attempt)
+    
     logger.error(f"Failed to fetch PubMed data for {drug1} and {drug2} after {max_retries} attempts")
     ABSTRACT_CACHE[cache_key] = []
     return []
 
 def classify_severity(description, drug1_name, drug2_name, manual_severity=None):
-    """Classify interaction severity using description and PubMed abstracts with enhanced rules."""
+    """Classify interaction severity using AI with enhanced rules."""
     labels = ["Mild", "Moderate", "Severe", "Critical"]
     label_map = {"Mild": "Hafif", "Moderate": "Orta", "Severe": "Şiddetli", "Critical": "Hayati Risk İçeren"}
+    severity_id_map = {"Hafif": 1, "Orta": 2, "Şiddetli": 3, "Hayati Risk İçeren": 4}  # ADDED
     
-    # Expanded critical terms with better categorization
     critical_terms = [
         "contraindicated", "life-threatening", "severe hypotension", "organ failure",
         "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest",
@@ -5774,7 +5805,6 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
     is_critical_in_description = any(term in description_lower for term in critical_terms)
     is_severe_in_description = any(term in description_lower for term in severe_terms)
     
-    # Fetch and preprocess PubMed abstracts with error handling
     try:
         abstracts = fetch_pubmed_abstracts(drug1_name, drug2_name)
     except Exception as e:
@@ -5796,7 +5826,6 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
         is_critical_in_evidence = False
         is_severe_in_evidence = False
     
-    # Preprocess description
     desc_sentences = re.split(r'[.!?]+', description)
     relevant_desc = [
         s.strip() for s in desc_sentences
@@ -5804,7 +5833,6 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
     ]
     processed_description = " ".join(relevant_desc[:5]) or description[:500]
     
-    # Enhanced prompt for better classification accuracy
     prompt = (
         f"Analyze the drug interaction severity between {drug1_name} and {drug2_name}.\n\n"
         f"Interaction Description: {processed_description}\n\n"
@@ -5820,15 +5848,11 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
     logger.debug(f"Classification prompt for {drug1_name} + {drug2_name}: {prompt[:300]}...")
     
     try:
-        # Get classifier instance
         clf = get_classifier()
-        
-        # AI classification
         result = clf(prompt, labels, multi_label=False)
         predicted_label = label_map[result["labels"][0]]
         confidence = result["scores"][0]
         
-        # Rule-based overrides for reliability
         if is_critical_in_description or is_critical_in_evidence:
             logger.info(f"Critical terms detected for {drug1_name} + {drug2_name}")
             predicted_label = "Hayati Risk İçeren"
@@ -5839,29 +5863,25 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
                 predicted_label = "Şiddetli"
                 confidence = max(confidence, 0.85)
         
-        # Conservative approach for low confidence
         if confidence < 0.75:
             logger.warning(f"Low confidence ({confidence:.2f}) for {drug1_name} + {drug2_name}. Predicted: {predicted_label}")
-            # Upgrade to next severity level if confidence is low
             severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"]
             current_index = severity_order.index(predicted_label)
             if current_index < len(severity_order) - 1:
                 predicted_label = severity_order[current_index + 1]
             confidence = 0.75
         
-        # Trust manual severity if Hayati Risk İçeren
         if manual_severity == "Hayati Risk İçeren":
             logger.info(f"Manual severity is Critical for {drug1_name} + {drug2_name}, maintaining classification")
             predicted_label = "Hayati Risk İçeren"
             confidence = 0.99
         
-        # Log significant mismatches
         if manual_severity and predicted_label != manual_severity:
             severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"]
             manual_idx = severity_order.index(manual_severity) if manual_severity in severity_order else -1
             predicted_idx = severity_order.index(predicted_label) if predicted_label in severity_order else -1
             
-            if abs(manual_idx - predicted_idx) > 1:  # More than 1 level difference
+            if abs(manual_idx - predicted_idx) > 1:
                 logger.warning(
                     f"Significant severity mismatch for {drug1_name} + {drug2_name}: "
                     f"Manual={manual_severity}, Predicted={predicted_label} (Confidence={confidence:.2f})"
@@ -5869,15 +5889,16 @@ def classify_severity(description, drug1_name, drug2_name, manual_severity=None)
         
     except Exception as e:
         logger.error(f"Error classifying severity for {drug1_name} + {drug2_name}: {e}")
-        # Default to Severe when classification fails to be safe
         predicted_label = "Şiddetli"
         confidence = 0.0
     
-    return predicted_label, confidence
+    predicted_severity_id = severity_id_map.get(predicted_label, 2)  # ADDED
+    return predicted_label, confidence, predicted_severity_id  # CHANGED
 
 
 @app.route('/interactions/manage', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def manage_interactions():
     drugs = Drug.query.order_by(Drug.name_en).all()
     routes = RouteOfAdministration.query.order_by(RouteOfAdministration.name).all()
@@ -5888,12 +5909,10 @@ def manage_interactions():
     order_by_column = request.args.get('order_by', 'id')
     order_direction = request.args.get('direction', 'desc')
     
-    # Validate column name to prevent SQL injection
     valid_columns = ['id', 'drug1_id', 'drug2_id', 'interaction_type', 'severity_id']
     if order_by_column not in valid_columns:
         order_by_column = 'id'
     
-    # Eager load relationships for better performance
     interactions_query = DrugInteraction.query.options(
         db.joinedload(DrugInteraction.drug1),
         db.joinedload(DrugInteraction.drug2),
@@ -5912,7 +5931,6 @@ def manage_interactions():
             route_ids = request.form.getlist('route_ids')
             interaction_type = request.form.get('interaction_type')
             interaction_description = request.form.get('interaction_description')
-            severity_id = request.form.get('severity_id')
             reference = request.form.get('reference', '')
             mechanism = request.form.get('mechanism', '')
             monitoring = request.form.get('monitoring', '')
@@ -5920,8 +5938,7 @@ def manage_interactions():
             
             logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}, route_ids={route_ids}")
             
-            # Validate inputs
-            if not drug1_id or not drug2_id or not interaction_type or not interaction_description or not severity_id:
+            if not drug1_id or not drug2_id or not interaction_type or not interaction_description:
                 raise ValueError("Required fields are missing")
             
             drug1_id = int(drug1_id)
@@ -5932,7 +5949,6 @@ def manage_interactions():
             
             route_ids = [int(route_id) for route_id in route_ids if route_id]
             
-            # Check for duplicate interaction
             existing = DrugInteraction.query.filter(
                 or_(
                     and_(DrugInteraction.drug1_id == drug1_id, DrugInteraction.drug2_id == drug2_id),
@@ -5943,53 +5959,42 @@ def manage_interactions():
             if existing:
                 raise ValueError("An interaction between these drugs already exists")
             
-            # Fetch drugs
             drug1 = db.session.get(Drug, drug1_id)
             drug2 = db.session.get(Drug, drug2_id)
             
             if not drug1 or not drug2:
                 raise ValueError("Invalid drug IDs")
             
-            # Get manual severity
-            severity = db.session.get(Severity, severity_id)
-            if not severity:
-                raise ValueError("Invalid severity ID")
-            
-            manual_severity = severity.name
-            
-            # Convert alternatives to comma-separated string
             alternatives_str = ''
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
                 alternatives_str = ', '.join([drug.name_en for drug in alternative_drugs])
             
-            # Predict severity
             try:
-                predicted_severity, prediction_confidence = classify_severity(
-                    interaction_description, drug1.name_en, drug2.name_en, manual_severity
+                predicted_severity, prediction_confidence, predicted_severity_id = classify_severity(
+                    interaction_description, drug1.name_en, drug2.name_en
                 )
             except Exception as e:
                 logger.error(f"Error in severity classification: {e}")
-                predicted_severity = "Şiddetli"  # Safe default
+                predicted_severity = "Şiddetli"
                 prediction_confidence = 0.0
-            
-            # Create new interaction
+                predicted_severity_id = 3
+
             new_interaction = DrugInteraction(
                 drug1_id=drug1_id,
                 drug2_id=drug2_id,
                 interaction_type=interaction_type,
                 interaction_description=interaction_description,
-                severity_id=severity_id,
+                severity_id=predicted_severity_id,
                 reference=reference,
                 mechanism=mechanism,
                 monitoring=monitoring,
                 alternatives=alternatives_str,
-                predicted_severity=predicted_severity,
+                predicted_severity_id=predicted_severity_id,
                 prediction_confidence=prediction_confidence,
                 processed=True
             )
             
-            # Assign routes with validation
             if route_ids:
                 valid_routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
                 if len(valid_routes) != len(route_ids):
@@ -6001,7 +6006,7 @@ def manage_interactions():
             
             logger.info(
                 f"Interaction created (ID: {new_interaction.id}) between {drug1.name_en} and {drug2.name_en}, "
-                f"Manual Severity: {manual_severity}, Predicted: {predicted_severity} (Confidence: {prediction_confidence:.2f})"
+                f"AI-Predicted Severity: {predicted_severity} (Confidence: {prediction_confidence:.2f})"
             )
             
             return redirect(url_for('manage_interactions'))
@@ -6039,6 +6044,7 @@ def manage_interactions():
 
 @app.route('/interactions/update/<int:interaction_id>', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def update_interaction(interaction_id):
     interaction = DrugInteraction.query.options(
         db.joinedload(DrugInteraction.drug1),
@@ -6058,14 +6064,12 @@ def update_interaction(interaction_id):
             route_ids = request.form.getlist('route_ids')
             interaction_type = request.form.get('interaction_type')
             interaction_description = request.form.get('interaction_description')
-            severity_id = request.form.get('severity_id')
             reference = request.form.get('reference', '')
             mechanism = request.form.get('mechanism', '')
             monitoring = request.form.get('monitoring', '')
             alternatives = request.form.getlist('alternatives')
             
-            # Validate inputs
-            if not drug1_id or not drug2_id or not interaction_type or not interaction_description or not severity_id:
+            if not drug1_id or not drug2_id or not interaction_type or not interaction_description:
                 raise ValueError("Required fields are missing")
             
             drug1_id = int(drug1_id)
@@ -6076,7 +6080,6 @@ def update_interaction(interaction_id):
             
             route_ids = [int(route_id) for route_id in route_ids if route_id]
             
-            # Check for duplicate interaction (excluding current)
             existing = DrugInteraction.query.filter(
                 DrugInteraction.id != interaction_id,
                 or_(
@@ -6088,61 +6091,40 @@ def update_interaction(interaction_id):
             if existing:
                 raise ValueError("An interaction between these drugs already exists")
             
-            # Fetch drugs
             drug1 = db.session.get(Drug, drug1_id)
             drug2 = db.session.get(Drug, drug2_id)
             
             if not drug1 or not drug2:
                 raise ValueError("Invalid drug IDs")
             
-            # Get severity
-            severity = db.session.get(Severity, severity_id)
-            if not severity:
-                raise ValueError("Invalid severity ID")
-            
-            manual_severity = severity.name
-            
-            # Update interaction fields
             interaction.drug1_id = drug1_id
             interaction.drug2_id = drug2_id
             interaction.interaction_type = interaction_type
             interaction.interaction_description = interaction_description
-            interaction.severity_id = severity_id
             interaction.reference = reference
             interaction.mechanism = mechanism
             interaction.monitoring = monitoring
             
-            # Convert alternatives
             if alternatives:
                 alternative_drugs = Drug.query.filter(Drug.id.in_(alternatives)).all()
                 interaction.alternatives = ', '.join([drug.name_en for drug in alternative_drugs])
             else:
                 interaction.alternatives = ''
             
-            # Validate manual severity against content
-            critical_terms = [
-                "contraindicated", "life-threatening", "severe hypotension", "organ failure",
-                "anaphylaxis", "arrhythmia", "respiratory failure", "cardiac arrest",
-                "fatal", "death", "coma"
-            ]
-            
-            if any(term in interaction_description.lower() for term in critical_terms) and manual_severity != "Hayati Risk İçeren":
-                logger.warning(
-                    f"Manual severity may be too low for interaction {interaction_id}: "
-                    f"Critical terms detected, expected=Hayati Risk İçeren, got={manual_severity}"
-                )
-            
-            # Predict severity
             try:
-                interaction.predicted_severity, interaction.prediction_confidence = classify_severity(
-                    interaction_description, drug1.name_en, drug2.name_en, manual_severity
+                predicted_severity, interaction.prediction_confidence, predicted_severity_id = classify_severity(
+                    interaction_description, drug1.name_en, drug2.name_en
                 )
+                
+                interaction.predicted_severity_id = predicted_severity_id
+                interaction.severity_id = predicted_severity_id
+                
             except Exception as e:
                 logger.error(f"Error in severity classification: {e}")
-                interaction.predicted_severity = "Şiddetli"  # Safe default
                 interaction.prediction_confidence = 0.0
+                interaction.predicted_severity_id = 3
+                interaction.severity_id = 3
             
-            # Update routes
             if route_ids:
                 valid_routes = RouteOfAdministration.query.filter(RouteOfAdministration.id.in_(route_ids)).all()
                 if len(valid_routes) != len(route_ids):
@@ -6157,7 +6139,7 @@ def update_interaction(interaction_id):
             
             logger.info(
                 f"Interaction {interaction_id} updated: {drug1.name_en} + {drug2.name_en}, "
-                f"Manual: {manual_severity}, Predicted: {interaction.predicted_severity} "
+                f"AI-Predicted: {interaction.predicted_severity} "
                 f"(Confidence: {interaction.prediction_confidence:.2f})"
             )
             
@@ -6194,7 +6176,6 @@ def update_interaction(interaction_id):
                 error="An unexpected error occurred. Please try again."
             )
     
-    # Prepare selected alternatives
     selected_alternatives = []
     if interaction.alternatives:
         try:
@@ -6222,13 +6203,13 @@ def update_interaction(interaction_id):
 
 @app.route('/interactions/batch_process', methods=['POST'])
 @login_required
+@admin_required
 def batch_process_interactions():
     try:
-        batch_size = 50  # Reduced for better memory management
+        batch_size = 50
         total_processed = 0
         total_errors = 0
         
-        # Only process unprocessed interactions
         interactions = DrugInteraction.query.filter_by(processed=False).options(
             db.joinedload(DrugInteraction.drug1),
             db.joinedload(DrugInteraction.drug2),
@@ -6253,15 +6234,13 @@ def batch_process_interactions():
                     
                     manual_severity = interaction.severity_level.name if interaction.severity_level else "Orta"
                     
-                    # Classify severity
-                    predicted_severity, prediction_confidence = classify_severity(
+                    predicted_severity, prediction_confidence, predicted_severity_id = classify_severity(
                         interaction.interaction_description, 
                         drug1.name_en, 
                         drug2.name_en, 
                         manual_severity
                     )
-                    
-                    # Log significant mismatches
+
                     if predicted_severity != manual_severity:
                         severity_diff = abs(
                             ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren"].index(predicted_severity) -
@@ -6274,8 +6253,8 @@ def batch_process_interactions():
                                 f"Manual={manual_severity}, Predicted={predicted_severity} "
                                 f"(Confidence={prediction_confidence:.2f})"
                             )
-                    
-                    interaction.predicted_severity = predicted_severity
+
+                    interaction.predicted_severity_id = predicted_severity_id
                     interaction.prediction_confidence = prediction_confidence
                     interaction.processed = True
                     
@@ -6284,7 +6263,6 @@ def batch_process_interactions():
                     batch_errors += 1
                     continue
             
-            # Commit batch
             try:
                 db.session.commit()
                 total_processed += len(batch) - batch_errors
@@ -6295,7 +6273,6 @@ def batch_process_interactions():
                 logger.error(f"Error committing batch {i//batch_size + 1}: {str(e)}")
                 total_errors += len(batch)
             
-            # Small delay to prevent overwhelming external APIs
             time.sleep(1)
         
         message = f"Batch processing completed: {total_processed} successful, {total_errors} errors"
@@ -6321,15 +6298,26 @@ def delete_interaction(interaction_id):
 
 @app.route('/interactions/delete_all', methods=['POST'])
 @login_required
+@admin_required
 def delete_all_interactions():
     try:
-        # Delete all related records in the interaction_route table
-        db.session.execute(text("DELETE FROM interaction_route"))
-        # Delete all DrugInteraction records
+        # Delete related records first
+        db.session.execute(text("DELETE FROM public.interaction_route"))
+        
+        # Delete all interactions
         num_deleted = db.session.query(DrugInteraction).delete()
+        
+        # Reset the sequence to start from 1
+        db.session.execute(text("ALTER SEQUENCE public.drug_interaction_id_seq RESTART WITH 1"))
+        
         db.session.commit()
-        logger.info(f"Deleted {num_deleted} interactions and their related routes")
-        return jsonify({"message": "All interactions deleted successfully"}), 200
+        
+        logger.info(f"Deleted {num_deleted} interactions, their related routes, and reset ID sequence")
+        return jsonify({
+            "message": "All interactions deleted successfully and ID sequence reset",
+            "count": num_deleted
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error deleting all interactions: {str(e)}")
@@ -6343,34 +6331,34 @@ def get_interactions():
     search_value = request.form.get('search[value]', '')
     order_column_index = request.form.get('order[0][column]', type=int)
     order_direction = request.form.get('order[0][dir]', 'asc')
-
+    
     drug1_alias = aliased(Drug, name='drug1')
     drug2_alias = aliased(Drug, name='drug2')
-
+    
     column_map = {
         0: DrugInteraction.id,
-        1: drug1_alias.name_en,  # drug1_name
-        2: drug2_alias.name_en,  # drug2_name
-        3: DrugInteraction.id,  # routes (handled in data)
+        1: drug1_alias.name_en,
+        2: drug2_alias.name_en,
+        3: DrugInteraction.id,
         4: DrugInteraction.interaction_type,
         5: DrugInteraction.interaction_description,
-        6: Severity.name,  # severity
-        7: DrugInteraction.predicted_severity,
+        6: Severity.name,
+        7: DrugInteraction.predicted_severity_id,  # ← THIS LINE IS THE PROBLEM
         8: DrugInteraction.mechanism,
         9: DrugInteraction.monitoring,
         10: DrugInteraction.alternatives,
         11: DrugInteraction.reference,
-        12: DrugInteraction.id,  # actions
+        12: DrugInteraction.id,
     }
+    
     order_column = column_map.get(order_column_index, DrugInteraction.id)
-
     total_records = DrugInteraction.query.count()
-
+    
     query = DrugInteraction.query \
         .join(drug1_alias, DrugInteraction.drug1_id == drug1_alias.id) \
         .join(drug2_alias, DrugInteraction.drug2_id == drug2_alias.id) \
         .join(Severity, DrugInteraction.severity_id == Severity.id)
-
+    
     if search_value:
         query = query.filter(
             db.or_(
@@ -6379,16 +6367,16 @@ def get_interactions():
                 DrugInteraction.interaction_description.ilike(f"%{search_value}%")
             )
         )
-
+    
     filtered_records = query.count()
-
+    
     if order_direction == 'desc':
         query = query.order_by(order_column.desc())
     else:
         query = query.order_by(order_column.asc())
-
+    
     interactions = query.offset(start).limit(length).all()
-
+    
     data = []
     for interaction in interactions:
         edit_url = url_for('update_interaction', interaction_id=interaction.id)
@@ -6401,9 +6389,8 @@ def get_interactions():
             </form>
         </div>
         """
-
         routes_str = ', '.join([route.name for route in interaction.routes]) if interaction.routes else 'Genel'
-
+        
         data.append({
             "id": interaction.id,
             "drug1_name": interaction.drug1.name_en if interaction.drug1 else "N/A",
@@ -6412,14 +6399,14 @@ def get_interactions():
             "interaction_type": interaction.interaction_type,
             "interaction_description": interaction.interaction_description,
             "severity": interaction.severity_level.name if interaction.severity_level else "N/A",
-            "predicted_severity": interaction.predicted_severity or "Not Available",
+            "predicted_severity": interaction.predicted_severity_level.name if interaction.predicted_severity_level else "Not Available",
             "mechanism": interaction.mechanism or "Not Provided",
             "monitoring": interaction.monitoring or "Not Provided",
             "alternatives": interaction.alternatives or "Not Provided",
             "reference": interaction.reference or "Not Provided",
             "actions": actions_html
         })
-
+    
     return jsonify({
         "draw": draw,
         "recordsTotal": total_records,

@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Drug Interaction Checker - Drugly.AI{% endblock %}
-
 {% block extra_css %}
 <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/css/select2.min.css" rel="stylesheet">
 <style>
@@ -10,40 +8,155 @@
         --success-gradient: linear-gradient(135deg, #0cebeb 0%, #20e3b2 100%);
         --danger-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        --ai-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
     }
-
+    
     body {
         font-family: 'Poppins', sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        padding: 40px 0;
+        background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        color: #2c3e50;
+        margin: 0;
     }
-
+    
+    /* Navbar Styles - Same as home.html */
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    
+    /* Search Form Styles */
+    .search-form {
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: 20px;
+        position: relative;
+    }
+    .search-form .form-control {
+        border-radius: 25px 0 0 25px;
+        border: 1px solid #ced4da;
+        font-size: 0.9rem;
+        padding: 8px 15px;
+    }
+    .search-form .btn {
+        border-radius: 0 25px 25px 0;
+        padding: 8px 15px;
+        background: #00b4d8;
+        border: none;
+        color: #fff;
+    }
+    .search-form .btn:hover {
+        background: #0096b2;
+    }
+    
+    /* Autocomplete Dropdown */
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border: 1px solid #ced4da;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+    .autocomplete-dropdown.show {
+        display: block;
+    }
+    .autocomplete-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #f1f1f1;
+    }
+    .autocomplete-item:hover {
+        background: #f8f9fa;
+    }
+    .autocomplete-item i {
+        margin-right: 10px;
+        color: #00b4d8;
+    }
+    .autocomplete-category {
+        padding: 5px 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        background: #f1f1f1;
+        text-transform: uppercase;
+    }
+    
     .main-container {
         max-width: 1400px;
         margin: 0 auto;
+        padding: 40px 20px;
     }
-
+    
     .page-header {
         text-align: center;
-        color: white;
+        color: #2c3e50;
         margin-bottom: 50px;
         animation: fadeInDown 0.8s ease;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 60px 20px;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     }
-
+    
     .page-header h1 {
         font-size: 3rem;
         font-weight: 700;
+        color: white;
         text-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         margin-bottom: 10px;
     }
-
+    
     .page-header p {
         font-size: 1.2rem;
+        color: white;
         opacity: 0.95;
         font-weight: 300;
     }
-
+    
+    .ai-badge {
+        display: inline-block;
+        background: var(--ai-gradient);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-left: 10px;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    
     .glass-card {
         background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(10px);
@@ -54,7 +167,7 @@
         margin-bottom: 30px;
         animation: fadeInUp 0.8s ease;
     }
-
+    
     .card-header-custom {
         background: var(--primary-gradient);
         color: white;
@@ -65,17 +178,17 @@
         align-items: center;
         justify-content: space-between;
     }
-
+    
     .card-header-custom h4 {
         margin: 0;
         font-weight: 600;
         font-size: 1.5rem;
     }
-
+    
     .card-header-custom i {
         font-size: 1.8rem;
     }
-
+    
     .form-label {
         font-weight: 600;
         color: #333;
@@ -84,19 +197,19 @@
         align-items: center;
         font-size: 1rem;
     }
-
+    
     .info-icon {
         margin-left: 8px;
         color: #667eea;
         cursor: help;
         transition: all 0.3s ease;
     }
-
+    
     .info-icon:hover {
         color: #764ba2;
         transform: scale(1.2);
     }
-
+    
     .form-select, .select2-container--default .select2-selection--single,
     .select2-container--default .select2-selection--multiple {
         border: 2px solid #e0e0e0;
@@ -107,22 +220,22 @@
         height: auto !important;
         min-height: 50px;
     }
-
+    
     .form-select:focus, .select2-container--default.select2-container--focus .select2-selection {
         border-color: #667eea;
         box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
     }
-
+    
     .select2-container {
         width: 100% !important;
     }
-
+    
     .select2-dropdown {
         border: 2px solid #667eea;
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
-
+    
     .btn-primary-custom {
         background: var(--primary-gradient);
         border: none;
@@ -138,16 +251,12 @@
         justify-content: center;
         gap: 10px;
     }
-
+    
     .btn-primary-custom:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
     }
-
-    .btn-primary-custom:active {
-        transform: translateY(0);
-    }
-
+    
     .severity-legend {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         border-radius: 15px;
@@ -155,14 +264,14 @@
         margin-top: 30px;
         border: none;
     }
-
+    
     .severity-legend h5 {
         font-weight: 700;
         color: #333;
         margin-bottom: 20px;
         font-size: 1.3rem;
     }
-
+    
     .severity-item {
         display: flex;
         align-items: center;
@@ -172,12 +281,12 @@
         margin-bottom: 12px;
         transition: all 0.3s ease;
     }
-
+    
     .severity-item:hover {
         transform: translateX(5px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
-
+    
     .severity-color {
         width: 30px;
         height: 30px;
@@ -186,7 +295,7 @@
         flex-shrink: 0;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
-
+    
     .results-card {
         background: white;
         border-radius: 20px;
@@ -194,7 +303,7 @@
         overflow: hidden;
         animation: fadeInUp 0.8s ease;
     }
-
+    
     .results-header {
         background: var(--success-gradient);
         color: white;
@@ -203,31 +312,31 @@
         align-items: center;
         justify-content: space-between;
     }
-
+    
     .results-header h4 {
         margin: 0;
         font-weight: 600;
         font-size: 1.5rem;
     }
-
+    
     .results-count {
         background: rgba(255, 255, 255, 0.2);
         padding: 8px 16px;
         border-radius: 20px;
         font-weight: 600;
     }
-
+    
     .table-container {
         padding: 30px;
         overflow-x: auto;
     }
-
+    
     .table {
         border-collapse: separate;
         border-spacing: 0;
         margin: 0;
     }
-
+    
     .table thead th {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -237,82 +346,109 @@
         text-transform: uppercase;
         font-size: 0.85rem;
         letter-spacing: 0.5px;
-        position: sticky;
-        top: 0;
-        z-index: 10;
     }
-
+    
     .table thead th:first-child {
         border-radius: 10px 0 0 0;
     }
-
+    
     .table thead th:last-child {
         border-radius: 0 10px 0 0;
     }
-
+    
     .table tbody tr {
         transition: all 0.3s ease;
         border-bottom: 1px solid #f0f0f0;
     }
-
+    
     .table tbody tr:hover {
         background: #f8f9ff;
         transform: scale(1.01);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
-
+    
     .table tbody td {
         padding: 18px 15px;
         vertical-align: middle;
         font-size: 0.95rem;
         border: none;
     }
-
+    
+    .severity-badge {
+        font-weight: 600;
+        padding: 8px 12px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    
     .severity-Mild, .severity-Hafif {
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%) !important;
-        color: #155724 !important;
-        font-weight: 600;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        color: #155724;
     }
-
+    
     .severity-Moderate, .severity-Orta {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
-        color: #856404 !important;
-        font-weight: 600;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        color: #856404;
     }
-
+    
     .severity-Severe, .severity-Şiddetli {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%) !important;
-        color: #721c24 !important;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+        color: #721c24;
         font-weight: 700;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
     }
-
+    
     .severity-Critical, .severity-Hayati {
-        background: linear-gradient(135deg, #d9534f 0%, #c9302c 100%) !important;
-        color: white !important;
+        background: linear-gradient(135deg, #d9534f 0%, #c9302c 100%);
+        color: white;
         font-weight: 700;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
         box-shadow: 0 4px 10px rgba(217, 83, 79, 0.4);
     }
-
+    
     .severity-Unknown, .severity-Bilinmiyor {
-        background: #e9ecef !important;
-        color: #495057 !important;
-        padding: 8px 12px;
-        border-radius: 8px;
-        display: inline-block;
+        background: #e9ecef;
+        color: #495057;
     }
-
+    
+    .ai-predicted-badge {
+        background: var(--ai-gradient) !important;
+        color: white !important;
+        font-weight: 700;
+        box-shadow: 0 4px 10px rgba(250, 112, 154, 0.4);
+    }
+    
+    .ai-predicted-badge::before {
+        content: '🤖';
+        margin-right: 5px;
+    }
+    
+    .match-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .match-indicator.match {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .match-indicator.mismatch {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .match-indicator.severe-mismatch {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    
     .alert-custom {
         border-radius: 15px;
         padding: 20px 25px;
@@ -320,17 +456,23 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         animation: fadeIn 0.5s ease;
     }
-
+    
     .alert-info-custom {
         background: linear-gradient(135deg, #d4f1f4 0%, #b8e6f0 100%);
         color: #0c5460;
     }
-
+    
     .alert-danger-custom {
         background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
         color: #721c24;
     }
-
+    
+    .alert-ai-info {
+        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        color: #856404;
+        border-left: 4px solid #fa709a;
+    }
+    
     .loading-overlay {
         display: none;
         position: fixed;
@@ -343,51 +485,84 @@
         justify-content: center;
         align-items: center;
     }
-
+    
     .loading-overlay.show {
         display: flex;
     }
-
+    
     .loading-spinner {
         text-align: center;
         color: white;
     }
-
+    
     .loading-spinner .spinner-border {
         width: 4rem;
         height: 4rem;
         border-width: 0.4rem;
     }
-
+    
     .loading-spinner p {
         font-size: 1.3rem;
         margin-top: 20px;
         font-weight: 600;
     }
-
+    
     .empty-state {
         text-align: center;
         padding: 60px 30px;
         color: #667eea;
     }
-
+    
     .empty-state i {
         font-size: 5rem;
         margin-bottom: 20px;
         opacity: 0.7;
     }
-
+    
     .empty-state h5 {
         font-size: 1.5rem;
         font-weight: 600;
         margin-bottom: 10px;
     }
-
+    
     .empty-state p {
         font-size: 1.1rem;
         color: #6c757d;
     }
-
+    
+    /* Footer Styles */
+    footer {
+        background: #2c3e50;
+        color: #fff;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+        margin-top: 60px;
+    }
+    
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    
+    footer a:hover {
+        color: #fff;
+    }
+    
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1050;
+    }
+    
+    .toast {
+        border-radius: 10px;
+    }
+    
     @keyframes fadeInDown {
         from {
             opacity: 0;
@@ -398,7 +573,7 @@
             transform: translateY(0);
         }
     }
-
+    
     @keyframes fadeInUp {
         from {
             opacity: 0;
@@ -409,7 +584,7 @@
             transform: translateY(0);
         }
     }
-
+    
     @keyframes fadeIn {
         from {
             opacity: 0;
@@ -418,57 +593,114 @@
             opacity: 1;
         }
     }
-
+    
     @media (max-width: 768px) {
         .page-header h1 {
             font-size: 2rem;
         }
-
         .glass-card {
             padding: 20px;
         }
-
         .card-header-custom {
             padding: 15px 20px;
             margin: -20px -20px 20px -20px;
         }
-
         .table {
             font-size: 0.85rem;
         }
-
         .table thead th, .table tbody td {
             padding: 12px 8px;
+        }
+        .search-form {
+            max-width: 100%;
+            margin: 10px 0;
         }
     }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Navbar - Same as home.html -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+            </ul>
+            {% if user_email %}
+                <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
+                    <input class="form-control" type="search" name="query" id="searchInput" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
+                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                    <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+                </form>
+            {% endif %}
+            {% if user and user.is_admin %}
+                <a href="/online-users" class="btn btn-success me-2">
+                    <i class="fas fa-users"></i> Online Users
+                </a>
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<!-- Toast Notifications -->
+<div class="toast-container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% for category, message in messages %}
+    <div class="toast align-items-center text-bg-{{ category }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="d-flex">
+            <div class="toast-body">
+                {{ message }}
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endwith %}
+</div>
+
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-spinner">
         <div class="spinner-border" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-3">🔬 Analyzing drug interactions...</p>
+        <p class="mt-3">🤖 AI is analyzing drug interactions...</p>
     </div>
 </div>
 
 <div class="main-container container">
     <!-- Page Header -->
     <div class="page-header">
-        <h1><i class="fas fa-pills me-3"></i>Drug Interaction Checker</h1>
-        <p>Powered by AI • Evidence-Based • Clinical Grade</p>
+        <h1>
+            <i class="fas fa-pills me-3"></i>Drug Interaction Checker
+            <span class="ai-badge">🤖 AI-Powered</span>
+        </h1>
+        <p>AI-Driven Severity Analysis • Evidence-Based • Clinical Grade</p>
     </div>
-
+    
     <!-- Form Section -->
     <div class="glass-card">
         <div class="card-header-custom">
             <h4><i class="fas fa-flask me-2"></i>Check Drug Interactions</h4>
             <i class="fas fa-shield-alt"></i>
         </div>
-
+        
         {% if error %}
         <div class="alert alert-danger-custom alert-dismissible fade show" role="alert">
             <i class="fas fa-exclamation-triangle me-2"></i>
@@ -476,7 +708,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
         {% endif %}
-
+        
         <form method="POST" id="interactionForm">
             <div class="row">
                 <div class="col-md-6 mb-4">
@@ -491,7 +723,6 @@
                         <option value="">🔍 Search for Drug 1...</option>
                     </select>
                 </div>
-
                 <div class="col-md-6 mb-4">
                     <label for="drug2" class="form-label">
                         <i class="fas fa-tablets me-2"></i>Select Drug 2
@@ -505,7 +736,7 @@
                     </select>
                 </div>
             </div>
-
+            
             <div class="mb-4">
                 <label for="routes" class="form-label">
                     <i class="fas fa-route me-2"></i>Routes of Administration (Optional)
@@ -518,14 +749,14 @@
                 </select>
                 <small class="text-muted"><i class="fas fa-lightbulb me-1"></i>You can select multiple routes or leave blank for all routes</small>
             </div>
-
+            
             <button type="submit" class="btn btn-primary-custom w-100" id="submitBtn">
                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 <i class="fas fa-search-plus"></i>
-                <span>Check Interaction</span>
+                <span>Check Interaction with AI</span>
             </button>
         </form>
-
+        
         <!-- Severity Legend -->
         <div class="severity-legend">
             <h5><i class="fas fa-info-circle me-2"></i>Severity Levels Explanation</h5>
@@ -547,7 +778,7 @@
             </div>
         </div>
     </div>
-
+    
     <!-- Results Section -->
     {% if interaction_results %}
     <div class="results-card">
@@ -556,6 +787,10 @@
             <span class="results-count">{{ interaction_results|length }} found</span>
         </div>
         <div class="table-container">
+            <div class="alert alert-ai-info mb-4">
+                <i class="fas fa-robot me-2"></i>
+                <strong>AI Analysis Active:</strong> The severity ratings shown include AI-powered predictions based on interaction descriptions and scientific literature analysis. Manual severity is set by experts, while AI predictions provide additional insights.
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
@@ -565,8 +800,9 @@
                             <th><i class="fas fa-route me-1"></i>Route(s)</th>
                             <th><i class="fas fa-tag me-1"></i>Type</th>
                             <th><i class="fas fa-file-alt me-1"></i>Description</th>
-                            <th><i class="fas fa-exclamation-triangle me-1"></i>Manual Severity</th>
+                            <th><i class="fas fa-user-md me-1"></i>Manual Severity</th>
                             <th><i class="fas fa-robot me-1"></i>AI Predicted</th>
+                            <th><i class="fas fa-balance-scale me-1"></i>Match</th>
                             <th><i class="fas fa-cogs me-1"></i>Mechanism</th>
                             <th><i class="fas fa-heartbeat me-1"></i>Monitoring</th>
                             <th><i class="fas fa-exchange-alt me-1"></i>Alternatives</th>
@@ -582,14 +818,39 @@
                             <td><span class="badge bg-primary">{{ interaction.interaction_type }}</span></td>
                             <td>{{ interaction.interaction_description | safe }}</td>
                             <td>
-                                <span class="severity-{{ interaction.severity | replace(' ', '-') }}">
-                                    {{ interaction.severity }}
+                                <span class="severity-badge severity-{{ interaction.severity.name | replace(' ', '-') }}">
+                                    {{ interaction.severity.name }}
                                 </span>
                             </td>
                             <td>
-                                <span class="severity-{{ interaction.predicted_severity | replace(' ', '-') }}">
-                                    {{ interaction.predicted_severity }}
+                                <span class="severity-badge ai-predicted-badge">
+                                    {{ interaction.predicted_severity.name if interaction.predicted_severity else 'Bilinmiyor' }}
                                 </span>
+                            </td>
+                            <td>
+                            {% set severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren", "Bilinmiyor"] %}
+                            {% set manual_idx = severity_order.index(interaction.severity.name) if interaction.severity and interaction.severity.name in severity_order else -1 %}
+                            {% set predicted_idx = severity_order.index(interaction.predicted_severity.name) if interaction.predicted_severity and interaction.predicted_severity.name in severity_order else -1 %}
+                                {% if manual_idx == predicted_idx %}
+                                    <span class="match-indicator match">
+                                        <i class="fas fa-check-circle"></i> Match
+                                    </span>
+                                {% elif manual_idx != -1 and predicted_idx != -1 %}
+                                    {% set diff = (manual_idx - predicted_idx) | abs %}
+                                    {% if diff == 1 %}
+                                        <span class="match-indicator mismatch">
+                                            <i class="fas fa-exclamation-circle"></i> Close
+                                        </span>
+                                    {% else %}
+                                        <span class="match-indicator severe-mismatch">
+                                            <i class="fas fa-times-circle"></i> Different
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="match-indicator">
+                                        <i class="fas fa-question-circle"></i> N/A
+                                    </span>
+                                {% endif %}
                             </td>
                             <td>{{ interaction.mechanism }}</td>
                             <td>{{ interaction.monitoring }}</td>
@@ -608,7 +869,7 @@
             </div>
             <div class="alert alert-info-custom mt-4">
                 <i class="fas fa-info-circle me-2"></i>
-                <strong>Note:</strong> The "AI Predicted Severity" is generated using machine learning analysis of the interaction description and scientific literature. Always consult with a healthcare professional before making clinical decisions.
+                <strong>Note:</strong> The "AI Predicted Severity" is generated using machine learning models that analyze interaction descriptions and PubMed scientific literature. The "Match" column shows agreement between manual expert classification and AI prediction. Always consult with a healthcare professional before making clinical decisions.
             </div>
         </div>
     </div>
@@ -625,11 +886,20 @@
         <div class="empty-state">
             <i class="fas fa-search"></i>
             <h5>Ready to Check Interactions</h5>
-            <p>Select two drugs above to check for potential interactions.</p>
+            <p>Select two drugs above to check for potential interactions using our AI-powered analysis.</p>
         </div>
     </div>
     {% endif %}
 </div>
+
+<!-- Footer -->
+<footer>
+    <p>© 2025 Drugly. All rights reserved.</p>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
+</footer>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -637,6 +907,96 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-beta.1/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
+    // Toast notifications
+    const toastElements = document.querySelectorAll('.toast');
+    toastElements.forEach(toastElement => {
+        const toast = new bootstrap.Toast(toastElement);
+        toast.show();
+    });
+    
+    // Autocomplete functionality
+    const searchInput = document.getElementById('searchInput');
+    const autocompleteDropdown = document.getElementById('autocompleteDropdown');
+    const searchForm = document.getElementById('searchForm');
+    let debounceTimeout;
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                const query = searchInput.value.trim();
+                if (query.length < 2) {
+                    autocompleteDropdown.classList.remove('show');
+                    autocompleteDropdown.innerHTML = '';
+                    return;
+                }
+                
+                fetch('/search_suggestions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    autocompleteDropdown.innerHTML = '';
+                    if (!data.drugs.length && !data.salts.length && !data.diseases.length && !data.target_molecules.length && !data.side_effects.length && !data.categories.length && !data.atc.length) {
+                        autocompleteDropdown.classList.remove('show');
+                        return;
+                    }
+                    
+                    const createCategory = (title, items, iconClass, nameKey = 'name') => {
+                        if (items.length) {
+                            const categoryDiv = document.createElement('div');
+                            categoryDiv.className = 'autocomplete-category';
+                            categoryDiv.textContent = title;
+                            autocompleteDropdown.appendChild(categoryDiv);
+                            
+                            items.slice(0, 5).forEach(item => {
+                                const itemDiv = document.createElement('div');
+                                itemDiv.className = 'autocomplete-item';
+                                const displayName = item[nameKey] || item.name;
+                                const displayText = item.code ? `${item.code} - ${displayName}` : displayName;
+                                itemDiv.innerHTML = `<i class="${iconClass}"></i><span>${displayText}</span>`;
+                                itemDiv.addEventListener('click', () => {
+                                    searchInput.value = item.code || displayName;
+                                    autocompleteDropdown.classList.remove('show');
+                                    searchForm.submit();
+                                });
+                                autocompleteDropdown.appendChild(itemDiv);
+                            });
+                        }
+                    };
+                    
+                    createCategory('Drugs', data.drugs, 'fas fa-capsules');
+                    createCategory('ATC Codes', data.atc, 'fas fa-sitemap', 'name');
+                    createCategory('Salts', data.salts, 'fas fa-vial');
+                    createCategory('Diseases', data.diseases.map(d => ({ name: d.indication.name_en })), 'fas fa-disease');
+                    createCategory('Target Molecules', data.target_molecules, 'fas fa-atom');
+                    createCategory('Side Effects', data.side_effects, 'fas fa-exclamation-triangle');
+                    createCategory('Categories', data.categories.map(c => ({ name: c.category.name })), 'fas fa-folder');
+                    
+                    autocompleteDropdown.classList.add('show');
+                })
+                .catch(error => {
+                    console.error('Error fetching suggestions:', error);
+                    autocompleteDropdown.classList.remove('show');
+                });
+            }, 300);
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!searchForm.contains(e.target)) {
+                autocompleteDropdown.classList.remove('show');
+            }
+        });
+        
+        searchForm.addEventListener('submit', () => {
+            autocompleteDropdown.classList.remove('show');
+        });
+    }
+    
     // Initialize Select2 for drug and route selection
     function initSelect2(selector, placeholder, url, multiple = false) {
         console.log(`Initializing Select2 for ${selector}`);
@@ -658,7 +1018,6 @@ $(document).ready(function() {
                     console.log("Raw data received from API:", data);
                     params.page = params.page || 1;
                     
-                    // Handle different response formats
                     let results = [];
                     if (Array.isArray(data)) {
                         results = data;
@@ -685,53 +1044,44 @@ $(document).ready(function() {
             theme: 'default'
         });
     }
-
-    // Initialize all select2 dropdowns
+    
     initSelect2("#drug1", "🔍 Search for Drug 1...", "/api/active_ingredients");
     initSelect2("#drug2", "🔍 Search for Drug 2...", "/api/active_ingredients");
     initSelect2("#routes", "Select routes (optional)...", "/api/routes", true);
-
-    // Enable Bootstrap tooltips
+    
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
-
-    // Form validation and submission
+    
     $('#interactionForm').on('submit', function(e) {
         var drug1Val = $('#drug1').val();
         var drug2Val = $('#drug2').val();
-
-        // Validate that both drugs are selected
+        
         if (!drug1Val || !drug2Val) {
             e.preventDefault();
             alert('⚠️ Please select both drugs.');
             return false;
         }
-
-        // Validate that drugs are different
+        
         if (drug1Val === drug2Val) {
             e.preventDefault();
             alert('⚠️ Please select two different drugs.');
             return false;
         }
-
-        // Show loading overlay
+        
         $('#loadingOverlay').addClass('show');
         $('#submitBtn').prop('disabled', true);
         $('#submitBtn').find('.spinner-border').removeClass('d-none');
         $('#submitBtn').find('i.fa-search-plus').hide();
-
-        // Let the form submit normally
+        
         return true;
     });
-
-    // Auto-hide alerts after 5 seconds
+    
     setTimeout(function() {
         $('.alert-dismissible').alert('close');
     }, 5000);
-
-    // Smooth scroll to results if they exist
+    
     {% if interaction_results %}
     setTimeout(function() {
         $('html, body').animate({
@@ -739,8 +1089,7 @@ $(document).ready(function() {
         }, 800);
     }, 300);
     {% endif %}
-
-    // Add hover effect to table rows
+    
     $('.table tbody tr').hover(
         function() {
             $(this).css('cursor', 'pointer');
