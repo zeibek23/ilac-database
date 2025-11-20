@@ -110,7 +110,17 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Load .env if it exists (local development), otherwise ignore (production)
 dotenv_path = BASE_DIR / '.env'
-load_dotenv(dotenv_path=dotenv_path)   # This line is completely safe even if file doesn't exist
+load_dotenv(dotenv_path=dotenv_path)
+
+# DEBUG: Print API key info
+print("="*80)
+print(f"✓ .env file path: {dotenv_path}")
+print(f"✓ .env file exists: {dotenv_path.exists()}")
+api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+print(f"✓ API Key loaded: {api_key[:30]}...{api_key[-10:]}")
+print(f"✓ API Key length: {len(api_key)} characters")
+print(f"✓ API Key starts correctly: {api_key.startswith('sk-ant-api03-')}")
+print("="*80)
 
 # OPTIONAL: Only show the success message during local development
 import os
@@ -15613,6 +15623,7 @@ def get_sut_changes(version_id):
 
 
 # AI CHATBOT
+# AI CHATBOT
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot():
     try:
@@ -15625,66 +15636,70 @@ def chatbot():
         
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            return jsonify({'error': 'API key missing'}), 500
+            return jsonify({'error': 'ANTHROPIC_API_KEY environment variable is not set'}), 500
+        
+        if not api_key.startswith('sk-ant-'):
+            return jsonify({'error': 'Invalid API key format. Must start with sk-ant-'}), 500
         
         client = anthropic.Anthropic(api_key=api_key)
         
-        # Step 1: Search database
+        # Search database comprehensively
         db_result = search_database_for_context(user_message)
-        
-        # Step 2: Determine if database has good information
         db_has_info = db_result["has_info"]
         db_context = db_result["context"]
         drugs_found = db_result["drugs_found"]
         
-        # Step 3: Choose strategy based on database results
         if db_has_info:
-            # Database has good information - use it
             system_prompt = """You are an expert pharmaceutical assistant for drugly.ai.
-
 You have been provided with VERIFIED INTERNAL DATABASE INFORMATION in the user's message.
 
 CRITICAL RULES:
 1. The [DATABASE INFORMATION] section contains the MOST ACCURATE and AUTHORITATIVE information
 2. ALWAYS prioritize information from the database over any other knowledge
-3. If the database provides specific details, USE THEM DIRECTLY
-4. Only supplement with general knowledge for minor context - NEVER contradict the database
-5. If asked about something not in the database, clearly state "This information is not available in our database"
-6. Be precise, professional, and reference the database information
-7. Always end with: "Please consult a healthcare professional before making any medical decisions."
+3. If the database provides specific details, USE THEM DIRECTLY - do not add or modify information
+4. Only supplement with general medical context if the database is incomplete on a specific aspect
+5. NEVER contradict database information
+6. If asked about something not in the database, clearly state "This specific information is not available in our database"
+7. Be precise, professional, and cite the database information
+8. Present information in a clear, structured format
+9. Always end with: "Please consult a healthcare professional before making any medical decisions."
 
-Structure your response clearly with appropriate sections."""
+When answering:
+- Use the exact data from the database
+- If side effects are listed, present them
+- If interactions are documented, explain them with severity levels
+- If pharmacokinetic data exists, include it
+- Organize your response with clear sections"""
             
             user_message_with_context = f"""{user_message}
 
 [DATABASE INFORMATION]:
 {db_context}
 
-Remember: The above database information is your PRIMARY and MOST TRUSTED source. Use it first and foremost."""
+IMPORTANT: The above database information is your PRIMARY and MOST TRUSTED source. Use it first and foremost. Answer the user's question using this data."""
             
             source = "database"
             
         else:
-            # No good database info - use Claude's knowledge with web search capability
             system_prompt = """You are a world-class clinical pharmacologist and pharmaceutical expert.
 
 The user's question was NOT found in the internal database, so you should use your comprehensive medical and pharmaceutical knowledge.
 
 IMPORTANT INSTRUCTIONS:
 1. Provide accurate, detailed, and up-to-date information
-2. If the query is about recent drug approvals, new research, or current medical guidelines, you SHOULD use web search
+2. For recent drug approvals, new research, or current medical guidelines, use web search
 3. For stable, established medical knowledge, use your training knowledge
-4. Cite sources when possible (FDA, EMA, PubMed, clinical guidelines, etc.)
-5. Be clear about the level of evidence for your statements
-6. If you're uncertain about recent developments, explicitly state that and recommend checking with healthcare professionals
-7. Always end with: "Please consult a healthcare professional before making any medical decisions."
+4. Structure your response clearly with appropriate sections
+5. Cite sources when possible (FDA, EMA, PubMed, clinical guidelines, etc.)
+6. Be clear about the level of evidence for your statements
+7. If uncertain about recent developments, state this and recommend checking with healthcare professionals
+8. Always end with: "Please consult a healthcare professional before making any medical decisions."
 
-Structure your response clearly with appropriate sections."""
+Note: This information comes from general medical knowledge, not from the drugly.ai internal database."""
             
             user_message_with_context = user_message
             source = "claude_knowledge"
         
-        # Step 4: Build conversation messages
         messages = []
         for msg in conversation_history[-10:]:
             if msg.get('role') and msg.get('content'):
@@ -15698,7 +15713,6 @@ Structure your response clearly with appropriate sections."""
             "content": user_message_with_context
         })
         
-        # Step 5: Call Claude API - CORRECT MODEL NAME
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4000,
@@ -15717,178 +15731,172 @@ Structure your response clearly with appropriate sections."""
             "timestamp": datetime.utcnow().isoformat()
         })
         
+    except anthropic.AuthenticationError as e:
+        print(f"❌ Authentication Error: {e}")
+        return jsonify({
+            "error": "API authentication failed. Please check your API key.",
+            "details": str(e)
+        }), 401
+    except anthropic.RateLimitError as e:
+        print(f"❌ Rate Limit Error: {e}")
+        return jsonify({
+            "error": "Rate limit exceeded. Please try again later.",
+            "details": str(e)
+        }), 429
+    except anthropic.APIError as e:
+        print(f"❌ API Error: {e}")
+        return jsonify({
+            "error": "API error occurred",
+            "details": str(e)
+        }), 500
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
+        return jsonify({
+            "error": "Internal server error",
+            "details": str(e)
+        }), 500
 
 def extract_drug_names_from_query(query):
     """Extract potential drug names from natural language query"""
     import re
     import string
     
+    EXCLUDED_TERMS = {
+        'what', 'when', 'where', 'which', 'who', 'how', 'can', 'could', 'should', 
+        'would', 'tell', 'show', 'give', 'please', 'side', 'effects', 'effect',
+        'about', 'information', 'info', 'details', 'detail', 'interactions', 
+        'interaction', 'dosage', 'dose', 'drug', 'drugs', 'medicine', 'medicines',
+        'medication', 'medications', 'the', 'a', 'an', 'and', 'or', 'for', 'with',
+        'does', 'do', 'is', 'are', 'have', 'has', 'been', 'being', 'any', 'some',
+        'this', 'that', 'these', 'those', 'me', 'my'
+    }
+    
+    words = re.sub(r'[^\w\s]', ' ', query).split()
+    search_terms = []
+    
+    # Strategy 1: Capitalized words (strong drug name indicator)
+    for word in words:
+        if (len(word) > 2 and 
+            word[0].isupper() and 
+            word.lower() not in EXCLUDED_TERMS):
+            search_terms.append(word)
+    
+    # Strategy 2: Clean query and extract meaningful terms
     query_lower = query.lower()
     
-    # Remove common question patterns
     patterns_to_remove = [
+        r'\bside\s+effects?\s+(?:of|for)\s+',
         r'\bwhat\s+(?:are|is)\s+(?:the\s+)?',
         r'\bhow\s+(?:does|do)\s+',
-        r'\bcan\s+(?:you|i)\s+',
-        r'\bshould\s+i\s+',
+        r'\bcan\s+(?:you|i)\s+(?:tell|give|show)\s+(?:me\s+)?(?:about\s+)?',
         r'\btell\s+me\s+(?:about\s+)?',
-        r'\bshow\s+me\s+',
-        r'\bgive\s+me\s+',
-        r'\bplease\s+',
-        r'\bside\s+effects?\b',
-        r'\binteractions?\b',
-        r'\binformation\b',
-        r'\bdetails?\b',
-        r'\bof\b',
-        r'\bfor\b',
-        r'\babout\b',
-        r'\bwith\b',
+        r'\binformation\s+(?:about|on)\s+',
+        r'\binteractions?\s+(?:of|with|for|between)\s+',
+        r'\bdosage\s+(?:of|for)\s+',
+        r'\bwhat\s+is\s+',
+        r'\bhow\s+to\s+',
     ]
     
     cleaned = query_lower
     for pattern in patterns_to_remove:
         cleaned = re.sub(pattern, ' ', cleaned)
     
-    cleaned = cleaned.translate(str.maketrans('', '', string.punctuation))
-    cleaned = ' '.join(cleaned.split()).strip()
-    
-    # Extract capitalized words (likely drug names)
-    words = query.split()
-    capitalized_words = []
-    for w in words:
-        clean_word = w.strip(string.punctuation)
-        if (clean_word and 
-            len(clean_word) > 2 and 
-            clean_word[0].isupper() and 
-            clean_word.lower() not in ['what', 'when', 'where', 'which', 'who', 'how', 'can', 'should', 'tell', 'show', 'give', 'please']):
-            capitalized_words.append(clean_word)
-    
-    # Combine both approaches
-    search_terms = []
-    if capitalized_words:
-        search_terms.extend(capitalized_words)
-    if cleaned and len(cleaned) > 2:
-        search_terms.append(cleaned)
+    cleaned_words = cleaned.split()
+    for word in cleaned_words:
+        word = word.strip(string.punctuation)
+        if len(word) > 2 and word not in EXCLUDED_TERMS:
+            search_terms.append(word)
     
     # Remove duplicates while preserving order
     seen = set()
     unique_terms = []
     for term in search_terms:
         term_lower = term.lower()
-        if term_lower not in seen and len(term_lower) > 2:
+        if term_lower not in seen:
             seen.add(term_lower)
             unique_terms.append(term)
     
     return unique_terms
 
-
 def search_database_for_context(query):
-    """
-    Search database and return structured result
-    Returns: {
-        "has_info": bool,
-        "context": str,
-        "drugs_found": list
-    }
-    """
+    """Comprehensive database search with improved matching"""
     try:
-        # Extract potential drug names
         search_terms = extract_drug_names_from_query(query)
         
+        print(f"🔍 Search terms extracted: {search_terms}")
+        
         if not search_terms:
-            return {
-                "has_info": False,
-                "context": "",
-                "drugs_found": []
-            }
+            return {"has_info": False, "context": "", "drugs_found": []}
         
         drugs_found = []
         
-        # Search for drugs using extracted terms
-        for term in search_terms[:3]:  # Limit to 3 terms
+        for term in search_terms[:5]:
             term_lower = term.lower()
             
             if len(term_lower) < 3:
                 continue
             
-            # Exact match
-            exact_matches = Drug.query.filter(
+            # 1. Exact match (highest priority)
+            exact = Drug.query.filter(
                 db.or_(
                     db.func.lower(Drug.name_en) == term_lower,
                     db.func.lower(Drug.name_tr) == term_lower
                 )
-            ).limit(2).all()
+            ).first()
             
-            for drug in exact_matches:
-                if drug.id not in [d.id for d in drugs_found]:
-                    drugs_found.append(drug)
+            if exact and exact.id not in [d.id for d in drugs_found]:
+                drugs_found.append(exact)
+                print(f"✅ Exact match found: {exact.name_en}")
+                break  # Stop searching if exact match found
             
-            # Starts with (high confidence)
-            if len(drugs_found) < 3:
-                starts_matches = Drug.query.filter(
+            # 2. Starts with (high confidence)
+            if not drugs_found:
+                starts = Drug.query.filter(
                     db.or_(
                         db.func.lower(Drug.name_en).like(f'{term_lower}%'),
                         db.func.lower(Drug.name_tr).like(f'{term_lower}%')
                     )
-                ).limit(3 - len(drugs_found)).all()
+                ).first()
                 
-                for drug in starts_matches:
-                    if drug.id not in [d.id for d in drugs_found]:
-                        drugs_found.append(drug)
+                if starts and starts.id not in [d.id for d in drugs_found]:
+                    drugs_found.append(starts)
+                    print(f"✅ Starts-with match found: {starts.name_en}")
+                    break
             
-            # Contains (lower confidence)
-            if len(drugs_found) < 2:
-                contains_matches = Drug.query.filter(
+            # 3. Contains (lower confidence)
+            if not drugs_found:
+                contains = Drug.query.filter(
                     db.or_(
                         db.func.lower(Drug.name_en).like(f'%{term_lower}%'),
                         db.func.lower(Drug.name_tr).like(f'%{term_lower}%')
                     )
-                ).limit(2 - len(drugs_found)).all()
+                ).first()
                 
-                for drug in contains_matches:
-                    if drug.id not in [d.id for d in drugs_found]:
-                        drugs_found.append(drug)
-            
-            if len(drugs_found) >= 2:
-                break
+                if contains and contains.id not in [d.id for d in drugs_found]:
+                    drugs_found.append(contains)
+                    print(f"✅ Contains match found: {contains.name_en}")
         
-        # If no drugs found, return no info
         if not drugs_found:
-            return {
-                "has_info": False,
-                "context": "",
-                "drugs_found": []
-            }
+            print("❌ No drugs found in database")
+            return {"has_info": False, "context": "", "drugs_found": []}
         
-        # Build comprehensive context for found drugs
+        # Build comprehensive context
         context_parts = []
-        
-        for drug in drugs_found[:2]:  # Limit to 2 drugs to avoid token explosion
-            drug_info = build_drug_context(drug)
-            context_parts.append(drug_info)
+        for drug in drugs_found[:2]:
+            drug_context = build_comprehensive_drug_context(drug)
+            context_parts.append(drug_context)
         
         full_context = "\n\n".join(context_parts)
         
-        # Check if context has substantial information
-        has_substantial_info = (
-            len(full_context) > 500 and
-            any([
-                "Mechanism of Action:" in full_context,
-                "Pharmacodynamics:" in full_context,
-                "Pharmacokinetics:" in full_context,
-                "Side Effects" in full_context,
-                "Drug-Drug Interactions" in full_context
-            ])
-        )
+        # More lenient check - if we found a drug, we have info
+        has_substantial_info = len(full_context) > 200
+        
+        print(f"✅ Context built: {len(full_context)} characters, has_info: {has_substantial_info}")
         
         return {
             "has_info": has_substantial_info,
-            "context": full_context[:15000],  # Token limit safety
+            "context": full_context[:20000],
             "drugs_found": [{"id": d.id, "name": d.name_en} for d in drugs_found]
         }
         
@@ -15896,163 +15904,254 @@ def search_database_for_context(query):
         print(f"❌ Database search error: {e}")
         import traceback
         traceback.print_exc()
-        return {
-            "has_info": False,
-            "context": "",
-            "drugs_found": []
-        }
+        return {"has_info": False, "context": "", "drugs_found": []}
 
-
-def build_drug_context(drug):
-    """Build comprehensive context for a single drug"""
-    
+def build_comprehensive_drug_context(drug):
+    """Build complete context including ALL available data"""
     sections = []
     
-    # Header
-    header = f"{'='*70}\n"
+    # === HEADER ===
+    header = f"{'='*80}\n"
     header += f"DRUG: {drug.name_en}"
     if drug.name_tr and drug.name_tr != drug.name_en:
         header += f" (Turkish: {drug.name_tr})"
     header += f"\nDrug ID: {drug.id}\n"
     header += f"FDA Approved: {'Yes' if drug.fda_approved else 'No'}\n"
-    header += f"{'='*70}"
+    if drug.chembl_id:
+        header += f"ChEMBL ID: {drug.chembl_id}\n"
+    header += f"{'='*80}"
     sections.append(header)
     
-    # Alternative names
+    # === ALTERNATIVE NAMES ===
     if drug.alternative_names:
-        sections.append(f"Alternative Names: {drug.alternative_names}")
+        sections.append(f"\n📋 Alternative Names:\n{drug.alternative_names}")
     
-    # Categories
+    # === CATEGORIES ===
     if drug.categories:
         cats = ", ".join([c.name for c in drug.categories])
-        sections.append(f"Drug Categories: {cats}")
+        sections.append(f"\n🏷️ Drug Categories:\n{cats}")
     
-    # Indications
+    # === ATC CLASSIFICATION ===
+    if drug.atc_mappings:
+        atc_list = []
+        for mapping in drug.atc_mappings.limit(5):
+            atc = mapping.atc_level5
+            atc_list.append(f"  • {atc.code}: {atc.name}")
+            if atc.ddd:
+                atc_list.append(f"    DDD: {atc.ddd} {atc.uom}")
+        if atc_list:
+            sections.append(f"\n🔢 ATC Classification:\n" + "\n".join(atc_list))
+    
+    # === INDICATIONS ===
     if drug.indications:
-        indications = drug.indications.strip()[:1500]
-        sections.append(f"\nIndications:\n{indications}")
+        sections.append(f"\n💊 Indications:\n{drug.indications[:2000]}")
     
-    # Drug Details
+    # === DRUG DETAILS ===
     if drug.drug_details:
         detail = drug.drug_details[0]
         
         # Mechanism of Action
         if detail.mechanism_of_action:
-            moa = detail.mechanism_of_action.strip()[:1500]
-            sections.append(f"\nMechanism of Action:\n{moa}")
+            sections.append(f"\n⚙️ Mechanism of Action:\n{detail.mechanism_of_action[:2000]}")
         
         # Pharmacodynamics
         if detail.pharmacodynamics:
-            pd = detail.pharmacodynamics.strip()[:1500]
-            sections.append(f"\nPharmacodynamics:\n{pd}")
+            sections.append(f"\n📊 Pharmacodynamics:\n{detail.pharmacodynamics[:2000]}")
         
         # Pharmacokinetics
         if detail.pharmacokinetics:
-            pk = detail.pharmacokinetics.strip()[:1500]
-            sections.append(f"\nPharmacokinetics:\n{pk}")
+            sections.append(f"\n🔄 Pharmacokinetics:\n{detail.pharmacokinetics[:2000]}")
         
         # Black Box Warning
         if detail.black_box_warning:
             warning = "\n⚠️ BLACK BOX WARNING: YES"
             if detail.black_box_details:
-                warning += f"\n{detail.black_box_details.strip()[:1000]}"
+                warning += f"\n{detail.black_box_details[:1500]}"
             sections.append(warning)
         
         # Chemical Properties
         chem_props = []
         if detail.molecular_formula:
-            chem_props.append(f"Molecular Formula: {detail.molecular_formula}")
+            chem_props.append(f"  • Molecular Formula: {detail.molecular_formula}")
         if detail.molecular_weight:
             unit = detail.molecular_weight_unit.name if detail.molecular_weight_unit else ""
-            chem_props.append(f"Molecular Weight: {detail.molecular_weight} {unit}")
+            chem_props.append(f"  • Molecular Weight: {detail.molecular_weight} {unit}")
+        if detail.iupac_name:
+            chem_props.append(f"  • IUPAC Name: {detail.iupac_name[:300]}")
         if detail.smiles:
-            chem_props.append(f"SMILES: {detail.smiles[:200]}")
+            chem_props.append(f"  • SMILES: {detail.smiles[:200]}")
+        if detail.cas_id:
+            chem_props.append(f"  • CAS ID: {detail.cas_id}")
         if chem_props:
-            sections.append("\nChemical Properties:\n" + "\n".join(chem_props))
+            sections.append("\n🧪 Chemical Properties:\n" + "\n".join(chem_props))
+        
+        # Physical Properties
+        phys_props = []
+        if detail.melting_point:
+            unit = detail.melting_point_unit.name if detail.melting_point_unit else ""
+            phys_props.append(f"  • Melting Point: {detail.melting_point} {unit}")
+        if detail.boiling_point:
+            unit = detail.boiling_point_unit.name if detail.boiling_point_unit else ""
+            phys_props.append(f"  • Boiling Point: {detail.boiling_point} {unit}")
+        if detail.solubility:
+            unit = detail.solubility_unit.name if detail.solubility_unit else ""
+            phys_props.append(f"  • Solubility: {detail.solubility} {unit}")
+        if phys_props:
+            sections.append("\n🌡️ Physical Properties:\n" + "\n".join(phys_props))
+        
+        # Pharmacokinetic Parameters
+        pk_params = []
+        if detail.half_life:
+            unit = detail.half_life_unit.name if detail.half_life_unit else ""
+            pk_params.append(f"  • Half-life: {detail.half_life} {unit}")
+        if detail.clearance_rate:
+            unit = detail.clearance_rate_unit.name if detail.clearance_rate_unit else ""
+            pk_params.append(f"  • Clearance Rate: {detail.clearance_rate} {unit}")
+        if detail.bioavailability:
+            pk_params.append(f"  • Bioavailability: {detail.bioavailability}%")
+        if pk_params:
+            sections.append("\n📈 Pharmacokinetic Parameters:\n" + "\n".join(pk_params))
         
         # Safety Information
         safety_info = []
         if detail.pregnancy_safety_trimester1:
-            safety_info.append(f"Pregnancy (Trimester 1): {detail.pregnancy_safety_trimester1.name}")
+            safety_info.append(f"  • Pregnancy (Trimester 1): {detail.pregnancy_safety_trimester1.name}")
             if detail.pregnancy_details_trimester1:
-                safety_info.append(f"  Details: {detail.pregnancy_details_trimester1[:300]}")
-        
+                safety_info.append(f"    Details: {detail.pregnancy_details_trimester1[:400]}")
         if detail.pregnancy_safety_trimester2:
-            safety_info.append(f"Pregnancy (Trimester 2): {detail.pregnancy_safety_trimester2.name}")
-        
+            safety_info.append(f"  • Pregnancy (Trimester 2): {detail.pregnancy_safety_trimester2.name}")
         if detail.pregnancy_safety_trimester3:
-            safety_info.append(f"Pregnancy (Trimester 3): {detail.pregnancy_safety_trimester3.name}")
-        
+            safety_info.append(f"  • Pregnancy (Trimester 3): {detail.pregnancy_safety_trimester3.name}")
         if detail.lactation_safety:
-            safety_info.append(f"Lactation Safety: {detail.lactation_safety.name}")
+            safety_info.append(f"  • Lactation Safety: {detail.lactation_safety.name}")
             if detail.lactation_details:
-                safety_info.append(f"  Details: {detail.lactation_details[:300]}")
-        
+                safety_info.append(f"    Details: {detail.lactation_details[:400]}")
         if safety_info:
-            sections.append("\nPregnancy & Lactation Safety:\n" + "\n".join(safety_info))
+            sections.append("\n🤰 Pregnancy & Lactation Safety:\n" + "\n".join(safety_info))
         
-        # Side Effects - FIXED
+        # Routes of Administration
+        if detail.routes:
+            route_list = []
+            for dr in detail.routes[:5]:
+                route_list.append(f"  • {dr.route.name}")
+                if dr.bioavailability_min or dr.bioavailability_max:
+                    bio_min = dr.bioavailability_min or "N/A"
+                    bio_max = dr.bioavailability_max or "N/A"
+                    route_list.append(f"    Bioavailability: {bio_min}-{bio_max}%")
+                if dr.tmax_min or dr.tmax_max:
+                    unit = dr.tmax_unit.name if dr.tmax_unit else ""
+                    tmax_min = dr.tmax_min or "N/A"
+                    tmax_max = dr.tmax_max or "N/A"
+                    route_list.append(f"    Tmax: {tmax_min}-{tmax_max} {unit}")
+            if route_list:
+                sections.append("\n💉 Routes of Administration:\n" + "\n".join(route_list))
+        
+        # Side Effects
         try:
-            side_effects_list = list(detail.side_effects)[:30]  # Convert to list and slice
-            if side_effects_list:
+            side_effects = list(detail.side_effects)[:40]
+            if side_effects:
                 se_list = []
-                for se in side_effects_list:
+                for se in side_effects:
                     name = se.name_en
                     if se.name_tr and se.name_tr != se.name_en:
                         name += f" ({se.name_tr})"
                     se_list.append(f"  • {name}")
-                sections.append(f"\nCommon Side Effects ({len(side_effects_list)} listed):\n" + "\n".join(se_list))
+                sections.append(f"\n⚠️ Side Effects ({len(side_effects)} listed):\n" + "\n".join(se_list))
         except Exception as e:
             print(f"Side effects error: {e}")
     
-    # Drug Interactions
+    # === DRUG INTERACTIONS ===
     interactions = DrugInteraction.query.filter(
         db.or_(
             DrugInteraction.drug1_id == drug.id,
             DrugInteraction.drug2_id == drug.id
         )
-    ).limit(15).all()
+    ).limit(20).all()
     
     if interactions:
         int_list = []
         for inter in interactions:
             other_drug = inter.drug2 if inter.drug1_id == drug.id else inter.drug1
             severity = inter.severity_level.name if inter.severity_level else "Unknown"
-            desc = inter.interaction_description[:250]
             int_list.append(f"  • {other_drug.name_en}:")
             int_list.append(f"    Type: {inter.interaction_type}")
             int_list.append(f"    Severity: {severity}")
-            int_list.append(f"    Description: {desc}")
+            int_list.append(f"    Description: {inter.interaction_description[:300]}")
             if inter.mechanism:
-                int_list.append(f"    Mechanism: {inter.mechanism[:200]}")
-        sections.append(f"\nDrug-Drug Interactions ({len(interactions)} shown):\n" + "\n".join(int_list))
+                int_list.append(f"    Mechanism: {inter.mechanism[:250]}")
+        sections.append(f"\n🔄 Drug-Drug Interactions ({len(interactions)} documented):\n" + "\n".join(int_list))
     
-    # Food Interactions
-    food_interactions = DrugFoodInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    # === FOOD INTERACTIONS ===
+    food_interactions = DrugFoodInteraction.query.filter_by(drug_id=drug.id).limit(15).all()
     if food_interactions:
         food_list = []
         for fi in food_interactions:
             food_list.append(f"  • {fi.food.name_en}:")
             food_list.append(f"    Type: {fi.interaction_type}")
             food_list.append(f"    Severity: {fi.severity.name if fi.severity else 'Unknown'}")
-            food_list.append(f"    Description: {fi.description[:200]}")
+            food_list.append(f"    Description: {fi.description[:250]}")
             if fi.recommendation:
-                food_list.append(f"    Recommendation: {fi.recommendation[:200]}")
-        sections.append(f"\nFood Interactions ({len(food_interactions)} shown):\n" + "\n".join(food_list))
+                food_list.append(f"    Recommendation: {fi.recommendation[:250]}")
+        sections.append(f"\n🍽️ Food Interactions ({len(food_interactions)} documented):\n" + "\n".join(food_list))
     
-    # Disease Interactions
-    disease_interactions = DrugDiseaseInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    # === DISEASE INTERACTIONS ===
+    disease_interactions = DrugDiseaseInteraction.query.filter_by(drug_id=drug.id).limit(15).all()
     if disease_interactions:
         disease_list = []
         for di in disease_interactions:
             disease_list.append(f"  • {di.indication.name_en}:")
             disease_list.append(f"    Type: {di.interaction_type}")
             disease_list.append(f"    Severity: {di.severity}")
-            disease_list.append(f"    Description: {di.description[:200]}")
-        sections.append(f"\nDisease Interactions ({len(disease_interactions)} shown):\n" + "\n".join(disease_list))
+            disease_list.append(f"    Description: {di.description[:250]}")
+        sections.append(f"\n🏥 Disease Interactions ({len(disease_interactions)} documented):\n" + "\n".join(disease_list))
     
-    return "\n\n".join(sections)
-
+    # === LAB TEST INTERACTIONS ===
+    lab_interactions = DrugLabTestInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    if lab_interactions:
+        lab_list = []
+        for li in lab_interactions:
+            lab_list.append(f"  • {li.lab_test.name_en}:")
+            lab_list.append(f"    Type: {li.interaction_type}")
+            lab_list.append(f"    Severity: {li.severity.name if li.severity else 'Unknown'}")
+            lab_list.append(f"    Description: {li.description[:250]}")
+        sections.append(f"\n🧪 Lab Test Interactions ({len(lab_interactions)} documented):\n" + "\n".join(lab_list))
+    
+    # === RECEPTOR INTERACTIONS ===
+    receptor_interactions = DrugReceptorInteraction.query.filter_by(drug_id=drug.id).limit(10).all()
+    if receptor_interactions:
+        receptor_list = []
+        for ri in receptor_interactions:
+            receptor_list.append(f"  • {ri.receptor.name}:")
+            receptor_list.append(f"    Type: {ri.interaction_type}")
+            if ri.affinity:
+                units = ri.units or ""
+                param = ri.affinity_parameter or ""
+                receptor_list.append(f"    Affinity: {ri.affinity} {units} ({param})")
+        sections.append(f"\n🎯 Receptor Interactions ({len(receptor_interactions)} documented):\n" + "\n".join(receptor_list))
+    
+    # === PATHWAYS ===
+    pathways = drug.pathways.limit(5).all()
+    if pathways:
+        pathway_list = []
+        for pathway in pathways:
+            pathway_list.append(f"  • {pathway.name}")
+            if pathway.description:
+                pathway_list.append(f"    {pathway.description[:200]}")
+        sections.append(f"\n🧬 Metabolic Pathways ({len(pathways)} listed):\n" + "\n".join(pathway_list))
+    
+    # === PHARMACOGENOMICS ===
+    if drug.clinical_annotations:
+        pgx_list = []
+        for ca in drug.clinical_annotations[:5]:
+            annotation = ca.annotation
+            genes = [g.gene.gene_symbol for g in annotation.genes]
+            pgx_list.append(f"  • Level of Evidence: {annotation.level_of_evidence}")
+            pgx_list.append(f"    Genes: {', '.join(genes)}")
+            pgx_list.append(f"    Phenotype Category: {annotation.phenotype_category}")
+        if pgx_list:
+            sections.append(f"\n🧬 Pharmacogenomics (Clinical Annotations):\n" + "\n".join(pgx_list))
+    
+    return "\n".join(sections)
 
 @app.route('/api/chatbot/drug-info', methods=['POST'])
 def chatbot_drug_info():
@@ -16117,7 +16216,6 @@ def chatbot_drug_info():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/chatbot/drug-search', methods=['GET'])
 def chatbot_drug_search():
     try:
@@ -16143,7 +16241,6 @@ def chatbot_drug_search():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/chatbot/interaction-check', methods=['POST'])
 def chatbot_interaction_check():
@@ -16186,7 +16283,6 @@ def chatbot_interaction_check():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/chatbot/food-interactions', methods=['POST'])
 def chatbot_food_interactions():
     try:
@@ -16216,7 +16312,6 @@ def chatbot_food_interactions():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/chatbot/disease-interactions', methods=['POST'])
 def chatbot_disease_interactions():
     try:
@@ -16244,7 +16339,6 @@ def chatbot_disease_interactions():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/chatbot/safety-info', methods=['POST'])
 def chatbot_safety_info():
@@ -16291,7 +16385,6 @@ def chatbot_safety_info():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/chatbot/pharmacogenomics', methods=['POST'])
 def chatbot_pharmacogenomics():
@@ -16348,7 +16441,6 @@ def chatbot_pharmacogenomics():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/chatbot-page')
 def chatbot_page():
