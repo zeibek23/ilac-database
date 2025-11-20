@@ -2,13 +2,362 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Fetch UniProt Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch UniProt Data - Drugly</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        .container {
+            max-width: 900px;
+        }
+        .main-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .card-header-custom {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .card-header-custom h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+        }
+        .card-header-custom p {
+            margin: 0;
+            opacity: 0.95;
+        }
+        .card-body-custom {
+            padding: 2.5rem;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 2px solid #93c5fd;
+            margin-bottom: 2rem;
+        }
+        .info-box h5 {
+            color: #1e40af;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .info-box ul {
+            margin: 0;
+            padding-left: 1.5rem;
+            color: #1f2937;
+        }
+        .info-box ul li {
+            margin-bottom: 0.5rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .form-label i {
+            color: #3b82f6;
+        }
+        .form-control {
+            padding: 0.875rem;
+            border: 2px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        .form-control:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .form-text {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.375rem;
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+        .btn-primary-custom:active {
+            transform: translateY(0);
+        }
+        .examples-section {
+            background: #f9fafb;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-top: 2rem;
+            border: 2px solid #e5e7eb;
+        }
+        .examples-section h6 {
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .example-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .example-chip {
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .example-chip:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            border: 2px solid #bae6fd;
+            text-align: center;
+        }
+        .stat-card i {
+            font-size: 2rem;
+            color: #0284c7;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card h4 {
+            font-size: 0.75rem;
+            color: #075985;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin: 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 2px solid #fcd34d;
+            margin-bottom: 1.5rem;
+        }
+        .warning-box p {
+            margin: 0;
+            color: #78350f;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .spinner-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .spinner-content {
+            text-align: center;
+            color: white;
+        }
+        .spinner-border-custom {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3rem;
+        }
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <form action="{{ url_for('fetch_uniprot_data') }}" method="POST">
-        <label for="receptor_name">Receptor Name:</label>
-        <input type="text" id="receptor_name" name="receptor_name" required>
-        <button type="submit">Fetch Data</button>
-    </form>
+    <div class="spinner-overlay" id="loadingOverlay">
+        <div class="spinner-content">
+            <div class="spinner-border spinner-border-custom text-light" role="status"></div>
+            <p class="mt-3 fs-5">Fetching data from UniProt...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-card">
+            <div class="card-header-custom">
+                <h1><i class="fas fa-database"></i> Fetch UniProt Receptor Data</h1>
+                <p>Import receptor information directly from the UniProt database</p>
+            </div>
+
+            <div class="card-body-custom">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'warning' else 'times-circle' }}"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Info Box -->
+                <div class="info-box">
+                    <h5><i class="fas fa-info-circle"></i> What This Does</h5>
+                    <ul>
+                        <li>Searches the <strong>UniProt database</strong> for human (Homo sapiens) receptors</li>
+                        <li>Retrieves detailed molecular information including structure, function, and localization</li>
+                        <li>Automatically extracts PDB structures and binding site coordinates</li>
+                        <li>Saves receptor data to your database for further analysis</li>
+                    </ul>
+                </div>
+
+                <!-- Statistics -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class="fas fa-database"></i>
+                        <h4>UniProt KB</h4>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-user"></i>
+                        <h4>Human Only</h4>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-cube"></i>
+                        <h4>3D Structures</h4>
+                    </div>
+                </div>
+
+                <!-- Warning -->
+                <div class="warning-box">
+                    <p>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Note:</strong> Fetching data may take 10-30 seconds depending on the receptor complexity and network speed.
+                    </p>
+                </div>
+
+                <!-- Form -->
+                <form action="{{ url_for('fetch_uniprot_data') }}" method="POST" id="uniprotForm">
+                    <div class="form-group">
+                        <label for="receptor_name" class="form-label">
+                            <i class="fas fa-search"></i> Receptor Name
+                        </label>
+                        <input 
+                            type="text" 
+                            id="receptor_name" 
+                            name="receptor_name" 
+                            class="form-control" 
+                            placeholder="Enter receptor name (e.g., Dopamine receptor D2)" 
+                            required
+                            autocomplete="off">
+                        <small class="form-text">
+                            Search by protein name, gene name, or receptor family (e.g., "Dopamine", "DRD2", "GPCR")
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn-primary-custom">
+                        <i class="fas fa-download"></i> Fetch Receptor Data
+                    </button>
+                </form>
+
+                <!-- Examples Section -->
+                <div class="examples-section">
+                    <h6><i class="fas fa-lightbulb"></i> Example Searches</h6>
+                    <div class="example-chips">
+                        <span class="example-chip" onclick="fillExample('Dopamine receptor D2')">Dopamine receptor D2</span>
+                        <span class="example-chip" onclick="fillExample('Serotonin receptor')">Serotonin receptor</span>
+                        <span class="example-chip" onclick="fillExample('GABA-A receptor')">GABA-A receptor</span>
+                        <span class="example-chip" onclick="fillExample('Insulin receptor')">Insulin receptor</span>
+                        <span class="example-chip" onclick="fillExample('Calcium channel')">Calcium channel</span>
+                        <span class="example-chip" onclick="fillExample('Cannabinoid receptor')">Cannabinoid receptor</span>
+                        <span class="example-chip" onclick="fillExample('Opioid receptor')">Opioid receptor</span>
+                        <span class="example-chip" onclick="fillExample('Adrenergic receptor')">Adrenergic receptor</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function fillExample(text) {
+            document.getElementById('receptor_name').value = text;
+            document.getElementById('receptor_name').focus();
+        }
+
+        document.getElementById('uniprotForm').addEventListener('submit', function(e) {
+            const receptorName = document.getElementById('receptor_name').value.trim();
+            if (!receptorName) {
+                e.preventDefault();
+                alert('Please enter a receptor name');
+                return;
+            }
+            
+            // Show loading overlay
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        });
+
+        // Hide loading overlay on page load (in case of redirect back)
+        window.addEventListener('load', function() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        });
+
+        // Auto-dismiss alerts after 5 seconds
+        window.addEventListener('load', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                setTimeout(function() {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+        });
+    </script>
 </body>
 </html>

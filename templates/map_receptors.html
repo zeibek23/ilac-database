@@ -4,78 +4,410 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Map Receptor to IUPHAR ID</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+    <style>
+        .stat-card { border-left: 4px solid #0d6efd; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .badge-large { font-size: 0.9rem; padding: 0.5em 0.8em; }
+        .search-box { margin-bottom: 20px; }
+        .action-btn { margin: 0 2px; }
+        .help-icon { cursor: help; color: #6c757d; }
+        .iuphar-link { text-decoration: none; }
+        .iuphar-link:hover { text-decoration: underline; }
+        .form-section { background: #f8f9fa; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .table-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .filter-tabs { margin-bottom: 20px; }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center mb-4">Map Receptor to IUPHAR ID</h1>
-
-        <!-- Mevcut eşleşmelerin listesi -->
-        <div class="card mb-5">
-            <div class="card-header bg-primary text-white">
-                <h2 class="h5 mb-0">Existing Receptor-IUPHAR Mappings</h2>
-            </div>
-            <div class="card-body">
-                <table class="table table-bordered table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Receptor Name</th>
-                            <th>Gene Name</th>
-                            <th>IUPHAR ID</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for receptor in receptors %}
-                        <tr>
-                            <td>{{ receptor.name }}</td>
-                            <td>{{ receptor.gene_name or "Unknown" }}</td>
-                            <td>{{ receptor.iuphar_id or "Not Assigned" }}</td>
-                            <td>
-                                {% if receptor.iuphar_id %}
-                                <form method="POST" action="/receptors/map" class="d-inline">
-                                    <input type="hidden" name="receptor_id" value="{{ receptor.id }}">
-                                    <div class="input-group">
-                                        <input type="text" name="iuphar_id" class="form-control" placeholder="Update IUPHAR ID" value="{{ receptor.iuphar_id }}">
-                                        <button type="submit" class="btn btn-warning">Update</button>
-                                    </div>
-                                </form>
-                                {% endif %}
-                            </td>
-                        </tr>
+    <div class="container-fluid mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="row">
+                    <div class="col-12">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }}"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </div>
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-dna"></i> Total Receptors</h6>
+                        <h3 class="card-title">{{ receptors|length }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="border-left-color: #198754;">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-check-circle"></i> Mapped to IUPHAR</h6>
+                        <h3 class="card-title text-success">{{ receptors|selectattr('iuphar_id')|list|length }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="border-left-color: #ffc107;">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-exclamation-triangle"></i> Unmapped</h6>
+                        <h3 class="card-title text-warning">{{ receptors|rejectattr('iuphar_id')|list|length }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="border-left-color: #6f42c1;">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-percentage"></i> Mapping Rate</h6>
+                        <h3 class="card-title text-primary">
+                            {% if receptors|length > 0 %}
+                                {{ ((receptors|selectattr('iuphar_id')|list|length / receptors|length) * 100)|round(1) }}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Yeni eşleştirme formu -->
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h2 class="h5 mb-0">Map a New Receptor to IUPHAR ID</h2>
-            </div>
-            <div class="card-body">
-                <form method="POST" action="/receptors/map">
-                    <div class="mb-3">
-                        <label for="receptor_id" class="form-label">Select Receptor</label>
-                        <select name="receptor_id" id="receptor_id" class="form-select" required>
-                            {% for receptor in receptors if not receptor.iuphar_id %}
-                            <option value="{{ receptor.id }}">{{ receptor.name }} (Gene: {{ receptor.gene_name or "Unknown" }})</option>
-                            {% endfor %}
+        <h1 class="mb-4">
+            <i class="fas fa-link"></i> Map Receptors to IUPHAR IDs
+            <a href="https://www.guidetopharmacology.org/" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                <i class="fas fa-external-link-alt"></i> Visit IUPHAR/BPS
+            </a>
+        </h1>
+
+        <!-- Quick Map Form -->
+        <div class="form-section mb-4">
+            <h5 class="mb-3">
+                <i class="fas fa-plus-circle"></i> Quick Map Receptor
+                <i class="fas fa-question-circle help-icon ms-2" data-bs-toggle="tooltip" title="Select a receptor and enter its IUPHAR Target ID from Guide to Pharmacology"></i>
+            </h5>
+            <form method="POST" action="/receptors/map" id="quickMapForm">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="receptor_id" class="form-label">Select Receptor *</label>
+                        <select name="receptor_id" id="receptor_id" class="form-select select2" required>
+                            <option value="">Choose receptor...</option>
+                            <optgroup label="Unmapped Receptors">
+                                {% for receptor in receptors if not receptor.iuphar_id %}
+                                <option value="{{ receptor.id }}" data-gene="{{ receptor.gene_name or 'Unknown' }}">
+                                    {{ receptor.name }} (Gene: {{ receptor.gene_name or "Unknown" }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Already Mapped (Update)">
+                                {% for receptor in receptors if receptor.iuphar_id %}
+                                <option value="{{ receptor.id }}" data-gene="{{ receptor.gene_name or 'Unknown' }}" data-current-id="{{ receptor.iuphar_id }}">
+                                    {{ receptor.name }} (Current ID: {{ receptor.iuphar_id }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="iuphar_id" class="form-label">IUPHAR ID</label>
-                        <input type="text" name="iuphar_id" id="iuphar_id" class="form-control" placeholder="Enter IUPHAR ID" required>
+                    <div class="col-md-4 mb-3">
+                        <label for="iuphar_id" class="form-label">IUPHAR Target ID *</label>
+                        <input type="text" name="iuphar_id" id="iuphar_id" class="form-control" placeholder="e.g., 217" required pattern="[0-9]+">
+                        <div class="form-text">Enter numeric IUPHAR/BPS Guide Target ID</div>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Map Receptor</button>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-save"></i> Map / Update
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+            <ul class="nav nav-pills" id="filterTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="all-tab" data-bs-toggle="pill" data-bs-target="#all" type="button">
+                        <i class="fas fa-list"></i> All Receptors ({{ receptors|length }})
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="mapped-tab" data-bs-toggle="pill" data-bs-target="#mapped" type="button">
+                        <i class="fas fa-check"></i> Mapped ({{ receptors|selectattr('iuphar_id')|list|length }})
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="unmapped-tab" data-bs-toggle="pill" data-bs-target="#unmapped" type="button">
+                        <i class="fas fa-times"></i> Unmapped ({{ receptors|rejectattr('iuphar_id')|list|length }})
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Receptors Table -->
+        <div class="table-container">
+            <div class="tab-content" id="filterTabContent">
+                <!-- All Receptors -->
+                <div class="tab-pane fade show active" id="all" role="tabpanel">
+                    <table class="table table-striped table-hover" id="allReceptorsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Receptor Name</th>
+                                <th>Gene Name</th>
+                                <th>Type</th>
+                                <th>IUPHAR ID</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for receptor in receptors %}
+                            <tr>
+                                <td>{{ receptor.id }}</td>
+                                <td>{{ receptor.name }}</td>
+                                <td>
+                                    {% if receptor.gene_name %}
+                                        <span class="badge bg-info">{{ receptor.gene_name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-primary">{{ receptor.type }}</span></td>
+                                <td>
+                                    {% if receptor.iuphar_id %}
+                                        <a href="https://www.guidetopharmacology.org/GRAC/ObjectDisplayForward?objectId={{ receptor.iuphar_id }}" 
+                                           target="_blank" class="iuphar-link">
+                                            <span class="badge bg-success badge-large">{{ receptor.iuphar_id }}</span>
+                                            <i class="fas fa-external-link-alt ms-1"></i>
+                                        </a>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Not Assigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if receptor.iuphar_id %}
+                                        <i class="fas fa-check-circle text-success"></i> Mapped
+                                    {% else %}
+                                        <i class="fas fa-exclamation-circle text-warning"></i> Pending
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary action-btn" onclick="quickEdit({{ receptor.id }}, '{{ receptor.name }}', '{{ receptor.iuphar_id or '' }}')">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                    {% if receptor.iuphar_id %}
+                                    <button class="btn btn-sm btn-danger action-btn" onclick="removeMapping({{ receptor.id }}, '{{ receptor.name }}')">
+                                        <i class="fas fa-unlink"></i> Unmap
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mapped Only -->
+                <div class="tab-pane fade" id="mapped" role="tabpanel">
+                    <table class="table table-striped table-hover" id="mappedReceptorsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Receptor Name</th>
+                                <th>Gene Name</th>
+                                <th>IUPHAR ID</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for receptor in receptors if receptor.iuphar_id %}
+                            <tr>
+                                <td>{{ receptor.id }}</td>
+                                <td>{{ receptor.name }}</td>
+                                <td>
+                                    {% if receptor.gene_name %}
+                                        <span class="badge bg-info">{{ receptor.gene_name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="https://www.guidetopharmacology.org/GRAC/ObjectDisplayForward?objectId={{ receptor.iuphar_id }}" 
+                                       target="_blank" class="iuphar-link">
+                                        <span class="badge bg-success badge-large">{{ receptor.iuphar_id }}</span>
+                                        <i class="fas fa-external-link-alt ms-1"></i>
+                                    </a>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary action-btn" onclick="quickEdit({{ receptor.id }}, '{{ receptor.name }}', '{{ receptor.iuphar_id }}')">
+                                        <i class="fas fa-edit"></i> Update
+                                    </button>
+                                    <button class="btn btn-sm btn-danger action-btn" onclick="removeMapping({{ receptor.id }}, '{{ receptor.name }}')">
+                                        <i class="fas fa-unlink"></i> Remove
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Unmapped Only -->
+                <div class="tab-pane fade" id="unmapped" role="tabpanel">
+                    <table class="table table-striped table-hover" id="unmappedReceptorsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Receptor Name</th>
+                                <th>Gene Name</th>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for receptor in receptors if not receptor.iuphar_id %}
+                            <tr>
+                                <td>{{ receptor.id }}</td>
+                                <td>{{ receptor.name }}</td>
+                                <td>
+                                    {% if receptor.gene_name %}
+                                        <span class="badge bg-info">{{ receptor.gene_name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-primary">{{ receptor.type }}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-success action-btn" onclick="quickEdit({{ receptor.id }}, '{{ receptor.name }}', '')">
+                                        <i class="fas fa-plus"></i> Map Now
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Edit IUPHAR Mapping</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="/receptors/map">
+                    <div class="modal-body">
+                        <input type="hidden" name="receptor_id" id="modal_receptor_id">
+                        <div class="mb-3">
+                            <label class="form-label">Receptor Name</label>
+                            <input type="text" id="modal_receptor_name" class="form-control" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="modal_iuphar_id" class="form-label">IUPHAR Target ID *</label>
+                            <input type="text" name="iuphar_id" id="modal_iuphar_id" class="form-control" required pattern="[0-9]+">
+                            <div class="form-text">
+                                Search for target ID at: 
+                                <a href="https://www.guidetopharmacology.org/" target="_blank">IUPHAR/BPS Guide</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Mapping</button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Bootstrap JS Bundle -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Initialize DataTables
+            $('#allReceptorsTable, #mappedReceptorsTable, #unmappedReceptorsTable').DataTable({
+                pageLength: 25,
+                order: [[0, 'desc']],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search receptors..."
+                }
+            });
+
+            // Initialize Select2
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Choose receptor...',
+                allowClear: true
+            });
+
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+
+        function quickEdit(receptorId, receptorName, currentIupharId) {
+            $('#modal_receptor_id').val(receptorId);
+            $('#modal_receptor_name').val(receptorName);
+            $('#modal_iuphar_id').val(currentIupharId);
+            new bootstrap.Modal(document.getElementById('editModal')).show();
+        }
+
+        function removeMapping(receptorId, receptorName) {
+            if (confirm(`Are you sure you want to remove IUPHAR mapping for "${receptorName}"?`)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/receptors/map';
+                
+                const receptorInput = document.createElement('input');
+                receptorInput.type = 'hidden';
+                receptorInput.name = 'receptor_id';
+                receptorInput.value = receptorId;
+                
+                const iupharInput = document.createElement('input');
+                iupharInput.type = 'hidden';
+                iupharInput.name = 'iuphar_id';
+                iupharInput.value = '';
+                
+                form.appendChild(receptorInput);
+                form.appendChild(iupharInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        // Auto-populate IUPHAR ID when selecting receptor with existing mapping
+        $('#receptor_id').on('change', function() {
+            const selectedOption = $(this).find(':selected');
+            const currentId = selectedOption.data('current-id');
+            if (currentId) {
+                $('#iuphar_id').val(currentId);
+            } else {
+                $('#iuphar_id').val('');
+            }
+        });
+    </script>
 </body>
 </html>

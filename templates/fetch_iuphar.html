@@ -3,18 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fetch IUPHAR Interactions</title>
+    <title>Fetch IUPHAR Interactions - Drugly</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        .container {
+            max-width: 1000px;
+        }
+        .main-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .card-header-custom {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 2.5rem;
+            text-align: center;
+            position: relative;
+        }
+        .card-header-custom::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></svg>');
+            opacity: 0.3;
+        }
+        .card-header-custom h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            position: relative;
+            z-index: 1;
+        }
+        .card-header-custom p {
+            margin: 0;
+            opacity: 0.95;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
+        }
+        .card-header-custom .external-link {
+            margin-top: 1rem;
+        }
+        .card-header-custom .external-link a {
+            color: white;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.2);
+            border-radius: 0.5rem;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .card-header-custom .external-link a:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .card-body-custom {
+            padding: 2.5rem;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 2px solid #93c5fd;
+            margin-bottom: 2rem;
+        }
+        .info-box h5 {
+            color: #1e40af;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .info-box ul {
+            margin: 0;
+            padding-left: 1.5rem;
+            color: #1f2937;
+        }
+        .info-box ul li {
+            margin-bottom: 0.5rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            border: 2px solid #bae6fd;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+        .stat-card i {
+            font-size: 2.5rem;
+            color: #0284c7;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card h4 {
+            font-size: 0.8rem;
+            color: #075985;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin: 0;
+        }
+        .stat-card p {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0.5rem 0 0 0;
+        }
+        .form-section {
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            padding: 2rem;
+            border-radius: 0.75rem;
+            margin-bottom: 2rem;
+            border: 2px solid #e5e7eb;
+        }
+        .form-section h5 {
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .form-label i {
+            color: #3b82f6;
+        }
+        .form-text {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-top: 0.375rem;
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+        .btn-primary-custom:disabled {
+            background: #93c5fd;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            border: 2px solid #fcd34d;
+            margin-bottom: 1.5rem;
+        }
+        .warning-box p {
+            margin: 0;
+            color: #78350f;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .spinner-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .spinner-content {
+            text-align: center;
+            color: white;
+        }
+        .spinner-border-custom {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection {
+            padding: 0.5rem;
+            border: 2px solid #d1d5db;
+            border-radius: 0.5rem;
+        }
+        .select2-container--bootstrap-5.select2-container--focus .select2-selection {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6b7280;
+        }
+        .empty-state i {
+            font-size: 4rem;
+            color: #d1d5db;
+            margin-bottom: 1rem;
+        }
+        .empty-state h4 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Fetch Interactions from IUPHAR</h1>
-    <form method="POST" action="/api/iuphar">
-        <label for="receptor_id">Select Receptor:</label>
-        <select name="receptor_id" id="receptor_id" required>
-            {% for receptor in receptors %}
-            <option value="{{ receptor.id }}">{{ receptor.name }} (IUPHAR ID: {{ receptor.iuphar_id }})</option>
-            {% endfor %}
-        </select>
-        <button type="submit">Fetch Interactions</button>
-    </form>
+    <div class="spinner-overlay" id="loadingOverlay">
+        <div class="spinner-content">
+            <div class="spinner-border spinner-border-custom text-light" role="status"></div>
+            <p class="mt-3 fs-5">Fetching interactions from IUPHAR/BPS...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="main-card">
+            <div class="card-header-custom">
+                <h1><i class="fas fa-exchange-alt"></i> Fetch IUPHAR Interactions</h1>
+                <p>Import drug-receptor interaction data from the IUPHAR/BPS Guide to Pharmacology</p>
+                <div class="external-link">
+                    <a href="https://www.guidetopharmacology.org/" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> Visit IUPHAR/BPS Database
+                    </a>
+                </div>
+            </div>
+
+            <div class="card-body-custom">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category == 'warning' else 'times-circle' }}"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Info Box -->
+                <div class="info-box">
+                    <h5><i class="fas fa-info-circle"></i> About IUPHAR Interactions</h5>
+                    <ul>
+                        <li>Fetches <strong>ligand-receptor interaction data</strong> from the authoritative IUPHAR/BPS database</li>
+                        <li>Includes affinity values (Ki, Kd, IC50, EC50) and interaction mechanisms</li>
+                        <li>Filters for <strong>human-specific</strong> interactions only</li>
+                        <li>Automatically matches ligands with drugs in your database</li>
+                        <li>Prevents duplicate entries and validates data quality</li>
+                    </ul>
+                </div>
+
+                <!-- Statistics -->
+                {% if receptors %}
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class="fas fa-dna"></i>
+                        <h4>Total Receptors</h4>
+                        <p>{{ receptors|length }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-link"></i>
+                        <h4>Mapped to IUPHAR</h4>
+                        <p>{{ receptors|length }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-database"></i>
+                        <h4>Source</h4>
+                        <p style="font-size: 1.2rem;">IUPHAR/BPS</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Warning -->
+                <div class="warning-box">
+                    <p>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Important:</strong> Only receptors with mapped IUPHAR IDs can fetch interactions. Map receptors first in the <a href="{{ url_for('map_receptor_iuphar') }}">Receptor Mapping</a> section.
+                    </p>
+                </div>
+
+                {% if receptors %}
+                <!-- Form Section -->
+                <div class="form-section">
+                    <h5><i class="fas fa-sliders-h"></i> Select Receptor</h5>
+                    <form method="POST" action="/api/iuphar" id="iupharForm">
+                        <div class="form-group">
+                            <label for="receptor_id" class="form-label">
+                                <i class="fas fa-dna"></i> Receptor (with IUPHAR ID)
+                            </label>
+                            <select name="receptor_id" id="receptor_id" class="form-select select2-receptor" required>
+                                <option value="">Choose a receptor...</option>
+                                {% for receptor in receptors %}
+                                <option value="{{ receptor.id }}" data-iuphar="{{ receptor.iuphar_id }}" data-gene="{{ receptor.gene_name or 'Unknown' }}">
+                                    {{ receptor.name }} 
+                                    {% if receptor.gene_name %}({{ receptor.gene_name }}){% endif %} 
+                                    - IUPHAR ID: {{ receptor.iuphar_id }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text">
+                                Select a receptor with a mapped IUPHAR ID to fetch its interactions
+                            </small>
+                        </div>
+
+                        <button type="submit" class="btn-primary-custom" id="submitBtn">
+                            <i class="fas fa-download"></i> Fetch Interactions
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Quick Tips -->
+                <div class="info-box" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d;">
+                    <h5 style="color: #92400e;"><i class="fas fa-lightbulb"></i> Pro Tips</h5>
+                    <ul style="color: #78350f;">
+                        <li><strong>Map receptors first:</strong> Use the <a href="{{ url_for('map_receptor_iuphar') }}">Receptor Mapping</a> page to assign IUPHAR IDs</li>
+                        <li><strong>Avoid duplicates:</strong> The system automatically prevents duplicate interactions</li>
+                        <li><strong>Check your drugs:</strong> Interactions only save for ligands already in your drug database</li>
+                        <li><strong>Processing time:</strong> May take 10-30 seconds depending on the number of interactions</li>
+                    </ul>
+                </div>
+
+                {% else %}
+                <!-- Empty State -->
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h4>No Receptors with IUPHAR IDs Found</h4>
+                    <p>You need to map receptors to IUPHAR IDs first before fetching interactions.</p>
+                    <a href="{{ url_for('map_receptor_iuphar') }}" class="btn btn-primary mt-3">
+                        <i class="fas fa-link"></i> Go to Receptor Mapping
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2
+            $('.select2-receptor').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Choose a receptor...',
+                width: '100%',
+                templateResult: formatReceptor,
+                templateSelection: formatReceptorSelection
+            });
+
+            function formatReceptor(receptor) {
+                if (!receptor.id) {
+                    return receptor.text;
+                }
+                
+                var $receptor = $(
+                    '<div class="d-flex justify-content-between align-items-center">' +
+                        '<span>' + receptor.text + '</span>' +
+                    '</div>'
+                );
+                return $receptor;
+            }
+
+            function formatReceptorSelection(receptor) {
+                return receptor.text;
+            }
+
+            // Form submission
+            $('#iupharForm').on('submit', function(e) {
+                const receptorId = $('#receptor_id').val();
+                if (!receptorId) {
+                    e.preventDefault();
+                    alert('Please select a receptor');
+                    return;
+                }
+                
+                // Show loading overlay
+                $('#loadingOverlay').css('display', 'flex');
+                $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+            });
+
+            // Hide loading overlay on page load
+            window.addEventListener('load', function() {
+                $('#loadingOverlay').hide();
+                $('#submitBtn').prop('disabled', false).html('<i class="fas fa-download"></i> Fetch Interactions');
+            });
+
+            // Auto-dismiss alerts
+            window.addEventListener('load', function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(function(alert) {
+                    setTimeout(function() {
+                        const bsAlert = new bootstrap.Alert(alert);
+                        bsAlert.close();
+                    }, 8000);
+                });
+            });
+        });
+    </script>
 </body>
 </html>

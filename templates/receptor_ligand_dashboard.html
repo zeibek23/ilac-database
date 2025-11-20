@@ -3,223 +3,622 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receptor-Ligand Interaction Dashboard | Detailed Insights</title>
+    <title>Receptor-Ligand Dashboard | Advanced Analytics</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f4f6f9; }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stat-card {
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+        .stat-card.success { border-left-color: #198754; }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card.danger { border-left-color: #dc3545; }
+        .stat-card.info { border-left-color: #0dcaf0; }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            padding: 15px 20px;
+            font-weight: 600;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            padding: 20px;
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner-container {
+            text-align: center;
+            color: white;
+        }
+        .table-wrapper {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .dataTables_wrapper .dataTables_length,
+        .dataTables_wrapper .dataTables_filter {
+            margin-bottom: 15px;
+        }
+        .badge-custom {
+            font-size: 0.85rem;
+            padding: 0.4em 0.6em;
+        }
+        .filter-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .export-btn {
+            margin-left: 10px;
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .tab-content {
+            padding: 20px;
+            background: white;
+            border-radius: 0 0 10px 10px;
+        }
+        .nav-pills .nav-link {
+            border-radius: 10px;
+            margin-right: 5px;
+        }
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
 </head>
 <body>
-    <noscript>
-        <div class="alert alert-danger" role="alert">
-            This application requires JavaScript to function properly. Please enable JavaScript in your browser settings.
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner-container">
+            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status"></div>
+            <p class="mt-3 fs-5">Loading dashboard data...</p>
         </div>
-    </noscript>
-
-    <!-- Spinner -->
-    <div id="loading-spinner" class="text-center mt-3" style="display: none;">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        <p>Loading data, please wait...</p>
     </div>
 
-    <div class="container mt-5">
-        <h1>Receptor-Ligand Interaction Dashboard</h1>
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-5 mb-2">
+                <i class="fas fa-chart-line"></i> Receptor-Ligand Interaction Dashboard
+            </h1>
+            <p class="lead mb-0">Advanced Analytics & Insights</p>
+        </div>
+    </div>
 
-        <!-- DataTables Section -->
-        <div class="card mt-3">
-            <div class="card-header"><strong>Receptor Details</strong></div>
-            <div class="card-body table-responsive">
-                <table id="receptor-table" class="table table-bordered" aria-label="Receptor Details Table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Molecular Weight</th>
-                            <th>Length</th>
-                            <th>Gene Name</th>
-                            <th>Localization</th>
-                            <th>Function</th>
-                        </tr>
-                    </thead>
-                </table>
+    <div class="container-fluid px-4">
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-link fa-2x text-primary mb-3"></i>
+                        <div class="stat-label">Total Interactions</div>
+                        <div class="stat-number text-primary" id="total-interactions">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card success">
+                    <div class="card-body text-center">
+                        <i class="fas fa-dna fa-2x text-success mb-3"></i>
+                        <div class="stat-label">Total Receptors</div>
+                        <div class="stat-number text-success" id="total-receptors">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card warning">
+                    <div class="card-body text-center">
+                        <i class="fas fa-flask fa-2x text-warning mb-3"></i>
+                        <div class="stat-label">Avg Affinity</div>
+                        <div class="stat-number text-warning" id="avg-affinity">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card info">
+                    <div class="card-body text-center">
+                        <i class="fas fa-chart-pie fa-2x text-info mb-3"></i>
+                        <div class="stat-label">Interaction Types</div>
+                        <div class="stat-number text-info" id="interaction-types">-</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-3">
-            <div class="card-header"><strong>Ligand-Receptor Interactions</strong></div>
-            <div class="card-body table-responsive">
-                <table id="interaction-table" class="table table-bordered" aria-label="Ligand-Receptor Interactions Table">
-                    <thead>
-                        <tr>
-                            <th>Ligand</th>
-                            <th>Receptor</th>
-                            <th>Affinity</th>
-                            <th>Affinity Parameter</th>
-                            <th>Interaction Type</th>
-                            <th>Mechanism</th>
-                        </tr>
-                    </thead>
-                </table>
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="row align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label"><i class="fas fa-filter"></i> Filter by Type</label>
+                    <select id="type-filter" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="Agonist">Agonist</option>
+                        <option value="Antagonist">Antagonist</option>
+                        <option value="Inhibitor">Inhibitor</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="fas fa-search"></i> Search Ligand</label>
+                    <input type="text" id="ligand-search" class="form-control" placeholder="Enter ligand name...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="fas fa-search"></i> Search Receptor</label>
+                    <input type="text" id="receptor-search" class="form-control" placeholder="Enter receptor name...">
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100" onclick="applyFilters()">
+                        <i class="fas fa-search"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Section -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-table"></i> Data Tables</span>
+                <div>
+                    <button class="btn btn-sm btn-light export-btn" onclick="exportTable('receptor')">
+                        <i class="fas fa-download"></i> Export Receptors
+                    </button>
+                    <button class="btn btn-sm btn-light export-btn" onclick="exportTable('interaction')">
+                        <i class="fas fa-download"></i> Export Interactions
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <ul class="nav nav-pills px-3 pt-3" id="tableTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="interactions-tab" data-bs-toggle="pill" data-bs-target="#interactions" type="button">
+                            <i class="fas fa-project-diagram"></i> Interactions
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="receptors-tab" data-bs-toggle="pill" data-bs-target="#receptors" type="button">
+                            <i class="fas fa-dna"></i> Receptors
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <!-- Interactions Tab -->
+                    <div class="tab-pane fade show active" id="interactions" role="tabpanel">
+                        <div class="table-responsive">
+                            <table id="interaction-table" class="table table-hover table-striped" style="width:100%">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-pills"></i> Ligand</th>
+                                        <th><i class="fas fa-dna"></i> Receptor</th>
+                                        <th><i class="fas fa-chart-bar"></i> Affinity</th>
+                                        <th><i class="fas fa-tag"></i> Parameter</th>
+                                        <th><i class="fas fa-exchange-alt"></i> Type</th>
+                                        <th><i class="fas fa-cogs"></i> Mechanism</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Receptors Tab -->
+                    <div class="tab-pane fade" id="receptors" role="tabpanel">
+                        <div class="table-responsive">
+                            <table id="receptor-table" class="table table-hover table-striped" style="width:100%">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-signature"></i> Name</th>
+                                        <th><i class="fas fa-sitemap"></i> Type</th>
+                                        <th><i class="fas fa-weight"></i> MW (Da)</th>
+                                        <th><i class="fas fa-ruler"></i> Length</th>
+                                        <th><i class="fas fa-dna"></i> Gene</th>
+                                        <th><i class="fas fa-map-marker-alt"></i> Localization</th>
+                                        <th><i class="fas fa-info-circle"></i> Function</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Charts Section -->
-        <div class="card mt-4">
-            <div class="card-header">
-                <h4>Affinity Distribution</h4>
+        <div class="row">
+            <div class="col-lg-8 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-bar"></i> Top Interactions by Affinity
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="affinity-bar-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="affinity-bar-chart" width="400" height="200"></canvas>
+            <div class="col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-pie"></i> Interaction Type Distribution
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="interaction-pie-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <h4>Interaction Type Distribution</h4>
+        <!-- Additional Analytics -->
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-line"></i> Affinity Distribution Histogram
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="affinity-histogram"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="interaction-pie-chart" width="400" height="200"></canvas>
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-area"></i> Top Receptors by Interaction Count
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="receptor-count-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script>
+        let interactionTable, receptorTable;
+        let affinityChart, pieChart, histogramChart, receptorCountChart;
+
+        function showLoading() {
+            $('#loading-overlay').css('display', 'flex');
+        }
+
+        function hideLoading() {
+            $('#loading-overlay').hide();
+        }
+
         $(document).ready(function() {
-            const spinner = $('#loading-spinner');
+            initializeTables();
+            loadCharts();
+            updateStatistics();
+        });
 
-            // Show spinner
-            function showSpinner() {
-                spinner.show();
-            }
-
-            // Hide spinner
-            function hideSpinner() {
-                spinner.hide();
-            }
-
-            // Load Receptor Table
-            const receptorTable = $('#receptor-table').DataTable({
+        function initializeTables() {
+            // Interaction Table
+            interactionTable = $('#interaction-table').DataTable({
                 serverSide: true,
-                ajax: {
-                    url: '/api/receptor-ligand-dashboard?table_id=receptor-table',
-                    type: 'GET',
-                    beforeSend: showSpinner,
-                    complete: hideSpinner,
-                    error: function (xhr, error, code) {
-                        console.error('Receptor Table Error:', error);
-                    }
-                },
-                columns: [
-                    { data: 'Name' },
-                    { data: 'Type' },
-                    { data: 'Molecular Weight' },
-                    { data: 'Length' },
-                    { data: 'Gene Name' },
-                    { data: 'Localization' },
-                    { data: 'Function' }
-                ]
-            });
-
-            // Load Interaction Table
-            const interactionTable = $('#interaction-table').DataTable({
-                serverSide: true,
+                processing: true,
                 ajax: {
                     url: '/api/receptor-ligand-dashboard?table_id=interaction-table',
                     type: 'GET',
-                    beforeSend: showSpinner,
-                    complete: hideSpinner,
-                    error: function (xhr, error, code) {
+                    beforeSend: showLoading,
+                    complete: hideLoading,
+                    error: function(xhr, error, code) {
                         console.error('Interaction Table Error:', error);
+                        alert('Failed to load interaction data. Please refresh the page.');
                     }
                 },
                 columns: [
                     { data: 'Ligand' },
-                    { data: 'Receptor' },
-                    { data: 'Affinity' },
+                    { data: 'Receptor', render: function(data) {
+                        return `<span class="badge bg-info badge-custom">${data}</span>`;
+                    }},
+                    { data: 'Affinity', render: function(data) {
+                        return data && data !== 'N/A' ? `<span class="badge bg-success badge-custom">${data}</span>` : 'N/A';
+                    }},
                     { data: 'Affinity Parameter' },
-                    { data: 'Interaction Type' },
-                    { data: 'Mechanism' }
-                ]
+                    { data: 'Interaction Type', render: function(data) {
+                        const colors = {
+                            'Agonist': 'primary',
+                            'Antagonist': 'danger',
+                            'Inhibitor': 'warning',
+                            'default': 'secondary'
+                        };
+                        const color = colors[data] || colors['default'];
+                        return data && data !== 'N/A' ? `<span class="badge bg-${color} badge-custom">${data}</span>` : 'N/A';
+                    }},
+                    { data: 'Mechanism', render: function(data) {
+                        if (!data || data === 'N/A') return 'N/A';
+                        return data.length > 50 ? data.substring(0, 50) + '...' : data;
+                    }}
+                ],
+                pageLength: 25,
+                order: [[2, 'desc']],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search interactions..."
+                }
             });
 
-            // Load Bar Chart
+            // Receptor Table
+            receptorTable = $('#receptor-table').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: {
+                    url: '/api/receptor-ligand-dashboard?table_id=receptor-table',
+                    type: 'GET',
+                    beforeSend: showLoading,
+                    complete: hideLoading,
+                    error: function(xhr, error, code) {
+                        console.error('Receptor Table Error:', error);
+                        alert('Failed to load receptor data. Please refresh the page.');
+                    }
+                },
+                columns: [
+                    { data: 'Name' },
+                    { data: 'Type', render: function(data) {
+                        return `<span class="badge bg-primary badge-custom">${data}</span>`;
+                    }},
+                    { data: 'Molecular Weight' },
+                    { data: 'Length' },
+                    { data: 'Gene Name', render: function(data) {
+                        return data && data !== 'N/A' ? `<span class="badge bg-info badge-custom">${data}</span>` : 'N/A';
+                    }},
+                    { data: 'Localization', render: function(data) {
+                        if (!data || data === 'N/A') return 'N/A';
+                        return data.length > 40 ? data.substring(0, 40) + '...' : data;
+                    }},
+                    { data: 'Function', render: function(data) {
+                        if (!data || data === 'N/A') return 'N/A';
+                        return data.length > 50 ? data.substring(0, 50) + '...' : data;
+                    }}
+                ],
+                pageLength: 25,
+                order: [[0, 'asc']],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search receptors..."
+                }
+            });
+        }
+
+        function loadCharts() {
+            // Affinity Bar Chart
             $.get('/api/affinity-data', function(chartData) {
                 const ctx = document.getElementById('affinity-bar-chart').getContext('2d');
-                new Chart(ctx, {
+                affinityChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: chartData.labels,
+                        labels: chartData.labels.slice(0, 20),
                         datasets: [{
                             label: 'Affinity Values',
-                            data: chartData.values,
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 1
+                            data: chartData.values.slice(0, 20),
+                            backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2
                         }]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         scales: {
                             y: {
                                 beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Affinity'
-                                }
-                            },
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Ligand (Receptor)'
-                                }
+                                title: { display: true, text: 'Affinity Value' }
                             }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: true }
                         }
                     }
                 });
+
+                // Histogram
+                createHistogram(chartData.values);
+            }).fail(function() {
+                console.error('Failed to load affinity data');
             });
 
-            // Load Pie Chart
+            // Pie Chart
             $.get('/api/interaction-type-distribution', function(chartData) {
                 const ctx = document.getElementById('interaction-pie-chart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'pie',
+                pieChart = new Chart(ctx, {
+                    type: 'doughnut',
                     data: {
                         labels: chartData.labels,
                         datasets: [{
                             data: chartData.values,
                             backgroundColor: [
-                                'rgba(255, 99, 132, 0.2)',
-                                'rgba(54, 162, 235, 0.2)',
-                                'rgba(255, 206, 86, 0.2)',
-                                'rgba(75, 192, 192, 0.2)',
-                                'rgba(153, 102, 255, 0.2)'
+                                'rgba(255, 99, 132, 0.8)',
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(255, 206, 86, 0.8)',
+                                'rgba(75, 192, 192, 0.8)',
+                                'rgba(153, 102, 255, 0.8)',
+                                'rgba(255, 159, 64, 0.8)'
                             ],
-                            borderColor: [
-                                'rgba(255, 99, 132, 1)',
-                                'rgba(54, 162, 235, 1)',
-                                'rgba(255, 206, 86, 1)',
-                                'rgba(75, 192, 192, 1)',
-                                'rgba(153, 102, 255, 1)'
-                            ],
-                            borderWidth: 1
+                            borderWidth: 2
                         }]
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
-                            legend: {
-                                display: true,
-                                position: 'right'
-                            }
+                            legend: { position: 'right' }
                         }
                     }
                 });
+            }).fail(function() {
+                console.error('Failed to load interaction type data');
             });
-        });
+        }
+
+        function createHistogram(affinityValues) {
+            const bins = 10;
+            const max = Math.max(...affinityValues);
+            const min = Math.min(...affinityValues);
+            const binSize = (max - min) / bins;
+            const histogram = Array(bins).fill(0);
+
+            affinityValues.forEach(val => {
+                const binIndex = Math.min(Math.floor((val - min) / binSize), bins - 1);
+                histogram[binIndex]++;
+            });
+
+            const labels = Array.from({length: bins}, (_, i) => 
+                `${(min + i * binSize).toFixed(1)} - ${(min + (i + 1) * binSize).toFixed(1)}`
+            );
+
+            const ctx = document.getElementById('affinity-histogram').getContext('2d');
+            histogramChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Frequency',
+                        data: histogram,
+                        backgroundColor: 'rgba(118, 75, 162, 0.6)',
+                        borderColor: 'rgba(118, 75, 162, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Count' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Affinity Range' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function updateStatistics() {
+            $.get('/api/receptor-ligand-dashboard?table_id=interaction-table', function(data) {
+                $('#total-interactions').text(data.recordsTotal || 0);
+            });
+
+            $.get('/api/receptor-ligand-dashboard?table_id=receptor-table', function(data) {
+                $('#total-receptors').text(data.recordsTotal || 0);
+            });
+
+            $.get('/api/affinity-data', function(data) {
+                if (data.values && data.values.length > 0) {
+                    const avg = (data.values.reduce((a, b) => a + b, 0) / data.values.length).toFixed(2);
+                    $('#avg-affinity').text(avg);
+                } else {
+                    $('#avg-affinity').text('N/A');
+                }
+            });
+
+            $.get('/api/interaction-type-distribution', function(data) {
+                $('#interaction-types').text(data.labels.length || 0);
+            });
+        }
+
+        function applyFilters() {
+            const typeFilter = $('#type-filter').val();
+            const ligandSearch = $('#ligand-search').val();
+            const receptorSearch = $('#receptor-search').val();
+
+            interactionTable.search('').columns().search('');
+            
+            if (typeFilter) {
+                interactionTable.column(4).search(typeFilter);
+            }
+            if (ligandSearch) {
+                interactionTable.column(0).search(ligandSearch);
+            }
+            if (receptorSearch) {
+                interactionTable.column(1).search(receptorSearch);
+            }
+
+            interactionTable.draw();
+        }
+
+        function exportTable(type) {
+            const table = type === 'receptor' ? receptorTable : interactionTable;
+            const data = table.rows().data().toArray();
+            
+            let csv = '';
+            const headers = table.columns().header().toArray().map(th => $(th).text().trim());
+            csv += headers.join(',') + '\n';
+            
+            data.forEach(row => {
+                const values = Object.values(row).map(val => `"${val}"`);
+                csv += values.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${type}_data_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
     </script>
 </body>
 </html>

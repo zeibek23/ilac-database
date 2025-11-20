@@ -609,35 +609,43 @@ class Receptor(db.Model):
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), nullable=False, index=True)
     type = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     molecular_weight = db.Column(db.String(50), nullable=True)
     length = db.Column(db.Integer, nullable=True)
-    gene_name = db.Column(db.String(100), nullable=True)
+    gene_name = db.Column(db.String(100), nullable=True, index=True)
     subcellular_location = db.Column(db.Text, nullable=True)
     function = db.Column(db.Text, nullable=True)
-    iuphar_id = db.Column(db.String(50))
+    iuphar_id = db.Column(db.String(50), index=True)
     pdb_ids = db.Column(db.Text, nullable=True)
     binding_site_x = db.Column(db.Float, nullable=True)
     binding_site_y = db.Column(db.Float, nullable=True)
     binding_site_z = db.Column(db.Float, nullable=True)
+    uniprot_accession = db.Column(db.String(50), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
 class DrugReceptorInteraction(db.Model):
     __tablename__ = 'drug_receptor_interaction'
-    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    __table_args__ = (
+        db.UniqueConstraint('drug_id', 'receptor_id', 'interaction_type', 'affinity_parameter', name='uix_drug_receptor_interaction'),
+        {'schema': 'public', 'extend_existing': True}
+    )
     
     id = db.Column(db.Integer, primary_key=True)
-    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False)
-    receptor_id = db.Column(db.Integer, db.ForeignKey('public.receptor.id'), nullable=False)
+    drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False, index=True)
+    receptor_id = db.Column(db.Integer, db.ForeignKey('public.receptor.id'), nullable=False, index=True)
     affinity = db.Column(db.Float, nullable=True)
     interaction_type = db.Column(db.String(50), nullable=True)
     mechanism = db.Column(db.Text, nullable=True)
     pdb_file = db.Column(db.String(200), nullable=True)
     units = db.Column(db.String, nullable=True)
     affinity_parameter = db.Column(db.String(50), nullable=True)
-    drug = db.relationship('Drug', backref=db.backref('interactions', lazy=True))
-    receptor = db.relationship('Receptor', backref=db.backref('interactions', lazy=True))
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    
+    drug = db.relationship('Drug', backref=db.backref('interactions', lazy='dynamic'))
+    receptor = db.relationship('Receptor', backref=db.backref('interactions', lazy='dynamic'))
 
 
 class DrugDiseaseInteraction(db.Model):
@@ -8527,138 +8535,231 @@ def filtered_interaction_network():
 
 
 # Reseptör Yönetimi
+def receptor_to_dict(receptor):
+    """Convert Receptor object to dictionary for JSON serialization"""
+    return {
+        'id': receptor.id,
+        'name': receptor.name,
+        'type': receptor.type,
+        'description': receptor.description,
+        'molecular_weight': receptor.molecular_weight,
+        'length': receptor.length,
+        'gene_name': receptor.gene_name,
+        'subcellular_location': receptor.subcellular_location,
+        'function': receptor.function,
+        'iuphar_id': receptor.iuphar_id,
+        'pdb_ids': receptor.pdb_ids,
+        'binding_site_x': receptor.binding_site_x,
+        'binding_site_y': receptor.binding_site_y,
+        'binding_site_z': receptor.binding_site_z,
+        'uniprot_accession': receptor.uniprot_accession
+    }
+
 @app.route('/receptors/manage', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def manage_receptors():
     if request.method == 'POST':
-        name = request.form.get('name')
-        receptor_type = request.form.get('type')
-        description = request.form.get('description')
-        new_receptor = Receptor(name=name, type=receptor_type, description=description)
-        db.session.add(new_receptor)
-        db.session.commit()
+        try:
+            name = request.form.get('name', '').strip()
+            receptor_type = request.form.get('type', '').strip()
+            description = request.form.get('description', '').strip()
+            
+            if not name or not receptor_type:
+                flash('Name and type are required', 'error')
+                return redirect(url_for('manage_receptors'))
+            
+            new_receptor = Receptor(name=name, type=receptor_type, description=description)
+            db.session.add(new_receptor)
+            db.session.commit()
+            flash('Receptor added successfully', 'success')
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error adding receptor: {e}")
+            flash('Error adding receptor', 'error')
+        
         return redirect(url_for('manage_receptors'))
-    receptors = Receptor.query.all()
-    return render_template('manage_receptors.html', receptors=receptors)
+    
+    receptors = Receptor.query.order_by(Receptor.name).all()
+    receptors_dict = [receptor_to_dict(r) for r in receptors]  # CONVERT TO DICT
+    
+    return render_template('manage_receptors.html', receptors=receptors, receptors_json=json.dumps(receptors_dict))
 
-
-
+@app.route('/receptors/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_receptor(id):
+    try:
+        receptor = Receptor.query.get(id)
+        if not receptor:
+            flash('Receptor not found', 'error')
+            return redirect(url_for('manage_receptors'))
+        
+        # Check if receptor has interactions
+        interaction_count = DrugReceptorInteraction.query.filter_by(receptor_id=id).count()
+        if interaction_count > 0:
+            flash(f'Cannot delete receptor. It has {interaction_count} interaction(s). Delete interactions first.', 'error')
+            return redirect(url_for('manage_receptors'))
+        
+        db.session.delete(receptor)
+        db.session.commit()
+        flash('Receptor deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error deleting receptor: {e}")
+        flash('Error deleting receptor', 'error')
+    
+    return redirect(url_for('manage_receptors'))
 
 from Bio.SeqUtils import molecular_weight
-import re  # Regex ile geçerli karakterleri kontrol etmek için
+import re
 
-# Moleküler Ağırlık Hesaplama Fonksiyonu
 def calculate_molecular_weight(sequence):
     if not sequence:
-        return "No Sequence Provided"
+        return None
     if not re.match("^[ARNDCEQGHILKMFPSTWYV]+$", sequence):
-        logging.warning(f"Invalid sequence for molecular weight: {sequence}")
-        return "Invalid Sequence"
-    return molecular_weight(sequence, seq_type='protein')
+        logging.warning(f"Invalid sequence for molecular weight: {sequence[:50]}...")
+        return None
+    try:
+        return molecular_weight(sequence, seq_type='protein')
+    except Exception as e:
+        logging.error(f"Error calculating molecular weight: {e}")
+        return None
 
 
 #UNIPROT API'DEN RESEPTÖRLER İLE İLGİLİ BİLGİLERİ ALMA...
 @app.route('/api/uniprot', methods=['GET', 'POST'])
+@login_required
 def fetch_uniprot_data():
     if request.method == 'POST':
-        receptor_name = request.form.get('receptor_name')
-        if not receptor_name or receptor_name.strip() == "":
-            return "Receptor name cannot be empty."
+        receptor_name = request.form.get('receptor_name', '').strip()
         
-        url = f"https://rest.uniprot.org/uniprotkb/search?query={receptor_name}+AND+organism_id:9606&fields=accession,protein_name,organism_name,gene_names,length,cc_subcellular_location,cc_function,sequence,xref_pdb,ft_binding"
-        logging.info(f"Request URL: {url}")
+        if not receptor_name:
+            flash("Receptor name cannot be empty.", "error")
+            return redirect(url_for('fetch_uniprot_data'))
         
-        response = requests.get(url)
-        if response.status_code != 200:
-            logging.error(f"API Error: {response.text}")
-            return f"Failed to fetch data from UniProt. Status: {response.status_code}"
+        try:
+            url = f"https://rest.uniprot.org/uniprotkb/search?query={receptor_name}+AND+organism_id:9606&fields=accession,protein_name,organism_name,gene_names,length,cc_subcellular_location,cc_function,sequence,xref_pdb,ft_binding&size=50"
+            logging.info(f"UniProt Request: {url}")
+            
+            response = requests.get(url, timeout=30)
+            if response.status_code != 200:
+                logging.error(f"UniProt API Error: {response.status_code} - {response.text}")
+                flash(f"Failed to fetch data from UniProt. Status: {response.status_code}", "error")
+                return redirect(url_for('fetch_uniprot_data'))
+            
+            data = response.json()
+            results = data.get('results', [])
+            
+            if not results:
+                flash(f"No UniProt entries found for {receptor_name}", "warning")
+                return redirect(url_for('fetch_uniprot_data'))
+            
+            added_count = 0
+            for result in results:
+                organism_name = result.get('organism', {}).get('scientificName', 'Unknown')
+                if organism_name.lower() != "homo sapiens":
+                    continue
+                
+                accession = result.get('primaryAccession', 'Unknown')
+                
+                # Check if already exists
+                existing = Receptor.query.filter_by(uniprot_accession=accession).first()
+                if existing:
+                    logging.info(f"Receptor {accession} already exists, skipping")
+                    continue
+                
+                protein_description = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', 'Unknown')
+                
+                genes = result.get('genes', [])
+                gene_primary = genes[0].get('geneName', {}).get('value', 'Unknown') if genes else 'Unknown'
+                
+                sequence_info = result.get('sequence', {})
+                length = sequence_info.get('length', 0)
+                molecular_weight_val = sequence_info.get('molWeight', 'Unknown')
+                
+                subcellular_location = 'Unknown'
+                for comment in result.get('comments', []):
+                    if comment.get('commentType') == 'SUBCELLULAR LOCATION':
+                        subcell_locations = comment.get('subcellularLocations', [])
+                        if subcell_locations:
+                            subcellular_location = subcell_locations[0].get('location', {}).get('value', 'Unknown')
+                            break
+                
+                function = 'Unknown'
+                for comment in result.get('comments', []):
+                    if comment.get('commentType') == 'FUNCTION':
+                        function_texts = comment.get('texts', [])
+                        if function_texts:
+                            function = function_texts[0].get('value', 'Unknown')
+                            break
+                
+                pdb_ids = [xref.get('id') for xref in result.get('uniProtKBCrossReferences', []) if xref.get('database') == 'PDB']
+                
+                binding_sites = []
+                for feature in result.get('features', []):
+                    if feature.get('type') == 'BINDING':
+                        location = feature.get('location', {})
+                        start = location.get('start', {}).get('value')
+                        if start:
+                            ligand = feature.get('description', 'Unknown')
+                            binding_sites.append({"residue": start, "ligand": ligand})
+                
+                binding_site_coords = {"x": None, "y": None, "z": None}
+                if pdb_ids and binding_sites:
+                    pdb_id = pdb_ids[0]
+                    try:
+                        pdb_url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+                        pdb_response = requests.get(pdb_url, timeout=30)
+                        if pdb_response.status_code == 200:
+                            pdb_content = pdb_response.text
+                            parser = PDBParser(QUIET=True)
+                            structure = parser.get_structure(pdb_id, io.StringIO(pdb_content))
+                            
+                            for chain in structure[0].get_chains():
+                                try:
+                                    residue_num = binding_sites[0]["residue"]
+                                    residue = chain[residue_num]
+                                    if 'CA' in residue:
+                                        ca = residue["CA"]
+                                        coords = ca.get_coord()
+                                        binding_site_coords = {
+                                            "x": float(coords[0]),
+                                            "y": float(coords[1]),
+                                            "z": float(coords[2])
+                                        }
+                                        logging.info(f"Binding coords for {pdb_id}: {binding_site_coords}")
+                                        break
+                                except KeyError:
+                                    continue
+                    except Exception as e:
+                        logging.error(f"Error parsing PDB {pdb_id}: {e}")
+                
+                new_receptor = Receptor(
+                    name=protein_description,
+                    type="Protein",
+                    description=f"Organism: {organism_name}",
+                    molecular_weight=str(molecular_weight_val) if molecular_weight_val else None,
+                    length=length,
+                    gene_name=gene_primary,
+                    subcellular_location=subcellular_location,
+                    function=function,
+                    pdb_ids=",".join(pdb_ids) if pdb_ids else None,
+                    binding_site_x=binding_site_coords["x"],
+                    binding_site_y=binding_site_coords["y"],
+                    binding_site_z=binding_site_coords["z"],
+                    uniprot_accession=accession
+                )
+                db.session.add(new_receptor)
+                added_count += 1
+            
+            db.session.commit()
+            flash(f"Successfully fetched and saved {added_count} receptor(s)!", "success")
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error in fetch_uniprot_data: {e}")
+            flash(f"Error processing UniProt data: {str(e)}", "error")
         
-        data = response.json()
-        logging.info(f"UniProt API Response: {data}")
-        results = data.get('results', [])
-        
-        if not results:
-            return f"No UniProt entries found for {receptor_name}"
-        
-        for result in results:
-            organism_name = result.get('organism', {}).get('scientificName', 'Unknown')
-            if organism_name.lower() != "homo sapiens":
-                logging.info(f"Skipping non-human: {organism_name}")
-                continue
-            
-            accession = result.get('primaryAccession', 'Unknown')
-            protein_description = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', 'Unknown')
-            
-            genes = result.get('genes', [])
-            gene_primary = genes[0].get('geneName', {}).get('value', 'Unknown') if genes else 'Unknown'
-            
-            sequence_info = result.get('sequence', {})
-            length = sequence_info.get('length', 0)
-            molecular_weight_val = sequence_info.get('molWeight', 'Unknown')
-            
-            subcellular_location = 'Unknown'
-            for comment in result.get('comments', []):
-                if comment.get('commentType') == 'SUBCELLULAR LOCATION':
-                    subcell_locations = comment.get('subcellularLocations', [])
-                    if subcell_locations:
-                        subcellular_location = subcell_locations[0].get('location', {}).get('value', 'Unknown')
-            
-            function = 'Unknown'
-            for comment in result.get('comments', []):
-                if comment.get('commentType') == 'FUNCTION':
-                    function_texts = comment.get('texts', [])
-                    if function_texts:
-                        function = function_texts[0].get('value', 'Unknown')
-            
-            pdb_ids = [xref.get('id') for xref in result.get('uniProtKBCrossReferences', []) if xref.get('database') == 'PDB']
-            
-            binding_sites = []
-            for feature in result.get('features', []):
-                if feature.get('type') == 'BINDING':
-                    pos = feature['location']['start']['value']
-                    ligand = feature.get('description', 'Unknown')
-                    binding_sites.append({"residue": pos, "ligand": ligand})
-            
-            logging.info(f"Binding sites for {accession}: {binding_sites}")
-            
-            binding_site_coords = {"x": 0, "y": 0, "z": 0}
-            if pdb_ids and binding_sites:
-                pdb_id = pdb_ids[0]
-                pdb_url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-                try:
-                    pdb_content = requests.get(pdb_url, timeout=10).text
-                    parser = PDBParser(QUIET=True)
-                    structure = parser.get_structure(pdb_id, io.StringIO(pdb_content))
-                    chain = list(structure[0].get_chains())[0]
-                    residue_num = binding_sites[0]["residue"]
-                    residue = chain[residue_num]
-                    ca = residue["CA"]
-                    binding_site_coords = {
-                        "x": float(ca.get_coord()[0]),
-                        "y": float(ca.get_coord()[1]),
-                        "z": float(ca.get_coord()[2])
-                    }
-                    logging.info(f"Binding coords for {pdb_id}: {binding_site_coords}")
-                except Exception as e:
-                    logging.error(f"Error parsing PDB {pdb_id}: {e}")
-            
-            new_receptor = Receptor(
-                name=protein_description,
-                type="Protein",
-                description=f"Organism: {organism_name}",
-                molecular_weight=molecular_weight_val,
-                length=length,
-                gene_name=gene_primary,
-                subcellular_location=subcellular_location,
-                function=function,
-                pdb_ids=",".join(pdb_ids),
-                binding_site_x=binding_site_coords["x"],
-                binding_site_y=binding_site_coords["y"],
-                binding_site_z=binding_site_coords["z"]
-            )
-            db.session.add(new_receptor)
-        
-        db.session.commit()
-        return "Receptor data successfully fetched and saved!"
+        return redirect(url_for('fetch_uniprot_data'))
     
     return render_template('fetch_uniprot.html')
 
@@ -8669,59 +8770,65 @@ def fetch_uniprot_data():
 
 # IUPHAR'dan Ligand - Reseptör etkileşmesini alıyoruz... 
 @app.route('/api/iuphar', methods=['GET', 'POST'])
+@login_required
 def fetch_iuphar_interactions():
     if request.method == 'GET':
-        receptors = Receptor.query.filter(Receptor.iuphar_id.isnot(None)).all()
+        receptors = Receptor.query.filter(Receptor.iuphar_id.isnot(None)).order_by(Receptor.name).all()
         return render_template('fetch_iuphar.html', receptors=receptors)
     
     try:
         receptor_id = request.form.get('receptor_id', '').strip()
-        receptor = Receptor.query.get(receptor_id)
         
+        if not receptor_id:
+            flash("Receptor ID required", "error")
+            return redirect(url_for('fetch_iuphar_interactions'))
+        
+        receptor = Receptor.query.get(receptor_id)
         if not receptor or not receptor.iuphar_id:
-            return "Invalid receptor or missing IUPHAR ID.", 400
+            flash("Invalid receptor or missing IUPHAR ID", "error")
+            return redirect(url_for('fetch_iuphar_interactions'))
         
         target_id = receptor.iuphar_id
         interaction_url = f"https://www.guidetopharmacology.org/services/targets/{target_id}/interactions"
         
-        response = requests.get(interaction_url, timeout=15)
+        response = requests.get(interaction_url, timeout=30)
         if response.status_code != 200:
-            return f"Failed to fetch interactions. Status: {response.status_code}", 500
+            flash(f"Failed to fetch interactions. Status: {response.status_code}", "error")
+            return redirect(url_for('fetch_iuphar_interactions'))
         
         interactions = response.json()
         if not isinstance(interactions, list) or not interactions:
-            return f"No interactions found for Target ID: {target_id}.", 404
+            flash(f"No interactions found for Target ID: {target_id}", "warning")
+            return redirect(url_for('fetch_iuphar_interactions'))
         
-        saved_interactions = 0
+        saved_count = 0
+        skipped_count = 0
+        
         for interaction in interactions:
-            species = interaction.get('targetSpecies', 'Unknown')
-            if species.lower() != "human":
+            species = interaction.get('targetSpecies', '').lower()
+            if species != "human":
                 continue
             
-            ligand_name = interaction.get('ligandName', '')
-            drug = Drug.query.filter(db.func.lower(Drug.name_en) == db.func.lower(ligand_name)).first()
+            ligand_name = interaction.get('ligandName', '').strip()
+            if not ligand_name:
+                continue
             
+            drug = Drug.query.filter(db.func.lower(Drug.name_en) == db.func.lower(ligand_name)).first()
             if not drug:
-                logging.warning(f"Ligand not found: {ligand_name}")
+                logging.info(f"Ligand not found in database: {ligand_name}")
+                skipped_count += 1
                 continue
             
             affinity_value = parse_affinity(interaction.get('affinity'))
             if affinity_value is None:
+                skipped_count += 1
                 continue
             
             affinity_parameter = interaction.get('affinityParameter', 'N/A')
             interaction_type = interaction.get('type', 'N/A')
             mechanism = interaction.get('action', 'N/A')
             
-            existing = DrugReceptorInteraction.query.filter_by(
-                drug_id=drug.id,
-                receptor_id=receptor.id,
-                interaction_type=interaction_type,
-                affinity=affinity_value,
-                affinity_parameter=affinity_parameter
-            ).first()
-            
-            if not existing:
+            try:
                 new_interaction = DrugReceptorInteraction(
                     drug_id=drug.id,
                     receptor_id=receptor.id,
@@ -8731,105 +8838,180 @@ def fetch_iuphar_interactions():
                     affinity_parameter=affinity_parameter
                 )
                 db.session.add(new_interaction)
-                saved_interactions += 1
+                saved_count += 1
+            except Exception as e:
+                logging.warning(f"Duplicate interaction skipped: {e}")
+                db.session.rollback()
+                continue
         
         db.session.commit()
-        return f"Successfully saved {saved_interactions} interactions for Target ID {target_id}.", 200
-    
+        flash(f"Saved {saved_count} interactions (skipped {skipped_count})", "success")
+        
     except Exception as e:
-        logging.error(f"Error: {e}")
-        return jsonify({"error": "Error processing interactions.", "details": str(e)}), 500
+        db.session.rollback()
+        logging.error(f"Error in fetch_iuphar_interactions: {e}")
+        flash(f"Error processing interactions: {str(e)}", "error")
+    
+    return redirect(url_for('fetch_iuphar_interactions'))
 
 def parse_affinity(affinity_value):
+    if affinity_value is None:
+        return None
     try:
+        if isinstance(affinity_value, (int, float)):
+            return float(affinity_value)
         if isinstance(affinity_value, str):
-            return float(affinity_value.split(" - ")[0]) if " - " in affinity_value else float(affinity_value)
-        return float(affinity_value) if affinity_value else None
-    except ValueError:
-        logging.warning(f"Unable to parse affinity: {affinity_value}")
+            affinity_value = affinity_value.strip()
+            if " - " in affinity_value:
+                affinity_value = affinity_value.split(" - ")[0]
+            affinity_value = re.sub(r'[^\d\.]', '', affinity_value)
+            return float(affinity_value) if affinity_value else None
+        return None
+    except (ValueError, TypeError) as e:
+        logging.warning(f"Unable to parse affinity '{affinity_value}': {e}")
         return None
 
 
 
 
 @app.route('/receptors/map', methods=['GET', 'POST'])
+@login_required
 def map_receptor_iuphar():
     if request.method == 'POST':
-        receptor_id = request.form.get('receptor_id')
-        iuphar_id = request.form.get('iuphar_id')
-        receptor = Receptor.query.get(receptor_id)
-        
-        if receptor:
+        try:
+            receptor_id = request.form.get('receptor_id')
+            iuphar_id = request.form.get('iuphar_id', '').strip()
+            
+            if not receptor_id or not iuphar_id:
+                flash("Receptor ID and IUPHAR ID required", "error")
+                return redirect(url_for('map_receptor_iuphar'))
+            
+            receptor = Receptor.query.get(receptor_id)
+            if not receptor:
+                flash("Receptor not found", "error")
+                return redirect(url_for('map_receptor_iuphar'))
+            
             receptor.iuphar_id = iuphar_id
             db.session.commit()
-            return redirect(url_for('map_receptor_iuphar'))
-        return "Receptor not found.", 404
+            flash(f"IUPHAR ID mapped successfully for {receptor.name}", "success")
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error mapping IUPHAR ID: {e}")
+            flash("Error mapping IUPHAR ID", "error")
+        
+        return redirect(url_for('map_receptor_iuphar'))
     
-    receptors = Receptor.query.all()
+    receptors = Receptor.query.order_by(Receptor.name).all()
     return render_template('map_receptors.html', receptors=receptors)
 
 
-
 @app.route('/interactions/drug-receptor', methods=['GET', 'POST'])
+@login_required
 def manage_drug_receptor_interactions():
     if request.method == 'POST':
-        drug_id = request.form.get('drug_id')
-        receptor_id = request.form.get('receptor_id')
-        affinity = request.form.get('affinity')
-        interaction_type = request.form.get('interaction_type')
-        mechanism = request.form.get('mechanism')
+        try:
+            drug_id = request.form.get('drug_id')
+            receptor_id = request.form.get('receptor_id')
+            affinity = request.form.get('affinity')
+            interaction_type = request.form.get('interaction_type', '').strip()
+            mechanism = request.form.get('mechanism', '').strip()
+            
+            if not drug_id or not receptor_id:
+                flash("Drug and Receptor required", "error")
+                return redirect(url_for('manage_drug_receptor_interactions'))
+            
+            new_interaction = DrugReceptorInteraction(
+                drug_id=drug_id,
+                receptor_id=receptor_id,
+                affinity=float(affinity) if affinity else None,
+                interaction_type=interaction_type,
+                mechanism=mechanism
+            )
+            db.session.add(new_interaction)
+            db.session.commit()
+            flash("Interaction added successfully", "success")
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error adding interaction: {e}")
+            flash("Error adding interaction", "error")
+        
         return redirect(url_for('manage_drug_receptor_interactions'))
     
-    interactions = DrugReceptorInteraction.query.all()
-    drugs = Drug.query.all()
-    receptors = Receptor.query.all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    interactions_query = DrugReceptorInteraction.query.join(Drug).join(Receptor).order_by(DrugReceptorInteraction.created_at.desc())
+    pagination = interactions_query.paginate(page=page, per_page=per_page, error_out=False)
     
     enriched_interactions = []
-    for interaction in interactions:
-        drug = Drug.query.get(interaction.drug_id)
-        receptor = Receptor.query.get(interaction.receptor_id)
-        
-        if not drug or not receptor:
-            continue
-        
+    for interaction in pagination.items:
         enriched_interactions.append({
             "id": interaction.id,
-            "drug_name": drug.name_tr or drug.name_en,
-            "receptor_name": receptor.name,
+            "drug_name": interaction.drug.name_tr or interaction.drug.name_en,
+            "receptor_name": interaction.receptor.name,
             "affinity": interaction.affinity,
             "affinity_parameter": interaction.affinity_parameter or "N/A",
-            "interaction_type": interaction.interaction_type,
+            "interaction_type": interaction.interaction_type or "N/A",
             "mechanism": interaction.mechanism or "N/A",
         })
     
-    return render_template('drug_receptor_interactions.html', interactions=enriched_interactions, drugs=drugs, receptors=receptors)
+    drugs = Drug.query.order_by(Drug.name_en).all()
+    receptors = Receptor.query.order_by(Receptor.name).all()
+    
+    return render_template('drug_receptor_interactions.html', 
+                         interactions=enriched_interactions, 
+                         drugs=drugs, 
+                         receptors=receptors,
+                         pagination=pagination)
 
 @app.route('/interactions/drug-receptor/delete/<int:id>', methods=['POST'])
+@login_required
 def delete_drug_receptor_interaction(id):
-    interaction = DrugReceptorInteraction.query.get(id)
-    if interaction:
-        db.session.delete(interaction)
-        db.session.commit()
+    try:
+        interaction = DrugReceptorInteraction.query.get(id)
+        if interaction:
+            db.session.delete(interaction)
+            db.session.commit()
+            flash("Interaction deleted successfully", "success")
+        else:
+            flash("Interaction not found", "error")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error deleting interaction: {e}")
+        flash("Error deleting interaction", "error")
+    
     return redirect(url_for('manage_drug_receptor_interactions'))
 
 @app.route('/interactions/drug-receptor/edit/<int:id>', methods=['POST'])
+@login_required
 def edit_drug_receptor_interaction(id):
-    interaction = DrugReceptorInteraction.query.get(id)
-    if interaction:
-        interaction.affinity = request.form.get('affinity')
-        interaction.interaction_type = request.form.get('interaction_type')
-        interaction.mechanism = request.form.get('mechanism')
-        db.session.commit()
+    try:
+        interaction = DrugReceptorInteraction.query.get(id)
+        if interaction:
+            affinity = request.form.get('affinity')
+            interaction.affinity = float(affinity) if affinity else None
+            interaction.interaction_type = request.form.get('interaction_type', '').strip()
+            interaction.mechanism = request.form.get('mechanism', '').strip()
+            db.session.commit()
+            flash("Interaction updated successfully", "success")
+        else:
+            flash("Interaction not found", "error")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error updating interaction: {e}")
+        flash("Error updating interaction", "error")
+    
     return redirect(url_for('manage_drug_receptor_interactions'))
 
 
 @app.route('/api/receptor-ligand-dashboard', methods=['GET'])
+@login_required
 def receptor_ligand_dashboard():
     try:
         draw = request.args.get('draw', type=int, default=1)
         start = request.args.get('start', 0, type=int)
         length = request.args.get('length', 10, type=int)
-        search_value = request.args.get('search[value]', '', type=str)
+        search_value = request.args.get('search[value]', '', type=str).strip()
         table_id = request.args.get('table_id', '')
         order_column_index = request.args.get('order[0][column]', type=int, default=0)
         order_direction = request.args.get('order[0][dir]', default='asc')
@@ -8841,6 +9023,7 @@ def receptor_ligand_dashboard():
                 query = query.filter(
                     db.or_(
                         Drug.name_en.ilike(f"%{search_value}%"),
+                        Drug.name_tr.ilike(f"%{search_value}%"),
                         Receptor.name.ilike(f"%{search_value}%"),
                         DrugReceptorInteraction.interaction_type.ilike(f"%{search_value}%"),
                         DrugReceptorInteraction.mechanism.ilike(f"%{search_value}%")
@@ -8853,7 +9036,7 @@ def receptor_ligand_dashboard():
             
             if 0 <= order_column_index < len(columns):
                 column = columns[order_column_index]
-                query = query.order_by(db.desc(column)) if order_direction == 'desc' else query.order_by(column)
+                query = query.order_by(db.desc(column) if order_direction == 'desc' else column)
             
             total_count = DrugReceptorInteraction.query.count()
             filtered_count = query.count()
@@ -8863,7 +9046,7 @@ def receptor_ligand_dashboard():
                 {
                     "Ligand": i.drug.name_en if i.drug else f"Unknown {i.drug_id}",
                     "Receptor": i.receptor.name if i.receptor else f"Unknown {i.receptor_id}",
-                    "Affinity": i.affinity or "N/A",
+                    "Affinity": round(i.affinity, 2) if i.affinity else "N/A",
                     "Affinity Parameter": i.affinity_parameter or "N/A",
                     "Interaction Type": i.interaction_type or "N/A",
                     "Mechanism": i.mechanism or "N/A"
@@ -8889,7 +9072,7 @@ def receptor_ligand_dashboard():
             
             if 0 <= order_column_index < len(columns):
                 column = columns[order_column_index]
-                query = query.order_by(db.desc(column)) if order_direction == 'desc' else query.order_by(column)
+                query = query.order_by(db.desc(column) if order_direction == 'desc' else column)
             
             total_count = Receptor.query.count()
             filtered_count = query.count()
@@ -8903,7 +9086,7 @@ def receptor_ligand_dashboard():
                     "Length": r.length or "N/A",
                     "Gene Name": r.gene_name or "N/A",
                     "Localization": r.subcellular_location or "N/A",
-                    "Function": r.function or "N/A"
+                    "Function": (r.function[:100] + "...") if r.function and len(r.function) > 100 else (r.function or "N/A")
                 }
                 for r in paginated_items
             ]
@@ -8918,7 +9101,7 @@ def receptor_ligand_dashboard():
         })
     
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"Dashboard API Error: {e}")
         return jsonify({"error": "Server Error", "message": str(e)}), 500
 
 
@@ -8950,37 +9133,48 @@ def fetch_receptor_name(target_id):
         return f"Target {target_id}"
 
 
-
 @app.route('/api/affinity-data', methods=['GET'])
+@login_required
 def affinity_data():
-    interactions = DrugReceptorInteraction.query.all()
-    chart_data = {"labels": [], "values": []}
-    
-    for interaction in interactions:
-        receptor_name = interaction.receptor.name if interaction.receptor else "Unknown"
-        ligand_name = interaction.drug.name_en if interaction.drug else "Unknown"
-        chart_data["labels"].append(f"{ligand_name} ({receptor_name})")
-        chart_data["values"].append(interaction.affinity or 0)
-    
-    return jsonify(chart_data)
+    try:
+        interactions = DrugReceptorInteraction.query.filter(
+            DrugReceptorInteraction.affinity.isnot(None)
+        ).join(Drug).join(Receptor).order_by(DrugReceptorInteraction.affinity.desc()).limit(50).all()
+        
+        chart_data = {"labels": [], "values": []}
+        
+        for interaction in interactions:
+            receptor_name = interaction.receptor.name if interaction.receptor else "Unknown"
+            ligand_name = interaction.drug.name_en if interaction.drug else "Unknown"
+            label = f"{ligand_name[:20]} - {receptor_name[:20]}"
+            chart_data["labels"].append(label)
+            chart_data["values"].append(round(interaction.affinity, 2))
+        
+        return jsonify(chart_data)
+    except Exception as e:
+        logging.error(f"Error in affinity_data: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/interaction-type-distribution', methods=['GET'])
+@login_required
 def interaction_type_distribution():
-    interactions = DrugReceptorInteraction.query.with_entities(
-        DrugReceptorInteraction.interaction_type,
-        db.func.count(DrugReceptorInteraction.id)
-    ).group_by(DrugReceptorInteraction.interaction_type).all()
-    
-    chart_data = {
-        "labels": [i[0] for i in interactions],
-        "values": [i[1] for i in interactions]
-    }
-    return jsonify(chart_data)
+    try:
+        interactions = DrugReceptorInteraction.query.with_entities(
+            DrugReceptorInteraction.interaction_type,
+            db.func.count(DrugReceptorInteraction.id)
+        ).filter(
+            DrugReceptorInteraction.interaction_type.isnot(None)
+        ).group_by(DrugReceptorInteraction.interaction_type).all()
+        
+        chart_data = {
+            "labels": [i[0] or "Unknown" for i in interactions],
+            "values": [i[1] for i in interactions]
+        }
+        return jsonify(chart_data)
+    except Exception as e:
+        logging.error(f"Error in interaction_type_distribution: {e}")
+        return jsonify({"error": str(e)}), 500
 
-
-
-# Reseptör - Ligand Etkileşim Kodları...
-# Helper function to get executable with correct extension
 def get_executable(name):
     if platform.system() == "Windows":
         return shutil.which(f"{name}.exe") or shutil.which(name)
@@ -8988,76 +9182,95 @@ def get_executable(name):
 
 def safe_remove(path, retries=3, delay=0.5):
     path = Path(path)
-    for _ in range(retries):
+    for attempt in range(retries):
         try:
             if path.exists():
                 if path.is_dir():
                     shutil.rmtree(path, ignore_errors=True)
                 else:
                     path.unlink()
-            return
-        except (OSError, PermissionError):
-            time.sleep(delay)
-    logging.warning(f"Failed to remove {path}")
-
+            return True
+        except (OSError, PermissionError) as e:
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                logging.warning(f"Failed to remove {path}: {e}")
+                return False
 
 @app.route('/api/receptors', methods=['GET'])
+@login_required
 def get_receptors():
-    search = request.args.get('search', '').strip()
-    limit = request.args.get('limit', 10, type=int)
-    page = request.args.get('page', 1, type=int)
-    
-    query = Receptor.query.filter(Receptor.name.ilike(f"%{search}%")) if search else Receptor.query
-    paginated_query = query.paginate(page=page, per_page=limit)
-    
-    results = [{"id": r.id, "text": r.name} for r in paginated_query.items]
-    return jsonify({"results": results, "has_next": paginated_query.has_next})
-
-
+    try:
+        search = request.args.get('search', '').strip()
+        limit = min(request.args.get('limit', 10, type=int), 100)
+        page = request.args.get('page', 1, type=int)
+        
+        query = Receptor.query
+        if search:
+            query = query.filter(
+                db.or_(
+                    Receptor.name.ilike(f"%{search}%"),
+                    Receptor.gene_name.ilike(f"%{search}%")
+                )
+            )
+        
+        query = query.order_by(Receptor.name)
+        paginated_query = query.paginate(page=page, per_page=limit, error_out=False)
+        
+        results = [{"id": r.id, "text": r.name} for r in paginated_query.items]
+        return jsonify({"results": results, "has_next": paginated_query.has_next})
+    except Exception as e:
+        logging.error(f"Error in get_receptors: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/receptor-ligand-simulator', methods=['GET', 'POST'])
+@login_required
 def receptor_ligand_simulator():
     if request.method == 'GET':
         return render_template('receptor_ligand_simulator.html')
     
-    receptor = request.form.get('receptor')
-    ligand = request.form.get('ligand')
-    
-    if ligand:
-        session['ligand'] = ligand
-    else:
-        ligand = session.get('ligand')
-    
-    if not receptor or not ligand:
-        return jsonify({"error": "Receptor and ligand required."}), 400
-    
     try:
-        receptor_file_path = os.path.join('static', f'receptor_{uuid.uuid4().hex}.pdb')
+        receptor = request.form.get('receptor', '').strip()
+        ligand = request.form.get('ligand', '').strip()
+        
+        if ligand:
+            session['ligand'] = ligand
+        else:
+            ligand = session.get('ligand')
+        
+        if not receptor or not ligand:
+            return jsonify({"error": "Receptor and ligand required."}), 400
+        
+        receptor_filename = f'receptor_{uuid.uuid4().hex}.pdb'
+        receptor_file_path = os.path.join('static', receptor_filename)
+        
         with open(receptor_file_path, "w") as f:
             f.write(receptor)
         
         ligand_file_url = session.get('ligand_file_url')
         if not ligand_file_url:
-            ligand_file_path = os.path.join('static', f'ligand_{uuid.uuid4().hex}.pdb')
+            ligand_filename = f'ligand_{uuid.uuid4().hex}.pdb'
+            ligand_file_path = os.path.join('static', ligand_filename)
             with open(ligand_file_path, "w") as f:
                 f.write(ligand)
-            session['ligand_file_url'] = f"/{ligand_file_path}"
-            ligand_file_url = session['ligand_file_url']
+            ligand_file_url = f"/static/{ligand_filename}"
+            session['ligand_file_url'] = ligand_file_url
         
         return jsonify({
             "message": "Success",
-            "receptor_file_url": f"/{receptor_file_path}",
+            "receptor_file_url": f"/static/{receptor_filename}",
             "ligand_file_url": ligand_file_url
         }), 200
     
     except Exception as e:
+        logging.error(f"Error in receptor_ligand_simulator: {e}")
         return jsonify({"error": str(e)}), 500
-    
-
 
 @app.route('/api/convert_ligand', methods=['GET'])
+@login_required
 def convert_ligand():
     drug_id = request.args.get('drug_id')
+    
     if not drug_id:
         return jsonify({"error": "Drug ID required."}), 400
     
@@ -9071,30 +9284,37 @@ def convert_ligand():
         return jsonify({"error": f"No Drug found for ID {drug_id}."}), 404
     
     drug_detail = DrugDetail.query.filter_by(drug_id=drug_id).first()
-    if not drug_detail:
-        return jsonify({"error": f"No DrugDetail for ID {drug_id}."}), 404
-    
-    if not drug_detail.smiles:
-        return jsonify({"error": f"No SMILES for ID {drug_id}."}), 404
+    if not drug_detail or not drug_detail.smiles:
+        return jsonify({"error": f"No SMILES available for drug ID {drug_id}."}), 404
     
     pdb_file = None
     try:
-        if not drug_detail.smiles.strip() or len(drug_detail.smiles) > 1000:
-            raise ValueError("Invalid SMILES")
+        smiles = drug_detail.smiles.strip()
         
-        mol = Chem.MolFromSmiles(drug_detail.smiles)
+        if not smiles or len(smiles) > 2000:
+            raise ValueError("Invalid or too long SMILES")
+        
+        mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            raise ValueError("Invalid SMILES")
+            raise ValueError("Invalid SMILES structure")
         
         mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol, randomSeed=42)
-        AllChem.MMFFOptimizeMolecule(mol)
         
-        pdb_file = os.path.abspath(f"static/ligand_{uuid.uuid4().hex}.pdb")
+        embed_result = AllChem.EmbedMolecule(mol, randomSeed=42, maxAttempts=100)
+        if embed_result != 0:
+            logging.warning(f"Embedding failed for drug_id={drug_id}, trying without constraints")
+            embed_result = AllChem.EmbedMolecule(mol, useRandomCoords=True, randomSeed=42)
+            if embed_result != 0:
+                raise ValueError("Failed to generate 3D coordinates")
+        
+        AllChem.MMFFOptimizeMolecule(mol, maxIters=500)
+        
+        pdb_filename = f"ligand_{uuid.uuid4().hex}.pdb"
+        pdb_file = os.path.join('static', pdb_filename)
         Chem.MolToPDBFile(mol, pdb_file)
         
         if not os.path.exists(pdb_file):
-            raise RuntimeError("Failed to generate PDB.")
+            raise RuntimeError("Failed to generate PDB file")
         
         with open(pdb_file, 'r') as f:
             pdb_content = f.read()
@@ -9103,89 +9323,118 @@ def convert_ligand():
     
     except ValueError as e:
         logging.error(f"SMILES error for drug_id={drug_id}: {e}")
-        return jsonify({"error": "Invalid SMILES.", "details": str(e)}), 400
+        return jsonify({"error": "Invalid SMILES structure", "details": str(e)}), 400
     except Exception as e:
-        logging.error(f"Error in convert_ligand: {e}")
-        return jsonify({"error": f"Unexpected error: {e}"}), 500
+        logging.error(f"Error in convert_ligand for drug_id={drug_id}: {e}")
+        return jsonify({"error": "Failed to convert ligand", "details": str(e)}), 500
     finally:
-        if pdb_file:
-            safe_remove(pdb_file)
-
+        if pdb_file and os.path.exists(pdb_file):
+            try:
+                os.remove(pdb_file)
+            except:
+                pass
 
 @app.route('/api/get_receptor_structure', methods=['GET'])
+@login_required
 def get_receptor_structure():
     receptor_id = request.args.get('receptor_id')
+    
     if not receptor_id:
         return jsonify({"error": "Receptor ID required."}), 400
     
+    try:
+        receptor_id = int(receptor_id)
+    except ValueError:
+        return jsonify({"error": "Invalid Receptor ID."}), 400
+    
     receptor = db.session.get(Receptor, receptor_id)
     if not receptor or not receptor.pdb_ids:
-        return jsonify({"error": "Receptor not found or no PDB IDs."}), 404
+        return jsonify({"error": "Receptor not found or no PDB IDs available."}), 404
     
-    pdb_id = receptor.pdb_ids.split(",")[0]
+    pdb_ids = [pid.strip() for pid in receptor.pdb_ids.split(",") if pid.strip()]
+    if not pdb_ids:
+        return jsonify({"error": "No valid PDB IDs."}), 404
+    
+    pdb_id = pdb_ids[0]
     url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
     
-    response = requests.get(url, timeout=15)
-    if response.status_code != 200:
-        return jsonify({"error": f"Failed to fetch PDB {pdb_id}."}), 500
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code != 200:
+            return jsonify({"error": f"Failed to fetch PDB {pdb_id}. Status: {response.status_code}"}), 500
+        
+        pdb_content = response.text
+        
+        if not pdb_content or len(pdb_content) < 100:
+            return jsonify({"error": f"Invalid PDB content for {pdb_id}"}), 500
+        
+        binding_site_coords = get_pocket_coords(pdb_content, pdb_id)
+        
+        if binding_site_coords["x"] is not None:
+            receptor.binding_site_x = binding_site_coords["x"]
+            receptor.binding_site_y = binding_site_coords["y"]
+            receptor.binding_site_z = binding_site_coords["z"]
+            db.session.commit()
+        
+        return jsonify({"pdb": pdb_content, "binding_site": binding_site_coords}), 200
     
-    pdb_content = response.text
-    binding_site_coords = get_pocket_coords(pdb_content, pdb_id)
-    
-    receptor.binding_site_x = binding_site_coords["x"]
-    receptor.binding_site_y = binding_site_coords["y"]
-    receptor.binding_site_z = binding_site_coords["z"]
-    db.session.commit()
-    
-    return jsonify({"pdb": pdb_content, "binding_site": binding_site_coords}), 200
+    except requests.RequestException as e:
+        logging.error(f"Network error fetching PDB {pdb_id}: {e}")
+        return jsonify({"error": f"Network error fetching PDB: {str(e)}"}), 500
+    except Exception as e:
+        logging.error(f"Error in get_receptor_structure: {e}")
+        return jsonify({"error": str(e)}), 500
 
 def get_pocket_coords(pdb_content, pdb_id):
     temp_pdb_path = None
     try:
-        temp_pdb = Path(f"temp_{pdb_id}.pdb")
-        temp_pdb_path = temp_pdb.absolute()
+        temp_filename = f"temp_{pdb_id}_{uuid.uuid4().hex}.pdb"
+        temp_pdb_path = Path(temp_filename).absolute()
         
         with temp_pdb_path.open("w") as f:
             f.write(pdb_content)
         
-        if not temp_pdb_path.exists():
-            raise FileNotFoundError(f"Failed to create {temp_pdb_path}")
+        if not temp_pdb_path.exists() or temp_pdb_path.stat().st_size == 0:
+            raise FileNotFoundError(f"Failed to create valid temp file {temp_pdb_path}")
         
         structure = parsePDB(str(temp_pdb_path))
         protein = structure.select('protein')
         
         if not protein:
-            raise ValueError(f"No protein atoms in {pdb_id}")
+            logging.warning(f"No protein atoms found in {pdb_id}")
+            return {"x": 0.0, "y": 0.0, "z": 0.0}
         
         exposed_residues = protein.select('resname PHE TYR TRP HIS ASP GLU LYS ARG and within 8 of all')
         
-        if not exposed_residues:
-            exposed_residues = protein.select('resname ALA CYS ASP GLU PHE GLY HIS ILE LYS LEU MET ASN PRO GLN ARG SER THR VAL TRP TYR')
-            logging.warning(f"Using fallback residues for {pdb_id}")
+        if not exposed_residues or len(exposed_residues) < 3:
+            exposed_residues = protein.select('name CA')
+            logging.info(f"Using CA atoms fallback for {pdb_id}")
         
-        if not exposed_residues:
-            logging.warning(f"No pocket residues for {pdb_id}")
-            return {"x": 0, "y": 0, "z": 0}
+        if not exposed_residues or len(exposed_residues) < 3:
+            logging.warning(f"Insufficient atoms for pocket calculation in {pdb_id}")
+            return {"x": 0.0, "y": 0.0, "z": 0.0}
         
         coords = exposed_residues.getCoords()
-        if len(coords) < 3:
-            logging.warning(f"Insufficient pocket residues for {pdb_id}")
-            return {"x": 0, "y": 0, "z": 0}
-        
         centroid = calcCenter(coords)
-        logging.info(f"ProDy binding site for {pdb_id}: {centroid}")
         
-        return {"x": float(centroid[0]), "y": float(centroid[1]), "z": float(centroid[2])}
+        result = {
+            "x": round(float(centroid[0]), 3),
+            "y": round(float(centroid[1]), 3),
+            "z": round(float(centroid[2]), 3)
+        }
+        
+        logging.info(f"Binding site for {pdb_id}: {result}")
+        return result
     
     except Exception as e:
-        logging.error(f"ProDy failed for {pdb_id}: {e}")
-        return {"x": 0, "y": 0, "z": 0}
+        logging.error(f"Error in get_pocket_coords for {pdb_id}: {e}")
+        return {"x": 0.0, "y": 0.0, "z": 0.0}
     finally:
         if temp_pdb_path:
             safe_remove(temp_pdb_path)
 
-
 @app.route('/api/get_interaction_data', methods=['GET'])
+@login_required
 def get_interaction_data():
     drug_id = request.args.get('drug_id')
     receptor_id = request.args.get('receptor_id')
@@ -9194,63 +9443,68 @@ def get_interaction_data():
         return jsonify({"error": "Both drug_id and receptor_id required."}), 400
     
     try:
-        interaction = DrugReceptorInteraction.query.filter_by(
-            drug_id=drug_id, receptor_id=receptor_id
-        ).first()
-        
-        if not interaction:
-            return jsonify({"error": "No interaction found."}), 404
-        
-        receptor = db.session.get(Receptor, receptor_id)
-        if not receptor:
-            return jsonify({"error": "Receptor not found."}), 404
-        
-        drug = db.session.get(Drug, drug_id)
-        if not drug:
-            return jsonify({"error": "Drug not found."}), 404
-        
-        interaction_data = {
-            "ligand": drug.name_en,
-            "receptor": receptor.name,
-            "affinity": interaction.affinity,
-            "affinity_parameter": interaction.affinity_parameter,
-            "interaction_type": interaction.interaction_type,
-            "mechanism": interaction.mechanism,
-            "units": interaction.units,
-            "pdb_file": interaction.pdb_file,
-            "receptor_details": {
-                "type": receptor.type,
-                "description": receptor.description,
-                "molecular_weight": receptor.molecular_weight,
-                "length": receptor.length,
-                "gene_name": receptor.gene_name,
-                "subcellular_location": receptor.subcellular_location,
-                "function": receptor.function,
-                "iuphar_id": receptor.iuphar_id,
-                "pdb_ids": receptor.pdb_ids
-            }
+        drug_id = int(drug_id)
+        receptor_id = int(receptor_id)
+    except ValueError:
+        return jsonify({"error": "Invalid drug_id or receptor_id."}), 400
+    
+    interaction = DrugReceptorInteraction.query.filter_by(
+        drug_id=drug_id, receptor_id=receptor_id
+    ).first()
+    
+    if not interaction:
+        return jsonify({"error": "No interaction found."}), 404
+    
+    receptor = db.session.get(Receptor, receptor_id)
+    drug = db.session.get(Drug, drug_id)
+    
+    if not receptor or not drug:
+        return jsonify({"error": "Receptor or Drug not found."}), 404
+    
+    interaction_data = {
+        "ligand": drug.name_en or drug.name_tr or "Unknown",
+        "receptor": receptor.name,
+        "affinity": round(interaction.affinity, 2) if interaction.affinity else None,
+        "affinity_parameter": interaction.affinity_parameter or "N/A",
+        "interaction_type": interaction.interaction_type or "N/A",
+        "mechanism": interaction.mechanism or "N/A",
+        "units": interaction.units or "N/A",
+        "pdb_file": interaction.pdb_file,
+        "receptor_details": {
+            "type": receptor.type,
+            "description": receptor.description,
+            "molecular_weight": receptor.molecular_weight,
+            "length": receptor.length,
+            "gene_name": receptor.gene_name,
+            "subcellular_location": receptor.subcellular_location,
+            "function": receptor.function,
+            "iuphar_id": receptor.iuphar_id,
+            "pdb_ids": receptor.pdb_ids,
+            "uniprot_accession": receptor.uniprot_accession
         }
-        return jsonify(interaction_data), 200
-    
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
+    }
+    return jsonify(interaction_data), 200
 
 @app.route('/health', methods=['GET'])
 def health_check():
     try:
-        # Check ProDy
         import prody
         prody_version = prody.__version__
-        # Check RDKit
+        
         from rdkit import Chem
         rdkit_version = Chem.rdkitVersion
+        
+        db.session.execute(db.text('SELECT 1'))
+        db_status = "connected"
+        
         return jsonify({
             "status": "healthy",
             "prody": f"Version {prody_version}",
-            "rdkit": f"Version {rdkit_version}"
+            "rdkit": f"Version {rdkit_version}",
+            "database": db_status
         }), 200
     except Exception as e:
+        logging.error(f"Health check failed: {e}")
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
 #Reseptör - Ligand Finitooo
 
