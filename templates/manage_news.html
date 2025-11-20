@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage News - FDA Approvals Ready</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Select2 CDN -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    <!-- CKEditor -->
     <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
     <style>
         body { background-color: #f8f9fa; font-family: 'Segoe UI', sans-serif; }
@@ -17,13 +15,20 @@
         .card-header { font-size: 1.4rem; font-weight: bold; }
         .news-card { transition: all 0.3s; }
         .news-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .news-description { font-weight: normal !important; }
+        .news-description h1, .news-description h2, .news-description h3,
+        .news-description h4, .news-description h5, .news-description h6 {
+            font-weight: 600 !important;
+            margin-top: 10px;
+            margin-bottom: 8px;
+        }
+        .news-description p { font-weight: normal !important; margin-bottom: 8px; }
+        .news-description strong { font-weight: 600 !important; }
     </style>
 </head>
 <body>
     <div class="container mt-5">
         <h1 class="text-center mb-5 display-4">Manage News & FDA Approvals</h1>
-
-        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -34,8 +39,6 @@
             {% endfor %}
         {% endif %}
         {% endwith %}
-
-        <!-- ADD NEWS FORM -->
         <div class="card shadow-sm mb-5 news-card">
             <div class="card-header bg-primary text-white">
                 <h3 class="mb-0">Add New Announcement / FDA Approval</h3>
@@ -57,12 +60,10 @@
                             </select>
                         </div>
                     </div>
-
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description (Rich Text)</label>
                         <textarea name="description" id="description" required></textarea>
                     </div>
-
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Publication Date</label>
@@ -78,15 +79,12 @@
                             <small class="text-muted">Start typing: Nerandomilast, Zegfloxa, etc.</small>
                         </div>
                     </div>
-
                     <button type="submit" class="btn btn-success btn-lg px-5" id="submit-btn">
                         Add News / FDA Approval
                     </button>
                 </form>
             </div>
         </div>
-
-        <!-- FDA APPROVALS SECTION -->
         {% if fda_approvals %}
         <div class="card shadow-sm mb-4 news-card">
             <div class="card-header bg-danger text-white d-flex align-items-center">
@@ -97,7 +95,7 @@
                 {% for news in fda_approvals %}
                 <div class="alert alert-light border-start border-danger border-5 mb-3">
                     <div class="d-flex justify-content-between align-items-start">
-                        <div>
+                        <div class="flex-grow-1">
                             <h5 class="fw-bold text-danger">{{ news.title }}</h5>
                             {% if news.drug %}
                                 <span class="badge fda-badge fs-6 px-3 py-2">
@@ -107,9 +105,9 @@
                                 <em class="text-muted">No drug linked</em>
                             {% endif %}
                             <p class="mt-2 mb-1"><small class="text-muted">{{ news.publication_date.strftime('%d %B %Y') }}</small></p>
-                            <div class="text-muted small">{{ news.description | safe }}</div>
+                            <div class="text-muted small news-description">{{ news.description | safe | truncate(200) }}</div>
                         </div>
-                        <div class="btn-group">
+                        <div class="btn-group ms-3">
                             <a href="{{ url_for('edit_news', news_id=news.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('delete_news', news_id=news.id) }}" method="post" style="display:inline;">
                                 <button type="submit" class="btn btn-danger btn-sm" 
@@ -122,8 +120,6 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- OTHER CATEGORIES -->
         {% for category_name, items in [('Announcements', announcements), ('Updates', updates), ('Drug Updates', drug_updates)] %}
             {% if items %}
             <div class="card shadow-sm mb-4 news-card">
@@ -133,13 +129,13 @@
                 <div class="card-body">
                     {% for news in items %}
                     <div class="border-bottom pb-3 mb-3">
-                        <div class="d-flex justify-content-between">
-                            <div>
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
                                 <h6 class="fw-bold">{{ news.title }}</h6>
                                 <small class="text-muted">{{ news.publication_date.strftime('%d %B %Y') }}</small>
-                                <div class="text-muted small mt-2">{{ news.description | safe }}</div>
+                                <div class="text-muted small mt-2 news-description">{{ news.description | safe | truncate(200) }}</div>
                             </div>
-                            <div class="btn-group">
+                            <div class="btn-group ms-3">
                                 <a href="{{ url_for('edit_news', news_id=news.id) }}" class="btn btn-warning btn-sm">Edit</a>
                                 <form action="{{ url_for('delete_news', news_id=news.id) }}" method="post" style="display:inline;">
                                     <button type="submit" class="btn btn-danger btn-sm" 
@@ -153,28 +149,21 @@
             </div>
             {% endif %}
         {% endfor %}
-
         {% if not (announcements or updates or drug_updates or fda_approvals) %}
         <div class="text-center py-5">
             <h3 class="text-muted">No news yet. Time to announce Nerandomilast FDA approval!</h3>
         </div>
         {% endif %}
     </div>
-
-    <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
-
     <script>
         $(document).ready(function () {
-            // CKEditor
             CKEDITOR.replace('description', {
                 height: 250,
                 toolbar: 'Full'
             });
-
-            // Select2 Drug Search
             $('#drug_search').select2({
                 theme: 'bootstrap-5',
                 placeholder: "Search drug: Nerandomilast, Zegfloxa, etc...",
@@ -188,16 +177,12 @@
                     processResults: data => ({ results: data.results })
                 }
             });
-
-            // When drug selected
             $('#drug_search').on('select2:select', function (e) {
                 $('#drug_id').val(e.params.data.id);
             });
             $('#drug_search').on('select2:clear', function () {
                 $('#drug_id').val('');
             });
-
-            // Toggle drug search based on category
             function toggleDrugField() {
                 if ($('#category').val() === 'FDA Approval') {
                     $('#drug-search-group').slideDown(300);
@@ -209,11 +194,8 @@
                     $('#drug_search').prop('required', false);
                 }
             }
-
             $('#category').on('change', toggleDrugField);
-            toggleDrugField(); // Initial check
-
-            // Form validation
+            toggleDrugField();
             $('#newsForm').on('submit', function(e) {
                 if ($('#category').val() === 'FDA Approval' && !$('#drug_id').val()) {
                     alert('Please select the FDA-approved drug!');

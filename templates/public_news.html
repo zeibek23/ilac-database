@@ -174,7 +174,7 @@
                             {{ news.category }}
                         </span>
                         <h5 class="card-title mt-2">{{ news.title }}</h5>
-                        <p class="text-muted flex-grow-1">{{ news.description | safe | truncate(180) }}</p>
+                        <p class="text-muted flex-grow-1" style="font-weight: normal;">{{ news.description | striptags | truncate(180) }}</p>
                         <small class="text-muted mb-3">{{ news.publication_date.strftime('%d %B %Y') }}</small>
                         <div>
                             <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-primary btn-sm">

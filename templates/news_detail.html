@@ -1,86 +1,305 @@
 {% extends "base.html" %}
-
-{% block title %}{{ news.title }} - Drugly News{% endblock %}
-
+{% block title %}{{ news.title }} - Drugly{% endblock %}
 {% block extra_css %}
 <style>
     body {
         font-family: 'Poppins', sans-serif;
         background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
         color: #2c3e50;
+        margin: 0;
     }
-    .navbar { background: #2c3e50 !important; }
-    .article-content {
-        font-size: 1.15rem;
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .news-detail-container {
+        max-width: 900px;
+        margin: 50px auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        padding: 40px;
+    }
+    .news-type-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+    .news-type-badge.announcement {
+        background: #28a745;
+        color: #fff;
+    }
+    .news-type-badge.update {
+        background: #ffc107;
+        color: #212529;
+    }
+    .news-type-badge.drug-update {
+        background: #007bff;
+        color: #fff;
+    }
+    .news-type-badge.fda-approval {
+        background: #dc3545;
+        color: #fff;
+    }
+    .news-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 20px;
+        line-height: 1.3;
+    }
+    .news-meta {
+        font-size: 0.95rem;
+        color: #6c757d;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #e9ecef;
+    }
+    .news-content {
+        font-size: 1.1rem;
         line-height: 1.8;
+        color: #495057;
     }
-    .article-content img {
-        max-width: 100%;
-        border-radius: 12px;
+    .news-content > h1:first-child,
+    .news-content > h2:first-child,
+    .news-content > h3:first-child {
+        margin-top: 0;
+    }
+    .news-content h1 {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-top: 30px;
+        margin-bottom: 15px;
+        color: #2c3e50;
+    }
+    .news-content h2 {
+        font-size: 1.6rem;
+        font-weight: 600;
+        margin-top: 25px;
+        margin-bottom: 12px;
+        color: #2c3e50;
+    }
+    .news-content h3 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        color: #2c3e50;
+    }
+    .news-content h4 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin-top: 18px;
+        margin-bottom: 8px;
+        color: #2c3e50;
+    }
+    .news-content h5 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-top: 15px;
+        margin-bottom: 8px;
+        color: #2c3e50;
+    }
+    .news-content h6 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-top: 15px;
+        margin-bottom: 8px;
+        color: #2c3e50;
+    }
+    .news-content p {
+        margin-bottom: 15px;
+    }
+    .news-content ul, .news-content ol {
+        margin-left: 25px;
+        margin-bottom: 15px;
+    }
+    .news-content li {
+        margin-bottom: 8px;
+    }
+    .news-content a {
+        color: #007bff;
+        text-decoration: underline;
+    }
+    .news-content a:hover {
+        color: #0056b3;
+    }
+    .news-content strong {
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    .news-content em {
+        font-style: italic;
+    }
+    .news-content blockquote {
+        border-left: 4px solid #007bff;
+        padding-left: 20px;
         margin: 20px 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        font-style: italic;
+        color: #6c757d;
+    }
+    .news-content br {
+        content: "";
+        display: block;
+        margin: 8px 0;
+    }
+    .news-content code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.95em;
+        color: #e83e8c;
+    }
+    .news-content pre {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 15px 0;
+    }
+    .news-content pre code {
+        background: none;
+        padding: 0;
+        color: #2c3e50;
+    }
+    .news-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+    }
+    .news-content table th,
+    .news-content table td {
+        border: 1px solid #dee2e6;
+        padding: 12px;
+        text-align: left;
+    }
+    .news-content table th {
+        background: #f8f9fa;
+        font-weight: 600;
+    }
+    .news-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 10px;
+        margin: 20px 0;
+    }
+    .back-button {
+        margin-top: 40px;
+        text-align: center;
+    }
+    .back-button .btn {
+        border-radius: 25px;
+        padding: 10px 30px;
+        font-weight: 500;
     }
     footer {
         background: #2c3e50;
         color: #fff;
-        padding: 40px 0;
-        margin-top: 100px;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+        margin-top: 50px;
     }
-    footer a { color: #00b4d8; text-decoration: none; }
-    footer a:hover { color: #fff; }
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    footer a:hover {
+        color: #fff;
+    }
 </style>
 {% endblock %}
-
 {% block content %}
-<nav class="navbar navbar-expand-lg navbar-dark">
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
     <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="/">Drugly</a>
-        <a href="{{ url_for('public_news') }}" class="btn btn-outline-light ms-auto">← All News</a>
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="/#features">Features</a></li>
+                <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+            </ul>
+            {% if user and user.is_admin %}
+                <a href="/online-users" class="btn btn-success me-2">
+                    <i class="fas fa-users"></i> Online Users
+                </a>
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
+            {% endif %}
+        </div>
     </div>
 </nav>
 
-<div class="container my-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-9">
-            <a href="{{ url_for('public_news') }}" class="text-muted mb-4 d-inline-block">
-                ← Back to all news
-            </a>
-            
-            {% if news.category == 'FDA Approval' %}
-            <div class="text-center mb-4">
-                <span class="badge bg-danger fs-5 px-5 py-3">FDA APPROVED</span>
-            </div>
-            {% endif %}
-            
-            <h1 class="display-5 fw-bold mt-4">{{ news.title }}</h1>
-            
-            <p class="text-muted fs-5 mb-5">
-                Published on {{ news.publication_date.strftime('%d %B %Y') }}
-                {% if news.drug %}
-                • <strong>Related Drug:</strong>
-                <a href="{{ url_for('drug_detail', drug_id=news.drug.id) }}" class="badge bg-primary text-decoration-none fs-6">
-                    {{ news.drug.name_en }}{% if news.drug.name_tr %} ({{ news.drug.name_tr }}){% endif %}
-                </a>
-                {% endif %}
-            </p>
-            
-            <hr class="my-5">
-            
-            <article class="article-content bg-white p-5 rounded shadow">
-                {{ news.description | safe }}
-            </article>
-            
-            <div class="mt-5 text-center">
-                <a href="{{ url_for('public_news') }}" class="btn btn-lg btn-outline-primary px-5">
-                    ← Back to All News
-                </a>
-            </div>
-        </div>
+<!-- News Detail Content -->
+<div class="news-detail-container">
+    <span class="news-type-badge {{ 'announcement' if news.category == 'Announcement' else 'update' if news.category == 'Update' else 'drug-update' if news.category == 'Drug Update' else 'fda-approval' }}">
+        {{ news.category }}
+    </span>
+    
+    <h1 class="news-title">{{ news.title }}</h1>
+    
+    <div class="news-meta">
+        <i class="fas fa-calendar-alt me-2"></i>Published on {{ news.publication_date.strftime('%d %B %Y') }}
+        {% if news.drug %}
+            <span class="ms-3">
+                <i class="fas fa-pills me-2"></i>
+                <strong>Drug:</strong> {{ news.drug.name_en }} ({{ news.drug.name_tr }})
+            </span>
+        {% endif %}
+    </div>
+    
+    <div class="news-content">
+        {{ news.description | safe }}
+    </div>
+    
+    <div class="back-button">
+        <a href="/" class="btn btn-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Home
+        </a>
     </div>
 </div>
 
-<footer class="text-center">
+<!-- Footer -->
+<footer>
     <p>© 2025 Drugly. All rights reserved.</p>
-    <a href="/">Home</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
 </footer>
 {% endblock %}

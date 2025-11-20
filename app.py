@@ -14022,34 +14022,46 @@ def parse_kegg_details(raw_data):
 #ANNOUNCEMENT SECTION!!!
 # Sanitize rich text fields for news routes
 def clean_text(field):
+    if not field:
+        return None
     try:
-        # Wrap plain text in <p> if needed
-        if field.strip() and not field.startswith('<') and not field.endswith('>'):
+        # Don't wrap if already has HTML tags
+        field = field.strip()
+        if field and not ('<' in field and '>' in field):
             field = f'<p>{field}</p>'
+        
         return bleach.clean(
             field,
-            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th'],
+            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'blockquote', 'code', 'pre', 'div'],
             attributes={
                 'span': ['style'],
-                'a': ['href'],
-                'img': ['src', 'alt'],
-                'font': ['face', 'size']
+                'a': ['href', 'target', 'rel'],
+                'img': ['src', 'alt', 'width', 'height'],
+                'font': ['face', 'size'],
+                'table': ['class', 'style'],
+                'td': ['colspan', 'rowspan', 'style'],
+                'th': ['colspan', 'rowspan', 'style'],
+                'div': ['class', 'style']
             },
-            styles=['color', 'background-color', 'font-family', 'font-size']
-        ) if field else None
+            strip=True
+        )
     except TypeError as e:
-        logger.warning(f"bleach.clean failed with styles: {str(e)}, retrying without styles")
+        logger.warning(f"bleach.clean failed: {str(e)}, retrying without styles")
         return bleach.clean(
             field,
-            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th'],
+            tags=['b', 'i', 'u', 'p', 'strong', 'em', 'span', 'a', 'ul', 'ol', 'li', 'img', 'table', 'tr', 'td', 'th', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'blockquote', 'code', 'pre', 'div'],
             attributes={
                 'span': ['style'],
-                'a': ['href'],
-                'img': ['src', 'alt'],
-                'font': ['face', 'size']
-            }
-        ) if field else None
-
+                'a': ['href', 'target', 'rel'],
+                'img': ['src', 'alt', 'width', 'height'],
+                'font': ['face', 'size'],
+                'table': ['class', 'style'],
+                'td': ['colspan', 'rowspan', 'style'],
+                'th': ['colspan', 'rowspan', 'style'],
+                'div': ['class', 'style']
+            },
+            strip=True
+        )
 @app.route('/news/manage', methods=['GET', 'POST'])
 @admin_required
 def manage_news():
@@ -14196,9 +14208,24 @@ def public_news():
 
 @app.route('/news/<int:news_id>')
 def news_detail(news_id):
-    news = News.query.get_or_404(news_id)
-    return render_template('news_detail.html', news=news)
-
+    try:
+        news = News.query.get_or_404(news_id)
+        user = None
+        user_email = None
+        if 'user_id' in session:
+            user = User.query.get(session['user_id'])
+            if user:
+                user_email = user.email
+        return render_template(
+            'news_detail.html',
+            news=news,
+            user_email=user_email,
+            user=user
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        flash('News article not found.', 'danger')
+        return redirect(url_for('home'))
 
 # Doz - Cevap Simülasyonu....
 # Request model (Pydantic V2)

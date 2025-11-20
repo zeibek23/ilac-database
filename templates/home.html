@@ -824,6 +824,7 @@
 {% endif %}
 
 <!-- Classic News Section -->
+<!-- Update home.html news section -->
 <div class="news-section container" id="news">
     <h2 class="text-center mb-5">Latest News & Updates</h2>
     <div class="row mt-4">
@@ -832,11 +833,16 @@
             <div class="card news-card p-3 h-100">
                 <span class="news-type-badge 
                     {{ 'news' if news.category == 'Announcement' else 'update' if news.category == 'Update' else 'drug-update' }}">
-                    {{ news.category.replace('Drug Update', 'Drug Update') }}
+                    {{ news.category }}
                 </span>
                 <h5 class="mt-3">{{ news.title }}</h5>
-                <p>{{ news.description | safe | truncate(150) }}</p>
+                <p>{{ news.description | striptags | truncate(150) }}</p>
                 <small class="text-muted">Published on {{ news.publication_date.strftime('%d %B %Y') }}</small>
+                <div class="mt-3">
+                    <a href="{{ url_for('news_detail', news_id=news.id) }}" class="btn btn-outline-primary btn-sm">
+                        Read Full Article →
+                    </a>
+                </div>
             </div>
         </div>
         {% endfor %}
