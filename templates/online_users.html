@@ -618,6 +618,13 @@
         <i class="fas fa-exclamation-circle me-2"></i>Error Tracking
     </button>
 </li>
+<!-- ADD THIS NEW TAB in the <ul class="nav nav-tabs"> section (after errors-tab): -->
+
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="subscriptions-tab" data-bs-toggle="tab" data-bs-target="#subscriptions" type="button">
+        <i class="fas fa-credit-card me-2"></i>Subscriptions
+    </button>
+</li>
         </ul>
 
         <!-- Tabs Content -->
@@ -784,7 +791,142 @@
     </div>
 </div>
 
+<!-- ADD THIS NEW TAB CONTENT in the <div class="tab-content"> section (after errors tab): -->
 
+<!-- Subscriptions Tab -->
+<div class="tab-pane fade" id="subscriptions" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card primary">
+                <div class="icon">
+                    <i class="fas fa-credit-card"></i>
+                </div>
+                <h3 id="totalSubscriptions">-</h3>
+                <p>TOTAL SUBSCRIPTIONS</p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card success">
+                <div class="icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h3 id="activeSubscriptions">-</h3>
+                <p>ACTIVE SUBSCRIPTIONS</p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card info">
+                <div class="icon">
+                    <i class="fas fa-user-plus"></i>
+                </div>
+                <h3 id="newSubscriptions">-</h3>
+                <p>NEW SUBSCRIPTIONS</p>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card warning">
+                <div class="icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3 id="expiringSubscriptions">-</h3>
+                <p>EXPIRING SOON (7 DAYS)</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-3 col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-dollar-sign me-2"></i>MRR</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h2 id="mrr">-</h2>
+                    <p class="text-muted">Monthly Recurring Revenue</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>ARR</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h2 id="arr">-</h2>
+                    <p class="text-muted">Annual Recurring Revenue</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Churn Rate</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h2 id="churnRate">-</h2>
+                    <p class="text-muted">Subscription Churn</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-percentage me-2"></i>Conversion Rate</h5>
+                </div>
+                <div class="card-body text-center">
+                    <h2 id="conversionRate">-</h2>
+                    <p class="text-muted">Users → Subscribers</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>By Plan Type</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="subscriptionPlanChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>By Status</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="subscriptionStatusChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Subscription Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="subscriptionTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Recent Subscriptions</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="recentSubscriptionsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Sessions Tab -->
 <div class="tab-pane fade" id="sessions" role="tabpanel">
     <div class="row">
@@ -1729,6 +1871,7 @@ function loadPerformance() {
             if (activeTab === '#scrolls') loadScrolls();
             if (activeTab === '#forms') loadForms();
             if (activeTab === '#errors') loadErrors();
+            if (activeTab === '#subscriptions') loadSubscriptions(); // ADD THIS LINE
             if (activeTab === '#realtime') loadRealtime();
             updateOnlineUsers();
         }
@@ -1750,6 +1893,8 @@ function loadPerformance() {
         document.getElementById('scrolls-tab').addEventListener('click', loadScrolls);
         document.getElementById('forms-tab').addEventListener('click', loadForms);
         document.getElementById('errors-tab').addEventListener('click', loadErrors);
+        // ADD THIS EVENT LISTENER after the other tab event listeners:
+        document.getElementById('subscriptions-tab').addEventListener('click', loadSubscriptions);
 
 // Load clicks analytics
 // REPLACE loadClicks with this ENHANCED version:
@@ -1955,6 +2100,90 @@ function loadErrors() {
             loading.classList.remove('active');
         });
 }
+
+        // ADD THIS NEW FUNCTION after the loadErrors function:
+
+    function loadSubscriptions() {
+        fetch(`/api/analytics/subscriptions?period=${currentPeriod}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update subscription stats cards (if you want to add them)
+                document.getElementById('totalSubscriptions').textContent = data.total_subscriptions.toLocaleString();
+                document.getElementById('activeSubscriptions').textContent = data.active_subscriptions.toLocaleString();
+                document.getElementById('newSubscriptions').textContent = data.new_subscriptions.toLocaleString();
+                document.getElementById('mrr').textContent = `₺${data.revenue.total_mrr.toFixed(2)}`;
+                document.getElementById('arr').textContent = `₺${data.revenue.arr.toFixed(2)}`;
+                document.getElementById('churnRate').textContent = `${data.churn_rate}%`;
+                document.getElementById('conversionRate').textContent = `${data.conversion_rate}%`;
+                document.getElementById('expiringSubscriptions').textContent = data.expiring_soon.toLocaleString();
+                
+                // Subscription by plan chart
+                const planCtx = document.getElementById('subscriptionPlanChart').getContext('2d');
+                new Chart(planCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.subscriptions_by_plan.map(s => s.plan),
+                        datasets: [{
+                            data: data.subscriptions_by_plan.map(s => s.count),
+                            backgroundColor: ['#667eea', '#f093fb']
+                        }]
+                    }
+                });
+                
+                // Subscription by status chart
+                const statusCtx = document.getElementById('subscriptionStatusChart').getContext('2d');
+                new Chart(statusCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.subscriptions_by_status.map(s => s.status),
+                        datasets: [{
+                            data: data.subscriptions_by_status.map(s => s.count),
+                            backgroundColor: ['#43e97b', '#f5576c', '#fa709a']
+                        }]
+                    }
+                });
+                
+                // Daily subscriptions trend
+                const trendCtx = document.getElementById('subscriptionTrendChart').getContext('2d');
+                new Chart(trendCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.daily_subscriptions.map(d => new Date(d.date).toLocaleDateString()),
+                        datasets: [{
+                            label: 'New Subscriptions',
+                            data: data.daily_subscriptions.map(d => d.count),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    }
+                });
+                
+                // Recent subscriptions table
+                if (data.recent_subscriptions && data.recent_subscriptions.length > 0) {
+                    document.getElementById('recentSubscriptionsContainer').innerHTML = data.recent_subscriptions.map(sub => `
+                        <div class="visitor-row">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <strong>${sub.user_name}</strong>
+                                    <span class="text-muted ms-2">${sub.user_email}</span>
+                                    <span class="badge bg-${sub.plan_type === 'yearly' ? 'warning' : 'info'} ms-2">${sub.plan_type}</span>
+                                    <span class="badge bg-${sub.status === 'active' ? 'success' : sub.status === 'cancelled' ? 'danger' : 'secondary'} ms-2">${sub.status}</span>
+                                </div>
+                                <div class="text-muted text-end">
+                                    <small><i class="far fa-calendar me-1"></i>${new Date(sub.start_date).toLocaleDateString()}</small><br>
+                                    <small><i class="far fa-calendar-times me-1"></i>${new Date(sub.end_date).toLocaleDateString()}</small>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('recentSubscriptionsContainer').innerHTML = '<p class="text-muted text-center">No subscription data available</p>';
+                }
+            })
+            .catch(error => console.error('Error loading subscriptions:', error));
+    }
 
         // Initial load
         loadDashboard();

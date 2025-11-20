@@ -1,0 +1,283 @@
+<!-- Replace templates/welcome.html with this: -->
+{% extends "base.html" %}
+{% block title %}Welcome to Premium - Drugly{% endblock %}
+{% block extra_css %}
+<style>
+    body {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        color: #2c3e50;
+        margin: 0;
+    }
+    .navbar {
+        background: #2c3e50 !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #fff !important;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .welcome-hero {
+        background: linear-gradient(to right, #007bff, #6610f2);
+        color: white;
+        padding: 100px 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .welcome-hero h1 {
+        font-size: 3.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+    }
+    .welcome-hero p {
+        font-size: 1.5rem;
+        margin: 20px 0;
+    }
+    .welcome-hero .subscription-badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 10px 25px;
+        border-radius: 30px;
+        font-size: 1.1rem;
+        margin-top: 20px;
+        backdrop-filter: blur(10px);
+    }
+    .features-showcase {
+        padding: 60px 20px;
+        background: #fff;
+    }
+    .features-showcase h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        text-align: center;
+        color: #2c3e50;
+        animation: fadeInDown 1s ease-in-out;
+    }
+    .features-showcase p.lead {
+        font-size: 1.25rem;
+        color: #6c757d;
+        margin-bottom: 50px;
+        text-align: center;
+        animation: fadeInUp 1s ease-in-out;
+    }
+    .feature-card {
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        border: none;
+        border-radius: 15px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #ffffff, #f1f1f1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+        margin-bottom: 30px;
+        height: 100%;
+        animation: fadeIn 1.5s ease-in-out;
+    }
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+    }
+    .feature-icon {
+        font-size: 3.5rem;
+        margin-bottom: 20px;
+        display: block;
+    }
+    .feature-card h4 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 15px;
+    }
+    .feature-card p {
+        font-size: 1rem;
+        color: #495057;
+        margin-bottom: 0;
+    }
+    .cta-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 80px 20px;
+        margin-top: 60px;
+        text-align: center;
+    }
+    .cta-section h3 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+    }
+    .cta-section p {
+        font-size: 1.3rem;
+        margin-bottom: 30px;
+    }
+    .cta-section .btn {
+        border-radius: 25px;
+        padding: 12px 35px;
+        font-size: 1.1rem;
+        font-weight: 500;
+        margin: 10px;
+        transition: all 0.3s ease;
+    }
+    .cta-section .btn-light {
+        background: white;
+        color: #667eea;
+        border: none;
+    }
+    .cta-section .btn-light:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(255, 255, 255, 0.4);
+    }
+    .cta-section .btn-outline-light {
+        border: 2px solid white;
+        color: white;
+    }
+    .cta-section .btn-outline-light:hover {
+        background: white;
+        color: #667eea;
+        transform: scale(1.05);
+    }
+    footer {
+        background: #2c3e50;
+        color: #fff;
+        padding: 30px 0;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    footer a {
+        color: #00b4d8;
+        margin: 0 15px;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    footer a:hover {
+        color: #fff;
+    }
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @media (max-width: 768px) {
+        .welcome-hero {
+            padding: 60px 15px;
+        }
+        .welcome-hero h1 {
+            font-size: 2.5rem;
+        }
+        .welcome-hero p {
+            font-size: 1.2rem;
+        }
+        .features-showcase {
+            padding: 40px 15px;
+        }
+        .features-showcase h2 {
+            font-size: 2rem;
+        }
+        .cta-section {
+            padding: 60px 15px;
+        }
+        .cta-section h3 {
+            font-size: 2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
+            </ul>
+            <a href="/profile" class="btn btn-light me-2">Profile</a>
+            <a href="/logout" class="btn btn-outline-light">Logout</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Welcome Hero -->
+<div class="welcome-hero">
+    <div class="container">
+        <h1>🎉 Welcome to Premium!</h1>
+        <p>Hi {{ user.name|title }}, thank you for subscribing to Drugly</p>
+        <div class="subscription-badge">
+            <i class="fas fa-crown me-2"></i>{{ subscription.plan_type|title }} Plan Active
+        </div>
+        <p class="mt-3" style="font-size: 1.2rem;">Active until {{ subscription.end_date.strftime('%B %d, %Y') }}</p>
+    </div>
+</div>
+
+<!-- Features Showcase -->
+<div class="features-showcase container">
+    <h2>Your Premium Features</h2>
+    <p class="lead">Explore everything you can do with your premium subscription</p>
+    <div class="row">
+        {% for feature in features %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card feature-card text-center">
+                <span class="feature-icon">{{ feature.icon }}</span>
+                <h4>{{ feature.title }}</h4>
+                <p>{{ feature.description }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- CTA Section -->
+<div class="cta-section">
+    <div class="container">
+        <h3>Ready to explore?</h3>
+        <p>Start using your premium features now and unlock the full potential of Drugly</p>
+        <a href="/" class="btn btn-light btn-lg"><i class="fas fa-home me-2"></i>Go to Dashboard</a>
+        <a href="/profile" class="btn btn-outline-light btn-lg"><i class="fas fa-user me-2"></i>View Profile</a>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <p>© 2025 Drugly. All rights reserved.</p>
+    <a href="/contact">Contact Us</a> |
+    <a href="/about">About Us</a> |
+    <a href="/terms">Terms of Service</a>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('Welcome page loaded for premium user');
+    });
+</script>
+{% endblock %}

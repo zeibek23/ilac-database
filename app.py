@@ -21,6 +21,7 @@ import seaborn as sns
 import threading
 import psutil
 import requests
+import iyzipay
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import smtplib
 from email.mime.text import MIMEText
@@ -112,6 +113,15 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = BASE_DIR / '.env'
 load_dotenv(dotenv_path=dotenv_path)
 
+
+iyzico_options = {
+    'api_key': os.getenv('IYZICO_API_KEY'),
+    'secret_key': os.getenv('IYZICO_SECRET_KEY'),
+    'base_url': os.getenv('IYZICO_BASE_URL')
+}
+
+
+
 # DEBUG: Print API key info
 print("="*80)
 print(f"✓ .env file path: {dotenv_path}")
@@ -173,6 +183,31 @@ BATCH_SIZE = 1000  # Bulk insert batch size
 COMMIT_FREQUENCY = 100  # Commit every N batches
 MAX_RETRIES = 3
 
+@app.before_request
+def check_subscription():
+    # Define public routes that don't require subscription
+    public_routes = [
+        'pricing', 'create_subscription', 'payment_callback', 
+        'static', 'logout', 'login', 'register', 'home', 
+        'about', 'contact', 'profile', 'change_subscription',
+        'cancel_subscription', 'change_password'
+    ]
+    
+    # Define premium routes that require subscription
+    premium_routes = ['premium_feature1', 'premium_feature2', 'dashboard']
+    
+    if 'user_id' in session and request.endpoint in premium_routes:
+        active_sub = Subscription.query.filter_by(
+            user_id=session['user_id']
+        ).filter(
+            Subscription.end_date > datetime.utcnow(),
+            Subscription.status.in_(['active', 'cancelled'])
+        ).order_by(Subscription.end_date.desc()).first()
+        
+        if not active_sub:
+            flash('Please subscribe to access this premium feature', 'warning')
+            return redirect(url_for('pricing'))
+        
 
 
 def parse_user_agent(user_agent_string):
@@ -1308,7 +1343,7 @@ class News(db.Model):
 
 bcrypt = Bcrypt()
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     __tablename__ = 'user'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     
@@ -1323,6 +1358,7 @@ class User(db.Model):
     is_verified = db.Column(db.Boolean, default=False)
     verification_code = db.Column(db.String(6), nullable=True)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    subscriptions = db.relationship('Subscription', backref='user', lazy=True)
     
     def set_password(self, password):
         self.password = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -1334,6 +1370,16 @@ class User(db.Model):
         if self.last_seen is None:
             return False
         return datetime.utcnow() - self.last_seen < timedelta(minutes=5)
+
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=False)
+    plan_type = db.Column(db.String(20), nullable=False)  # 'monthly' or 'yearly'
+    status = db.Column(db.String(20), default='active')  # 'active', 'cancelled', 'expired'
+    start_date = db.Column(db.DateTime, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, nullable=False)
+    iyzico_subscription_id = db.Column(db.String(100))
+    iyzico_payment_id = db.Column(db.String(100))
 
 class Occupation(db.Model):
     __tablename__ = 'occupation'
@@ -1581,6 +1627,12 @@ class DailyStats(db.Model):
     tablet_percentage = db.Column(db.Float)
     desktop_percentage = db.Column(db.Float)
     avg_page_load_time = db.Column(db.Float)
+    total_subscriptions = db.Column(db.Integer, default=0)
+    active_subscriptions = db.Column(db.Integer, default=0)
+    new_subscriptions = db.Column(db.Integer, default=0)
+    cancelled_subscriptions = db.Column(db.Integer, default=0)
+    expired_subscriptions = db.Column(db.Integer, default=0)
+    mrr = db.Column(db.Float, default=0.0)    
 
 class DoseResponseSimulation(db.Model):
     __tablename__ = 'dose_response_simulation'
@@ -1724,74 +1776,312 @@ def home():
         user=user
     )
 
-#Online Users
-# Add before_request handler
-@app.before_request
-def update_last_seen():
+@app.route('/pricing')
+def pricing():
+    user = None
+    user_email = None
+    active_subscription = None
+    
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
         if user:
-            user.last_seen = datetime.utcnow()
-            db.session.commit()
+            user_email = user.email
+            # Check for active or cancelled subscription that hasn't expired
+            active_subscription = Subscription.query.filter_by(
+                user_id=user.id
+            ).filter(
+                Subscription.end_date > datetime.utcnow(),
+                Subscription.status.in_(['active', 'cancelled'])
+            ).order_by(Subscription.end_date.desc()).first()
+    
+    return render_template('pricing.html', user=user, user_email=user_email, active_subscription=active_subscription)
 
-# Add route for viewing online users
-@app.route('/online-users')
-def online_users():
-    if 'user_id' not in session:
-        flash('Please login first', 'warning')
-        return redirect(url_for('login'))
+@app.route('/create-subscription', methods=['POST'])
+@login_required
+def create_subscription():
+    plan_type = request.form.get('plan_type')
     
+    # Get current user from session
     user = User.query.get(session['user_id'])
-    if not user or not user.is_admin:
-        flash('Access denied. Admin only.', 'danger')
-        return redirect(url_for('home'))
     
-    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
-    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).order_by(User.last_seen.desc()).all()
-    all_users = User.query.order_by(User.last_seen.desc().nullslast()).all()
+    # Set prices
+    prices = {'monthly': '49.99', 'yearly': '499.99'}
+    price = prices.get(plan_type)
     
-    return render_template('online_users.html', online_users=online_users_list, all_users=all_users, user=user)
+    # Create Iyzico payment request
+    request_data = {
+        'locale': 'tr',
+        'conversationId': str(uuid.uuid4()),
+        'price': price,
+        'paidPrice': price,
+        'currency': 'TRY',
+        'basketId': f'B{str(user.id)}{int(time.time())}',
+        'paymentGroup': 'SUBSCRIPTION',
+        'callbackUrl': url_for('payment_callback', _external=True),
+        'buyer': {
+            'id': str(user.id),
+            'name': str(user.name),
+            'surname': str(user.surname),
+            'email': str(user.email),
+            'identityNumber': '11111111111',
+            'registrationAddress': 'Address',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'zipCode': '34000'
+        },
+        'shippingAddress': {
+            'contactName': f'{user.name} {user.surname}',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'address': 'Address',
+            'zipCode': '34000'
+        },
+        'billingAddress': {
+            'contactName': f'{user.name} {user.surname}',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'address': 'Address',
+            'zipCode': '34000'
+        },
+        'basketItems': [
+            {
+                'id': 'SUB1',
+                'name': f'{plan_type.capitalize()} Subscription',
+                'category1': 'Subscription',
+                'itemType': 'VIRTUAL',
+                'price': price
+            }
+        ]
+    }
+    
+    checkout_form = iyzipay.CheckoutFormInitialize().create(request_data, iyzico_options)
+    content = json.loads(checkout_form.read().decode('utf-8'))
+    
+    if content.get('status') == 'success':
+        return content.get('checkoutFormContent')
+    
+    flash('Payment initialization failed', 'error')
+    return redirect(url_for('pricing'))
 
-# API endpoint for real-time updates
-@app.route('/api/online-users')
-def api_online_users():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    user = User.query.get(session['user_id'])
-    if not user or not user.is_admin:
-        return jsonify({'error': 'Forbidden'}), 403
-    
-    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
-    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).all()
-    
-    return jsonify({
-        'online_count': len(online_users_list),
-        'users': [{
-            'id': u.id,
-            'name': f"{u.name} {u.surname}",
-            'email': u.email,
-            'last_seen': u.last_seen.isoformat() if u.last_seen else None,
-            'is_online': u.is_online()
-        } for u in online_users_list]
-    })
 
-# Add this route to update all existing users with last_seen value
-@app.route('/admin/init-last-seen')
-def init_last_seen():
-    if 'user_id' not in session:
-        return "Unauthorized", 401
-    
+# Add this new route after payment_callback:
+@app.route('/welcome')
+@login_required
+def welcome():
     user = User.query.get(session['user_id'])
-    if not user or not user.is_admin:
-        return "Forbidden", 403
     
-    users = User.query.filter(User.last_seen.is_(None)).all()
-    for u in users:
-        u.last_seen = datetime.utcnow()
+    active_subscription = Subscription.query.filter_by(
+        user_id=user.id
+    ).filter(
+        Subscription.end_date > datetime.utcnow(),
+        Subscription.status.in_(['active', 'cancelled'])
+    ).order_by(Subscription.end_date.desc()).first()
+    
+    if not active_subscription:
+        return redirect(url_for('pricing'))
+    
+    features = {
+        'monthly': [
+            {'title': 'Premium Drug Database', 'description': 'Access our comprehensive database of medications', 'icon': '💊'},
+            {'title': 'Advanced Search', 'description': 'Find drugs faster with advanced filters', 'icon': '🔍'},
+            {'title': 'Interaction Checker', 'description': 'Check for drug interactions and contraindications', 'icon': '⚠️'},
+            {'title': 'Personalized Recommendations', 'description': 'Get drug recommendations based on your needs', 'icon': '🎯'},
+            {'title': 'Priority Support', 'description': '24/7 customer support for premium members', 'icon': '💬'},
+            {'title': 'Monthly Updates', 'description': 'Stay informed about new drugs and FDA approvals', 'icon': '📰'}
+        ],
+        'yearly': [
+            {'title': 'Premium Drug Database', 'description': 'Access our comprehensive database of medications', 'icon': '💊'},
+            {'title': 'Advanced Search', 'description': 'Find drugs faster with advanced filters', 'icon': '🔍'},
+            {'title': 'Interaction Checker', 'description': 'Check for drug interactions and contraindications', 'icon': '⚠️'},
+            {'title': 'Personalized Recommendations', 'description': 'Get drug recommendations based on your needs', 'icon': '🎯'},
+            {'title': 'Priority Support', 'description': '24/7 customer support for premium members', 'icon': '💬'},
+            {'title': 'Monthly Updates', 'description': 'Stay informed about new drugs and FDA approvals', 'icon': '📰'},
+            {'title': 'Cost Savings', 'description': 'Save money with our annual subscription', 'icon': '💰'},
+            {'title': 'Exclusive Benefits', 'description': 'Access to yearly member-only features', 'icon': '⭐'}
+        ]
+    }
+    
+    return render_template('welcome.html', 
+                         user=user, 
+                         user_email=user.email,
+                         subscription=active_subscription,
+                         features=features.get(active_subscription.plan_type, []))    
+
+# Replace your payment_callback route with this:
+@app.route('/payment-callback', methods=['POST'])
+def payment_callback():
+    token = request.form.get('token')
+    
+    request_data = {
+        'locale': 'tr',
+        'conversationId': str(uuid.uuid4()),
+        'token': token
+    }
+    
+    checkout_form = iyzipay.CheckoutForm().retrieve(request_data, iyzico_options)
+    result = json.loads(checkout_form.read().decode('utf-8'))
+    
+    if result.get('status') == 'success' and result.get('paymentStatus') == 'SUCCESS':
+        if 'user_id' not in session:
+            flash('Session expired. Please login again.', 'error')
+            return redirect(url_for('login'))
+        
+        user_id = session['user_id']
+        user = User.query.get(user_id)
+        
+        basket_item_name = result.get('basketItems', [{}])[0].get('name', '')
+        
+        if 'Monthly' in basket_item_name or 'monthly' in basket_item_name:
+            plan_type = 'monthly'
+            end_date = datetime.utcnow() + timedelta(days=30)
+        else:
+            plan_type = 'yearly'
+            end_date = datetime.utcnow() + timedelta(days=365)
+        
+        existing_subs = Subscription.query.filter_by(
+            user_id=user_id,
+            status='active'
+        ).all()
+        for sub in existing_subs:
+            sub.status = 'replaced'
+        
+        subscription = Subscription(
+            user_id=user_id,
+            plan_type=plan_type,
+            status='active',
+            end_date=end_date,
+            iyzico_payment_id=result.get('paymentId')
+        )
+        db.session.add(subscription)
+        db.session.commit()
+        
+        send_subscription_welcome_email(user.email, user.name, plan_type)
+        
+        return redirect(url_for('welcome'))
+    
+    flash('Payment failed', 'error')
+    return redirect(url_for('pricing'))
+
+
+
+@app.route('/cancel-subscription', methods=['POST'])
+@login_required
+def cancel_subscription():
+    subscription = Subscription.query.filter_by(
+        user_id=session['user_id'],
+        status='active'
+    ).first()
+    
+    if subscription:
+        # Don't change status to 'cancelled', keep it 'active' so user can access until end_date
+        # Just mark it so it won't auto-renew
+        subscription.status = 'active'  # Keep active until end_date
+        # You might want to add a new field like 'auto_renew' = False
+        db.session.commit()
+        flash(f'Subscription cancelled. You can continue using premium features until {subscription.end_date.strftime("%B %d, %Y")}.', 'success')
+    else:
+        flash('No active subscription found.', 'error')
+    
+    return redirect(url_for('profile'))
+
+@app.route('/change-subscription', methods=['POST'])
+@login_required
+def change_subscription():
+    new_plan_type = request.form.get('plan_type')
+    
+    # Get current active subscription
+    current_subscription = Subscription.query.filter_by(
+        user_id=session['user_id']
+    ).filter(
+        Subscription.end_date > datetime.utcnow(),
+        Subscription.status.in_(['active', 'cancelled'])
+    ).order_by(Subscription.end_date.desc()).first()
+    
+    if not current_subscription:
+        flash('No active subscription found.', 'error')
+        return redirect(url_for('pricing'))
+    
+    if current_subscription.plan_type == new_plan_type:
+        flash('You are already on this plan.', 'info')
+        return redirect(url_for('profile'))
+    
+    # Calculate prorated credit
+    days_remaining = (current_subscription.end_date - datetime.utcnow()).days
+    
+    if current_subscription.plan_type == 'monthly':
+        daily_rate = 49.99 / 30
+        credit = daily_rate * days_remaining
+    else:  # yearly
+        daily_rate = 499.99 / 365
+        credit = daily_rate * days_remaining
+    
+    # Calculate new price with credit
+    prices = {'monthly': 49.99, 'yearly': 499.99}
+    original_price = prices.get(new_plan_type)
+    final_price = max(0, original_price - credit)
+    final_price = round(final_price, 2)
+    
+    # Mark current subscription as replaced
+    current_subscription.status = 'replaced'
     db.session.commit()
     
-    return f"Updated {len(users)} users with last_seen timestamp"
+    # Redirect to create new subscription with adjusted price
+    user = User.query.get(session['user_id'])
+    
+    request_data = {
+        'locale': 'tr',
+        'conversationId': str(uuid.uuid4()),
+        'price': str(final_price),
+        'paidPrice': str(final_price),
+        'currency': 'TRY',
+        'basketId': f'B{str(user.id)}{int(time.time())}',
+        'paymentGroup': 'SUBSCRIPTION',
+        'callbackUrl': url_for('payment_callback', _external=True),
+        'buyer': {
+            'id': str(user.id),
+            'name': str(user.name),
+            'surname': str(user.surname),
+            'email': str(user.email),
+            'identityNumber': '11111111111',
+            'registrationAddress': 'Address',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'zipCode': '34000'
+        },
+        'shippingAddress': {
+            'contactName': f'{user.name} {user.surname}',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'address': 'Address',
+            'zipCode': '34000'
+        },
+        'billingAddress': {
+            'contactName': f'{user.name} {user.surname}',
+            'city': 'Istanbul',
+            'country': 'Turkey',
+            'address': 'Address',
+            'zipCode': '34000'
+        },
+        'basketItems': [
+            {
+                'id': 'SUB1',
+                'name': f'{new_plan_type.capitalize()} Subscription (Prorated)',
+                'category1': 'Subscription',
+                'itemType': 'VIRTUAL',
+                'price': str(final_price)
+            }
+        ]
+    }
+    
+    checkout_form = iyzipay.CheckoutFormInitialize().create(request_data, iyzico_options)
+    content = json.loads(checkout_form.read().decode('utf-8'))
+    
+    if content.get('status') == 'success':
+        return content.get('checkoutFormContent')
+    
+    flash('Payment initialization failed', 'error')
+    return redirect(url_for('profile'))
+
 
 # Backend rotası
 @app.route('/backend')
@@ -1849,6 +2139,68 @@ def terms():
 
 #KAyıt ve Login olma sayfaları
 load_dotenv()
+
+# Add this function with your other email functions (near send_verification_email)
+def send_subscription_welcome_email(email, name, plan_type):
+    features = {
+        'monthly': [
+            'Access to premium drug database',
+            'Advanced search filters',
+            'Drug interaction checker',
+            'Personalized recommendations',
+            'Priority customer support',
+            'Monthly updates on new drugs'
+        ],
+        'yearly': [
+            'Access to premium drug database',
+            'Advanced search filters',
+            'Drug interaction checker',
+            'Personalized recommendations',
+            'Priority customer support',
+            'Monthly updates on new drugs',
+            'Annual cost savings',
+            'Exclusive yearly member benefits'
+        ]
+    }
+    
+    feature_list = '\n'.join([f'• {feature}' for feature in features.get(plan_type, [])])
+    
+    message = f"""
+Dear {name},
+
+Welcome to Drugly.ai Premium!
+
+Thank you for subscribing to our {plan_type} plan. We're excited to have you on board!
+
+Your subscription includes access to:
+
+{feature_list}
+
+Your subscription is now active and you can start enjoying all premium features immediately.
+
+Visit your dashboard to explore all the features: https://drugly.ai/welcome
+
+If you have any questions, feel free to contact our support team.
+
+Best regards,
+The Drugly.ai Team
+    """
+    
+    msg = MIMEText(message)
+    msg['Subject'] = 'Welcome to Drugly.ai Premium!'
+    msg['From'] = os.getenv('EMAIL_ADDRESS')
+    msg['To'] = email
+    
+    try:
+        server = smtplib.SMTP('smtp.office365.com', 587)
+        server.starttls()
+        server.login(os.getenv('EMAIL_ADDRESS'), os.getenv('EMAIL_PASSWORD'))
+        server.sendmail(msg['From'], msg['To'], msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email sending failed: {e}")
+        return False
 
 def send_verification_email(email, code):
     msg = MIMEText(f"Your verification code is: {code}")
@@ -2072,18 +2424,49 @@ def reset_password():
 def profile():
     user = User.query.get(session['user_id'])
     occupations = Occupation.query.order_by(Occupation.name).all()
-
+    
+    # Get active or cancelled subscription that hasn't expired yet
+    active_subscription = Subscription.query.filter_by(
+        user_id=user.id
+    ).filter(
+        Subscription.end_date > datetime.utcnow(),
+        Subscription.status.in_(['active', 'cancelled'])
+    ).order_by(Subscription.end_date.desc()).first()
+    
+    # Calculate upgrade/downgrade price
+    upgrade_price = None
+    downgrade_price = None
+    
+    if active_subscription:
+        days_remaining = (active_subscription.end_date - datetime.utcnow()).days
+        
+        if active_subscription.plan_type == 'monthly':
+            daily_rate = 49.99 / 30
+            credit = daily_rate * days_remaining
+            upgrade_price = max(0, 499.99 - credit)
+            upgrade_price = round(upgrade_price, 2)
+        else:  # yearly
+            daily_rate = 499.99 / 365
+            credit = daily_rate * days_remaining
+            downgrade_price = max(0, 49.99 - credit)
+            downgrade_price = round(downgrade_price, 2)
+    
     if request.method == 'POST':
         user.name = request.form['name']
         user.surname = request.form['surname']
         user.date_of_birth = datetime.strptime(request.form['date_of_birth'], '%Y-%m-%d')
         user.occupation = request.form['occupation']
         db.session.commit()
-
         flash("Profile updated successfully!", "success")
         return redirect(url_for('profile'))
-
-    return render_template('profile.html', user=user, occupations=occupations, user_email=user.email)
+    
+    return render_template('profile.html', 
+                         user=user, 
+                         occupations=occupations, 
+                         user_email=user.email, 
+                         active_subscription=active_subscription,
+                         upgrade_price=upgrade_price,
+                         downgrade_price=downgrade_price)
 
 @app.route('/change-password', methods=['POST'])
 @login_required
@@ -2120,6 +2503,8 @@ def logout():
 
 #CLEARING THE WHOLEDATABASE:
 @app.route('/clear_database', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def clear_database():
     # Session-based login kontrolü
     if 'user_id' not in session:
@@ -2743,6 +3128,8 @@ def atc_search():
 
 # Yeni ilaç ekleme
 @app.route('/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_drug():
     if request.method == 'POST':
         name_tr = request.form['name_tr']
@@ -2765,6 +3152,8 @@ def add_drug():
 
 # Tuzlar için listeleme ve ekleme
 @app.route('/salts', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def manage_salts():
     if request.method == 'POST':
         name_tr = request.form['name_tr']
@@ -2778,6 +3167,8 @@ def manage_salts():
 
 #Etken Madde ve Tuz eşleşmesi
 @app.route('/matches', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def manage_matches():
     if request.method == 'POST':
         drug_id = request.form.get('drug_id', type=int)
@@ -2881,6 +3272,8 @@ def sanitize_field(field_value):
     )
 
 @app.route('/details/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def add_detail():
     drugs = Drug.query.all()
     salts = Salt.query.all()
@@ -15623,7 +16016,6 @@ def get_sut_changes(version_id):
 
 
 # AI CHATBOT
-# AI CHATBOT
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot():
     try:
@@ -16453,6 +16845,78 @@ def chatbot_page():
 
 
 #Track users!
+
+
+#Online Users
+# Add before_request handler
+@app.before_request
+def update_last_seen():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+
+# Add route for viewing online users
+@app.route('/online-users')
+def online_users():
+    if 'user_id' not in session:
+        flash('Please login first', 'warning')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        flash('Access denied. Admin only.', 'danger')
+        return redirect(url_for('home'))
+    
+    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
+    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).order_by(User.last_seen.desc()).all()
+    all_users = User.query.order_by(User.last_seen.desc().nullslast()).all()
+    
+    return render_template('online_users.html', online_users=online_users_list, all_users=all_users, user=user)
+
+# API endpoint for real-time updates
+@app.route('/api/online-users')
+def api_online_users():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        return jsonify({'error': 'Forbidden'}), 403
+    
+    five_minutes_ago = datetime.utcnow() - timedelta(minutes=5)
+    online_users_list = User.query.filter(User.last_seen >= five_minutes_ago, User.last_seen.isnot(None)).all()
+    
+    return jsonify({
+        'online_count': len(online_users_list),
+        'users': [{
+            'id': u.id,
+            'name': f"{u.name} {u.surname}",
+            'email': u.email,
+            'last_seen': u.last_seen.isoformat() if u.last_seen else None,
+            'is_online': u.is_online()
+        } for u in online_users_list]
+    })
+
+# Add this route to update all existing users with last_seen value
+@app.route('/admin/init-last-seen')
+def init_last_seen():
+    if 'user_id' not in session:
+        return "Unauthorized", 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_admin:
+        return "Forbidden", 403
+    
+    users = User.query.filter(User.last_seen.is_(None)).all()
+    for u in users:
+        u.last_seen = datetime.utcnow()
+    db.session.commit()
+    
+    return f"Updated {len(users)} users with last_seen timestamp"
+
+
 def get_visitor_hash(ip, user_agent):
     return hashlib.md5(f"{ip}{user_agent}".encode()).hexdigest()
     
@@ -17968,8 +18432,363 @@ def get_error_analytics():
     except Exception as e:
         logger.error(f"Error in error analytics: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/analytics/subscriptions', methods=['GET'])
+@admin_required
+def get_subscription_analytics():
+    """Get subscription analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        elif period == 'year':
+            start_date = now - timedelta(days=365)
+        else:
+            start_date = datetime(2020, 1, 1)
+        
+        # Total subscriptions
+        total_subscriptions = db.session.query(db.func.count(Subscription.id)).scalar() or 0
+        
+        # Active subscriptions
+        active_subscriptions = db.session.query(db.func.count(Subscription.id))\
+            .filter(Subscription.status == 'active').scalar() or 0
+        
+        # Cancelled subscriptions
+        cancelled_subscriptions = db.session.query(db.func.count(Subscription.id))\
+            .filter(Subscription.status == 'cancelled').scalar() or 0
+        
+        # Expired subscriptions
+        expired_subscriptions = db.session.query(db.func.count(Subscription.id))\
+            .filter(Subscription.status == 'expired').scalar() or 0
+        
+        # New subscriptions in period
+        new_subscriptions = db.session.query(db.func.count(Subscription.id))\
+            .filter(Subscription.start_date >= start_date).scalar() or 0
+        
+        # Subscription by plan type
+        subscriptions_by_plan = db.session.query(
+            Subscription.plan_type,
+            db.func.count(Subscription.id).label('count')
+        ).group_by(Subscription.plan_type).all()
+        
+        # Subscription by status
+        subscriptions_by_status = db.session.query(
+            Subscription.status,
+            db.func.count(Subscription.id).label('count')
+        ).group_by(Subscription.status).all()
+        
+        # Monthly recurring revenue (MRR)
+        monthly_revenue = db.session.query(
+            db.func.count(Subscription.id)
+        ).filter(
+            Subscription.status == 'active',
+            Subscription.plan_type == 'monthly'
+        ).scalar() or 0
+        
+        yearly_revenue = db.session.query(
+            db.func.count(Subscription.id)
+        ).filter(
+            Subscription.status == 'active',
+            Subscription.plan_type == 'yearly'
+        ).scalar() or 0
+        
+        # Churn rate (cancelled/expired in period / total at start of period)
+        churned_in_period = db.session.query(db.func.count(Subscription.id))\
+            .filter(
+                Subscription.end_date >= start_date,
+                Subscription.end_date <= now,
+                Subscription.status.in_(['cancelled', 'expired'])
+            ).scalar() or 0
+        
+        active_at_start = db.session.query(db.func.count(Subscription.id))\
+            .filter(
+                Subscription.start_date < start_date,
+                Subscription.status == 'active'
+            ).scalar() or 1
+        
+        churn_rate = (churned_in_period / active_at_start * 100) if active_at_start > 0 else 0
+        
+        # Daily subscription trend
+        daily_subscriptions = db.session.query(
+            db.func.date(Subscription.start_date).label('date'),
+            db.func.count(Subscription.id).label('count')
+        ).filter(Subscription.start_date >= start_date)\
+        .group_by(db.func.date(Subscription.start_date))\
+        .order_by(db.text('date')).all()
+        
+        # Subscription duration analysis
+        avg_subscription_duration = db.session.query(
+            db.func.avg(db.func.extract('epoch', Subscription.end_date - Subscription.start_date) / 86400)
+        ).filter(Subscription.end_date.isnot(None)).scalar()
+        
+        # Revenue by plan
+        monthly_plan_revenue = monthly_revenue * 10  # Assuming 10 TRY per month
+        yearly_plan_revenue = yearly_revenue * 100  # Assuming 100 TRY per year
+        total_mrr = monthly_plan_revenue + (yearly_plan_revenue / 12)
+        
+        # Conversion rate (subscribed users / total users)
+        total_users = db.session.query(db.func.count(User.id)).scalar() or 1
+        subscribed_users = db.session.query(db.func.count(db.func.distinct(Subscription.user_id)))\
+            .filter(Subscription.status == 'active').scalar() or 0
+        conversion_rate = (subscribed_users / total_users * 100) if total_users > 0 else 0
+        
+        # Expiring soon (next 7 days)
+        expiring_soon = db.session.query(db.func.count(Subscription.id))\
+            .filter(
+                Subscription.status == 'active',
+                Subscription.end_date >= now,
+                Subscription.end_date <= now + timedelta(days=7)
+            ).scalar() or 0
+        
+        # Recent subscriptions
+        recent_subscriptions = db.session.query(
+            Subscription,
+            User.name,
+            User.surname,
+            User.email
+        ).join(User, Subscription.user_id == User.id)\
+        .filter(Subscription.start_date >= start_date)\
+        .order_by(Subscription.start_date.desc())\
+        .limit(20).all()
+        
+        return jsonify({
+            'total_subscriptions': total_subscriptions,
+            'active_subscriptions': active_subscriptions,
+            'cancelled_subscriptions': cancelled_subscriptions,
+            'expired_subscriptions': expired_subscriptions,
+            'new_subscriptions': new_subscriptions,
+            'churn_rate': round(churn_rate, 2),
+            'conversion_rate': round(conversion_rate, 2),
+            'expiring_soon': expiring_soon,
+            'subscriptions_by_plan': [{
+                'plan': s[0],
+                'count': s[1]
+            } for s in subscriptions_by_plan],
+            'subscriptions_by_status': [{
+                'status': s[0],
+                'count': s[1]
+            } for s in subscriptions_by_status],
+            'revenue': {
+                'monthly_plan_revenue': monthly_plan_revenue,
+                'yearly_plan_revenue': yearly_plan_revenue,
+                'total_mrr': round(total_mrr, 2),
+                'arr': round(total_mrr * 12, 2)
+            },
+            'avg_subscription_duration_days': round(float(avg_subscription_duration), 1) if avg_subscription_duration else 0,
+            'daily_subscriptions': [{
+                'date': d[0].isoformat() if d[0] else None,
+                'count': d[1]
+            } for d in daily_subscriptions],
+            'recent_subscriptions': [{
+                'user_name': f"{s[1]} {s[2]}",
+                'user_email': s[3],
+                'plan_type': s[0].plan_type,
+                'status': s[0].status,
+                'start_date': s[0].start_date.isoformat() if s[0].start_date else None,
+                'end_date': s[0].end_date.isoformat() if s[0].end_date else None
+            } for s in recent_subscriptions]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in subscription analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500        
     
-# Route to manually trigger daily stats aggregation (admin only)
+def aggregate_daily_stats():
+    """Aggregate statistics for yesterday"""
+    yesterday = (datetime.utcnow() - timedelta(days=1)).date()
+    
+    # Check if stats already exist
+    existing = DailyStats.query.filter_by(date=yesterday).first()
+    if existing:
+        db.session.delete(existing)
+    
+    start_of_day = datetime.combine(yesterday, datetime.min.time())
+    end_of_day = datetime.combine(yesterday, datetime.max.time())
+    
+    # Basic metrics
+    unique_visitors = db.session.query(db.func.count(db.func.distinct(Visitor.visitor_hash)))\
+        .filter(Visitor.timestamp >= start_of_day, Visitor.timestamp <= end_of_day).scalar() or 0
+    
+    total_pageviews = db.session.query(db.func.count(PageView.id))\
+        .filter(PageView.timestamp >= start_of_day, PageView.timestamp <= end_of_day).scalar() or 0
+    
+    total_searches = db.session.query(db.func.count(SearchQuery.id))\
+        .filter(SearchQuery.timestamp >= start_of_day, SearchQuery.timestamp <= end_of_day).scalar() or 0
+    
+    total_drug_views = db.session.query(db.func.count(DrugView.id))\
+        .filter(DrugView.timestamp >= start_of_day, DrugView.timestamp <= end_of_day).scalar() or 0
+    
+    total_interaction_checks = db.session.query(db.func.count(InteractionCheck.id))\
+        .filter(InteractionCheck.timestamp >= start_of_day, InteractionCheck.timestamp <= end_of_day).scalar() or 0
+    
+    new_users = db.session.query(db.func.count(User.id))\
+        .filter(User.last_seen >= start_of_day, User.last_seen <= end_of_day).scalar() or 0
+    
+    # Subscription metrics
+    total_subscriptions = db.session.query(db.func.count(Subscription.id))\
+        .filter(Subscription.start_date <= end_of_day).scalar() or 0
+    
+    active_subscriptions = db.session.query(db.func.count(Subscription.id))\
+        .filter(
+            Subscription.status == 'active',
+            Subscription.start_date <= end_of_day,
+            Subscription.end_date >= start_of_day
+        ).scalar() or 0
+    
+    new_subscriptions = db.session.query(db.func.count(Subscription.id))\
+        .filter(Subscription.start_date >= start_of_day, Subscription.start_date <= end_of_day).scalar() or 0
+    
+    cancelled_subscriptions = db.session.query(db.func.count(Subscription.id))\
+        .filter(
+            Subscription.status == 'cancelled',
+            Subscription.end_date >= start_of_day,
+            Subscription.end_date <= end_of_day
+        ).scalar() or 0
+    
+    expired_subscriptions = db.session.query(db.func.count(Subscription.id))\
+        .filter(
+            Subscription.status == 'expired',
+            Subscription.end_date >= start_of_day,
+            Subscription.end_date <= end_of_day
+        ).scalar() or 0
+    
+    # Calculate MRR
+    monthly_active = db.session.query(db.func.count(Subscription.id))\
+        .filter(
+            Subscription.status == 'active',
+            Subscription.plan_type == 'monthly',
+            Subscription.start_date <= end_of_day,
+            Subscription.end_date >= start_of_day
+        ).scalar() or 0
+    
+    yearly_active = db.session.query(db.func.count(Subscription.id))\
+        .filter(
+            Subscription.status == 'active',
+            Subscription.plan_type == 'yearly',
+            Subscription.start_date <= end_of_day,
+            Subscription.end_date >= start_of_day
+        ).scalar() or 0
+    
+    mrr = (monthly_active * 10) + (yearly_active * 100 / 12)
+    
+    # Session metrics
+    avg_session = db.session.query(db.func.avg(VisitorSession.duration_seconds))\
+        .filter(
+            VisitorSession.session_start >= start_of_day,
+            VisitorSession.session_start <= end_of_day,
+            VisitorSession.duration_seconds.isnot(None)
+        ).scalar()
+    
+    bounced = db.session.query(db.func.count(VisitorSession.id))\
+        .filter(
+            VisitorSession.session_start >= start_of_day,
+            VisitorSession.session_start <= end_of_day,
+            VisitorSession.pages_visited == 1
+        ).scalar() or 0
+    
+    total_sessions = db.session.query(db.func.count(VisitorSession.id))\
+        .filter(
+            VisitorSession.session_start >= start_of_day,
+            VisitorSession.session_start <= end_of_day
+        ).scalar() or 1
+    
+    bounce_rate = (bounced / total_sessions * 100) if total_sessions > 0 else 0
+    
+    # Top drugs
+    top_drugs = db.session.query(
+        Drug.id,
+        Drug.name_en,
+        db.func.count(DrugView.id).label('views')
+    ).join(DrugView, Drug.id == DrugView.drug_id)\
+    .filter(DrugView.timestamp >= start_of_day, DrugView.timestamp <= end_of_day)\
+    .group_by(Drug.id, Drug.name_en)\
+    .order_by(db.text('views DESC'))\
+    .limit(10).all()
+    
+    # Top searches
+    top_searches = db.session.query(
+        SearchQuery.query_text,
+        db.func.count(SearchQuery.id).label('count')
+    ).filter(SearchQuery.timestamp >= start_of_day, SearchQuery.timestamp <= end_of_day)\
+    .group_by(SearchQuery.query_text)\
+    .order_by(db.text('count DESC'))\
+    .limit(10).all()
+    
+    # Top countries
+    top_countries = db.session.query(
+        Visitor.country,
+        db.func.count(Visitor.id).label('count')
+    ).filter(
+        Visitor.timestamp >= start_of_day,
+        Visitor.timestamp <= end_of_day,
+        Visitor.country.isnot(None)
+    ).group_by(Visitor.country)\
+    .order_by(db.text('count DESC'))\
+    .limit(10).all()
+    
+    # Device breakdown
+    total_clicks = db.session.query(db.func.count(UserClick.id))\
+        .filter(UserClick.timestamp >= start_of_day, UserClick.timestamp <= end_of_day).scalar() or 0
+    
+    total_scrolls = db.session.query(db.func.count(UserScroll.id))\
+        .filter(UserScroll.timestamp >= start_of_day, UserScroll.timestamp <= end_of_day).scalar() or 0
+    
+    total_errors = db.session.query(db.func.count(ErrorLog.id))\
+        .filter(ErrorLog.timestamp >= start_of_day, ErrorLog.timestamp <= end_of_day).scalar() or 0
+    
+    device_breakdown = db.session.query(
+        VisitorSession.device_type,
+        db.func.count(VisitorSession.id).label('count')
+    ).filter(
+        VisitorSession.session_start >= start_of_day,
+        VisitorSession.session_start <= end_of_day
+    ).group_by(VisitorSession.device_type).all()
+    
+    total_device_sessions = sum([d[1] for d in device_breakdown])
+    mobile_pct = sum([d[1] for d in device_breakdown if d[0] == 'mobile']) / total_device_sessions * 100 if total_device_sessions > 0 else 0
+    tablet_pct = sum([d[1] for d in device_breakdown if d[0] == 'tablet']) / total_device_sessions * 100 if total_device_sessions > 0 else 0
+    desktop_pct = sum([d[1] for d in device_breakdown if d[0] == 'desktop']) / total_device_sessions * 100 if total_device_sessions > 0 else 0
+    
+    # Create daily stats record
+    daily_stat = DailyStats(
+        date=yesterday,
+        unique_visitors=unique_visitors,
+        total_pageviews=total_pageviews,
+        total_searches=total_searches,
+        total_drug_views=total_drug_views,
+        total_interaction_checks=total_interaction_checks,
+        new_users=new_users,
+        total_subscriptions=total_subscriptions,
+        active_subscriptions=active_subscriptions,
+        new_subscriptions=new_subscriptions,
+        cancelled_subscriptions=cancelled_subscriptions,
+        expired_subscriptions=expired_subscriptions,
+        mrr=mrr,
+        avg_session_duration=float(avg_session) if avg_session else 0,
+        bounce_rate=bounce_rate,
+        top_drugs=[{'id': d[0], 'name': d[1], 'views': d[2]} for d in top_drugs],
+        top_searches=[{'query': s[0], 'count': s[1]} for s in top_searches],
+        top_countries=[{'country': c[0], 'count': c[1]} for c in top_countries],
+        total_clicks=total_clicks,
+        total_scrolls=total_scrolls,
+        total_errors=total_errors,
+        mobile_percentage=mobile_pct,
+        tablet_percentage=tablet_pct,
+        desktop_percentage=desktop_pct
+    )
+    
+    db.session.add(daily_stat)
+    db.session.commit()
+
+
+# KEEP THIS ROUTE EXACTLY AS IT IS - DO NOT CHANGE
 @app.route('/api/analytics/aggregate-daily', methods=['POST'])
 @admin_required
 def trigger_daily_aggregation():

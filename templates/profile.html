@@ -65,9 +65,6 @@
         .profile-section {
             padding: 60px 20px;
             flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
         .profile-card {
             background: linear-gradient(135deg, #ffffff, #f1f1f1);
@@ -76,6 +73,7 @@
             padding: 30px;
             max-width: 600px;
             width: 100%;
+            margin: 0 auto 30px;
             transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
             animation: fadeIn 1s ease-in-out;
         }
@@ -83,12 +81,17 @@
             transform: translateY(-5px);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
         }
-        .profile-card h1 {
-            font-size: 2rem;
+        .profile-card h1, .profile-card h2 {
             font-weight: 600;
             color: #2c3e50;
             margin-bottom: 20px;
             text-align: center;
+        }
+        .profile-card h1 {
+            font-size: 2rem;
+        }
+        .profile-card h2 {
+            font-size: 1.5rem;
         }
         .profile-card .form-label {
             font-size: 1.1rem;
@@ -128,6 +131,30 @@
         .profile-card .btn-secondary:hover {
             background: #5a6268;
         }
+        .profile-card .btn-danger {
+            width: 100%;
+            border-radius: 25px;
+            padding: 12px;
+            font-weight: 500;
+            background: #dc3545;
+            border: none;
+            margin-top: 10px;
+        }
+        .profile-card .btn-danger:hover {
+            background: #c82333;
+        }
+        .profile-card .btn-success {
+            width: 100%;
+            border-radius: 25px;
+            padding: 12px;
+            font-weight: 500;
+            background: #28a745;
+            border: none;
+            margin-top: 10px;
+        }
+        .profile-card .btn-success:hover {
+            background: #218838;
+        }
         .profile-card .text-danger {
             font-size: 0.9rem;
             margin-top: 5px;
@@ -144,11 +171,45 @@
             height: 5px;
             margin-top: 5px;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, width 0.3s;
         }
         .strength-weak { background-color: #dc3545; width: 33%; }
         .strength-medium { background-color: #ffc107; width: 66%; }
         .strength-strong { background-color: #28a745; width: 100%; }
+        .subscription-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        .badge-monthly {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .badge-yearly {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: #fff;
+        }
+        .badge-none {
+            background: #6c757d;
+            color: #fff;
+        }
+        .subscription-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00b4d8;
+        }
+        .subscription-info p {
+            margin: 5px 0;
+            font-size: 0.95rem;
+        }
+        .subscription-info strong {
+            color: #2c3e50;
+        }
         footer {
             background: #2c3e50;
             color: #fff;
@@ -174,7 +235,6 @@
         .toast {
             border-radius: 10px;
         }
-        /* Animations */
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -185,6 +245,9 @@
             }
             .profile-card h1 {
                 font-size: 1.5rem;
+            }
+            .profile-card h2 {
+                font-size: 1.2rem;
             }
             .profile-card .form-label {
                 font-size: 1rem;
@@ -200,7 +263,6 @@
     </style>
 </head>
 <body>
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">Drugly</a>
@@ -234,12 +296,11 @@
         </div>
     </nav>
 
-    <!-- Toast Notifications -->
     <div class="toast-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="toast align-items-center text-bg-{{ 'primary' if category == 'success' else 'danger' if category == 'danger' else 'info' }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+                    <div class="toast align-items-center text-bg-{{ 'primary' if category == 'success' else 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'info' }}" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
                         <div class="d-flex">
                             <div class="toast-body">
                                 {{ message }}
@@ -252,32 +313,31 @@
         {% endwith %}
     </div>
 
-    <!-- Profile Section -->
     <div class="profile-section">
         <div class="profile-card">
-            <h1>Your Profile</h1>
+            <h1><i class="fas fa-user-circle"></i> Your Profile</h1>
             <form method="POST" id="profileForm" onsubmit="showSpinner()">
                 <div class="form-group mb-3">
-                    <label for="email" class="form-label">Email (Read-only)</label>
+                    <label for="email" class="form-label"><i class="fas fa-envelope"></i> Email (Read-only)</label>
                     <input type="email" id="email" class="form-control" value="{{ user.email }}" disabled>
                 </div>
                 <div class="form-group mb-3">
-                    <label for="name" class="form-label">Name</label>
+                    <label for="name" class="form-label"><i class="fas fa-user"></i> Name</label>
                     <input type="text" name="name" id="name" class="form-control" value="{{ user.name }}" required>
                     <small id="nameError" class="text-danger"></small>
                 </div>
                 <div class="form-group mb-3">
-                    <label for="surname" class="form-label">Surname</label>
+                    <label for="surname" class="form-label"><i class="fas fa-user"></i> Surname</label>
                     <input type="text" name="surname" id="surname" class="form-control" value="{{ user.surname }}" required>
                     <small id="surnameError" class="text-danger"></small>
                 </div>
                 <div class="form-group mb-3">
-                    <label for="date_of_birth" class="form-label">Date of Birth</label>
+                    <label for="date_of_birth" class="form-label"><i class="fas fa-calendar-alt"></i> Date of Birth</label>
                     <input type="date" name="date_of_birth" id="date_of_birth" class="form-control" value="{{ user.date_of_birth.strftime('%Y-%m-%d') }}" required>
                     <small id="dobError" class="text-danger"></small>
                 </div>
                 <div class="form-group mb-3">
-                    <label for="occupation" class="form-label">Occupation</label>
+                    <label for="occupation" class="form-label"><i class="fas fa-briefcase"></i> Occupation</label>
                     <select name="occupation" id="occupation" class="form-select" required>
                         <option value="" disabled>Select your occupation</option>
                         {% for occ in occupations %}
@@ -288,43 +348,107 @@
                     </select>
                     <small id="occupationError" class="text-danger"></small>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3" id="submitBtn">Save Changes</button>
+                <button type="submit" class="btn btn-primary mt-3" id="submitBtn"><i class="fas fa-save"></i> Save Changes</button>
                 <div id="spinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
             </form>
-            <hr class="my-4">
-            <h2 class="fs-4 mt-4">Change Password</h2>
+        </div>
+
+        <div class="profile-card">
+            <h2><i class="fas fa-crown"></i> Subscription Details</h2>
+            {% if active_subscription %}
+                <div class="text-center">
+                    <span class="subscription-badge {% if active_subscription.plan_type == 'monthly' %}badge-monthly{% else %}badge-yearly{% endif %}">
+                        <i class="fas fa-star"></i> {{ active_subscription.plan_type.upper() }} PLAN
+                    </span>
+                </div>
+                <div class="subscription-info">
+                    <p><strong><i class="fas fa-calendar-check"></i> Start Date:</strong> {{ active_subscription.start_date.strftime('%B %d, %Y') }}</p>
+                    <p><strong><i class="fas fa-calendar-times"></i> End Date:</strong> {{ active_subscription.end_date.strftime('%B %d, %Y') }}</p>
+                    <p><strong><i class="fas fa-hourglass-half"></i> Days Remaining:</strong> {{ (active_subscription.end_date - active_subscription.start_date.utcnow()).days }} days</p>
+                    <p><strong><i class="fas fa-info-circle"></i> Status:</strong> <span class="text-success">{{ active_subscription.status.upper() }}</span></p>
+                </div>
+                
+<h3 class="fs-5 mt-4 text-center">Change Your Plan</h3>
+<div class="d-grid gap-2">
+    {% if active_subscription.plan_type == 'yearly' %}
+        <form method="POST" action="/change-subscription" id="changeToMonthly">
+            <input type="hidden" name="plan_type" value="monthly">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-exchange-alt"></i> Switch to Monthly 
+                {% if downgrade_price is not none %}
+                    (Pay only ₺{{ "%.2f"|format(downgrade_price) }})
+                {% else %}
+                    (₺49.99/month)
+                {% endif %}
+            </button>
+        </form>
+    {% else %}
+        <form method="POST" action="/change-subscription" id="changeToYearly">
+            <input type="hidden" name="plan_type" value="yearly">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-exchange-alt"></i> Switch to Yearly 
+                {% if upgrade_price is not none %}
+                    (Pay only ₺{{ "%.2f"|format(upgrade_price) }} - Save with prorated credit!)
+                {% else %}
+                    (₺499.99/year)
+                {% endif %}
+            </button>
+        </form>
+    {% endif %}
+    
+    <form method="POST" action="/cancel-subscription" id="cancelForm" onsubmit="return confirmCancel();">
+        <button type="submit" class="btn btn-danger"><i class="fas fa-times-circle"></i> Cancel Subscription</button>
+    </form>
+</div>
+            {% else %}
+                <div class="text-center">
+                    <span class="subscription-badge badge-none">
+                        <i class="fas fa-ban"></i> NO ACTIVE SUBSCRIPTION
+                    </span>
+                </div>
+                <div class="subscription-info">
+                    <p class="text-center"><i class="fas fa-exclamation-triangle"></i> You don't have an active subscription. Subscribe now to access premium features!</p>
+                </div>
+                <a href="/pricing" class="btn btn-primary"><i class="fas fa-shopping-cart"></i> View Pricing Plans</a>
+            {% endif %}
+        </div>
+
+        <div class="profile-card">
+            <h2><i class="fas fa-lock"></i> Change Password</h2>
             <form method="POST" action="/change-password" id="passwordForm" onsubmit="showPasswordSpinner()">
                 <div class="form-group mb-3 position-relative">
-                    <label for="current_password" class="form-label">Current Password</label>
+                    <label for="current_password" class="form-label"><i class="fas fa-key"></i> Current Password</label>
                     <input type="password" name="current_password" id="current_password" class="form-control" required>
                     <i class="fas fa-eye password-toggle" id="toggleCurrentPassword"></i>
                     <small id="currentPasswordError" class="text-danger"></small>
                 </div>
                 <div class="form-group mb-3 position-relative">
-                    <label for="new_password" class="form-label">New Password</label>
+                    <label for="new_password" class="form-label"><i class="fas fa-lock"></i> New Password</label>
                     <input type="password" name="new_password" id="new_password" class="form-control" required>
                     <i class="fas fa-eye password-toggle" id="toggleNewPassword"></i>
                     <small id="newPasswordError" class="text-danger"></small>
                     <div class="password-strength" id="passwordStrength"></div>
                 </div>
                 <div class="form-group mb-3 position-relative">
-                    <label for="confirm_new_password" class="form-label">Confirm New Password</label>
+                    <label for="confirm_new_password" class="form-label"><i class="fas fa-lock"></i> Confirm New Password</label>
                     <input type="password" name="confirm_new_password" id="confirm_new_password" class="form-control" required>
                     <i class="fas fa-eye password-toggle" id="toggleConfirmNewPassword"></i>
                     <small id="confirmNewPasswordError" class="text-danger"></small>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3" id="passwordSubmitBtn">Change Password</button>
+                <button type="submit" class="btn btn-primary mt-3" id="passwordSubmitBtn"><i class="fas fa-check"></i> Change Password</button>
                 <div id="passwordSpinner" class="spinner-border text-primary mt-3" style="display: none;" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
             </form>
-            <a href="/" class="btn btn-secondary mt-3">Back to Home</a>
+        </div>
+
+        <div class="profile-card">
+            <a href="/" class="btn btn-secondary"><i class="fas fa-home"></i> Back to Home</a>
         </div>
     </div>
 
-    <!-- Footer -->
     <footer>
         <p>© 2025 Drugly. All rights reserved.</p>
         <a href="/contact">Contact Us</a> |
@@ -334,14 +458,12 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Show toasts
             const toastElements = document.querySelectorAll('.toast');
             toastElements.forEach(toastElement => {
                 const toast = new bootstrap.Toast(toastElement);
                 toast.show();
             });
 
-            // Password toggle
             const toggleCurrentPassword = document.getElementById('toggleCurrentPassword');
             const toggleNewPassword = document.getElementById('toggleNewPassword');
             const toggleConfirmNewPassword = document.getElementById('toggleConfirmNewPassword');
@@ -370,7 +492,6 @@
                 toggleConfirmNewPassword.classList.toggle('fa-eye-slash');
             });
 
-            // Profile form validation
             const profileForm = document.getElementById('profileForm');
             const nameInput = document.getElementById('name');
             const surnameInput = document.getElementById('surname');
@@ -392,17 +513,14 @@
                     nameError.textContent = 'Name is required.';
                     isValid = false;
                 }
-
                 if (!surnameInput.value.trim()) {
                     surnameError.textContent = 'Surname is required.';
                     isValid = false;
                 }
-
                 if (!dobInput.value) {
                     dobError.textContent = 'Date of birth is required.';
                     isValid = false;
                 }
-
                 if (!occupationInput.value) {
                     occupationError.textContent = 'Please select an occupation.';
                     isValid = false;
@@ -415,7 +533,6 @@
                 }
             });
 
-            // Password form validation
             const passwordForm = document.getElementById('passwordForm');
             const currentPasswordInput = document.getElementById('current_password');
             const newPasswordInput = document.getElementById('new_password');
@@ -491,6 +608,15 @@
             document.getElementById('passwordSubmitBtn').disabled = true;
             document.getElementById('passwordSpinner').style.display = 'inline-block';
         }
+
+
+        function confirmCancel() {
+    {% if active_subscription %}
+    return confirm('Are you sure you want to cancel your subscription? You will have access until {{ active_subscription.end_date.strftime("%B %d, %Y") }}');
+    {% else %}
+    return true;
+    {% endif %}
+}
     </script>
 </body>
 </html>
