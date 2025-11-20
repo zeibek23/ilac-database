@@ -574,6 +574,21 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+    <button class="nav-link" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button">
+        <i class="fas fa-mobile-alt me-2"></i>Devices
+    </button>
+</li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button">
+        <i class="fas fa-clock me-2"></i>Sessions
+    </button>
+</li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button">
+        <i class="fas fa-tachometer-alt me-2"></i>Performance
+    </button>
+</li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button">
                     <i class="fas fa-users me-2"></i>Users
                 </button>
@@ -583,10 +598,280 @@
                     <i class="fas fa-broadcast-tower me-2"></i>Real-time
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+    <button class="nav-link" id="clicks-tab" data-bs-toggle="tab" data-bs-target="#clicks" type="button">
+        <i class="fas fa-mouse-pointer me-2"></i>Click Heatmap
+    </button>
+</li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="scrolls-tab" data-bs-toggle="tab" data-bs-target="#scrolls" type="button">
+        <i class="fas fa-arrows-alt-v me-2"></i>Scroll Tracking
+    </button>
+</li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="forms-tab" data-bs-toggle="tab" data-bs-target="#forms" type="button">
+        <i class="fas fa-file-signature me-2"></i>Form Analytics
+    </button>
+</li>
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="errors-tab" data-bs-toggle="tab" data-bs-target="#errors" type="button">
+        <i class="fas fa-exclamation-circle me-2"></i>Error Tracking
+    </button>
+</li>
         </ul>
 
         <!-- Tabs Content -->
         <div class="tab-content" id="analyticsTabsContent">
+<!-- Devices Tab -->
+<div class="tab-pane fade" id="devices" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-laptop me-2"></i>Device Types</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="deviceTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-browser me-2"></i>Browsers</h5>
+                </div>
+                <div class="card-body">
+                    <div id="browsersContainer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-desktop me-2"></i>Operating Systems</h5>
+                </div>
+                <div class="card-body">
+                    <div id="osContainer"></div>
+                </div>
+            </div>
+        </div>
+</div>
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-tv me-2"></i>Screen Resolutions</h5>
+            </div>
+            <div class="card-body">
+                <div id="resolutionsContainer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Click Heatmap Tab -->
+<div class="tab-pane fade" id="clicks" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-mouse-pointer me-2"></i>Click Analytics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-4">
+                        <div class="col-md-4">
+                            <h3 id="totalClicks">-</h3>
+                            <p class="text-muted">Total Clicks</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 id="avgClicksPerSession">-</h3>
+                            <p class="text-muted">Avg Clicks/Session</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h3 id="clickThroughRate">-</h3>
+                            <p class="text-muted">Click-Through Rate</p>
+                        </div>
+                    </div>
+                    <h6 class="mb-3">Most Clicked Elements</h6>
+                    <div id="topClickedElements"></div>
+                    <h6 class="mt-4 mb-3">Click Heatmap Data</h6>
+                    <div id="clickHeatmap"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scroll Tracking Tab -->
+<div class="tab-pane fade" id="scrolls" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-arrows-alt-v me-2"></i>Scroll Depth by Page</h5>
+                </div>
+                <div class="card-body">
+                    <div id="scrollDepthContainer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Scroll Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="scrollDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Forms Tab -->
+<div class="tab-pane fade" id="forms" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-file-signature me-2"></i>Form Submission Analytics</h5>
+                </div>
+                <div class="card-body">
+                    <div id="formStatsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Errors Tab -->
+<div class="tab-pane fade" id="errors" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Top Errors</h5>
+                </div>
+                <div class="card-body">
+                    <div class="loading-spinner" id="errorsLoading">
+                        <div class="spinner-border text-danger"></div>
+                    </div>
+                    <div id="topErrorsContainer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-browser me-2"></i>Errors by Browser</h5>
+                </div>
+                <div class="card-body">
+                    <div id="errorsByBrowserContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Recent Errors</h5>
+                </div>
+                <div class="card-body">
+                    <div id="recentErrorsContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Sessions Tab -->
+<div class="tab-pane fade" id="sessions" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>Session Duration</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="sessionDurationChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Pages per Session</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="pagesPerSessionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-3">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Session Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h3 id="totalSessions">-</h3>
+                            <p class="text-muted">Total Sessions</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="avgDuration">-</h3>
+                            <p class="text-muted">Avg Duration</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="avgPages">-</h3>
+                            <p class="text-muted">Avg Pages/Session</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="bounceRate">-</h3>
+                            <p class="text-muted">Bounce Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Performance Tab -->
+<div class="tab-pane fade" id="performance" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Performance Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h3 id="avgViewTime">-</h3>
+                            <p class="text-muted">Avg Drug View Time</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="engagementRate">-</h3>
+                            <p class="text-muted">Engagement Rate</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="returnRate">-</h3>
+                            <p class="text-muted">Return Visitor Rate</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 id="returningVisitors">-</h3>
+                            <p class="text-muted">Returning Visitors</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
             <!-- Overview Tab -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
                 <div class="row">
@@ -1014,43 +1299,55 @@
         }
 
         // Load visitors
-        function loadVisitors() {
-            const loading = document.getElementById('visitorsLoading');
-            const container = document.getElementById('visitorsTable');
+// REPLACE the loadVisitors function with this enhanced version:
+function loadVisitors() {
+    const loading = document.getElementById('visitorsLoading');
+    const container = document.getElementById('visitorsTable');
+    
+    loading.classList.add('active');
+    
+    fetch('/api/analytics/visitors?limit=100')
+        .then(response => response.json())
+        .then(data => {
+            loading.classList.remove('active');
             
-            loading.classList.add('active');
-            
-            fetch('/api/analytics/visitors?limit=100')
-                .then(response => response.json())
-                .then(data => {
-                    loading.classList.remove('active');
-                    
-                    if (data.length > 0) {
-                        container.innerHTML = data.map(visitor => `
-                            <div class="visitor-row">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>${visitor.ip_address || 'Unknown'}</strong>
-                                        <span class="text-muted ms-2">${visitor.country || 'Unknown'}, ${visitor.city || 'Unknown'}</span>
-                                        <br>
-                                        <small class="text-muted"><i class="fas fa-link me-1"></i>${visitor.page_url || 'N/A'}</small>
-                                    </div>
-                                    <div class="text-muted text-end">
-                                        <small><i class="far fa-clock me-1"></i>${new Date(visitor.timestamp).toLocaleString()}</small>
-                                        ${visitor.referrer ? `<br><small><i class="fas fa-arrow-left me-1"></i>${visitor.referrer}</small>` : ''}
-                                    </div>
-                                </div>
+            if (data.length > 0) {
+                container.innerHTML = data.map(visitor => `
+                    <div class="visitor-row">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <strong>${visitor.ip_address || 'Unknown'}</strong>
+                                <span class="text-muted ms-2">${visitor.country || 'Unknown'}, ${visitor.city || 'Unknown'}</span>
+                                ${visitor.language ? `<span class="badge bg-info ms-2">${visitor.language}</span>` : ''}
+                                <br>
+                                <small class="text-muted">
+                                    <i class="fas fa-link me-1"></i>${visitor.page_url || 'N/A'}
+                                </small>
+                                <br>
+                                <small class="text-muted">
+                                    ${visitor.screen_width && visitor.screen_height ? `<i class="fas fa-desktop me-1"></i>${visitor.screen_width}x${visitor.screen_height}` : ''}
+                                    ${visitor.device_memory ? ` | <i class="fas fa-memory me-1"></i>${visitor.device_memory}GB RAM` : ''}
+                                    ${visitor.hardware_concurrency ? ` | <i class="fas fa-microchip me-1"></i>${visitor.hardware_concurrency} cores` : ''}
+                                    ${visitor.connection_type ? ` | <i class="fas fa-wifi me-1"></i>${visitor.connection_type}` : ''}
+                                </small>
+                                ${visitor.latitude && visitor.longitude ? `<br><small class="text-success"><i class="fas fa-map-marker-alt me-1"></i>GPS: ${visitor.latitude.toFixed(4)}, ${visitor.longitude.toFixed(4)}</small>` : ''}
                             </div>
-                        `).join('');
-                    } else {
-                        container.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>No visitors yet</p></div>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading visitors:', error);
-                    loading.classList.remove('active');
-                });
-        }
+                            <div class="text-muted text-end">
+                                <small><i class="far fa-clock me-1"></i>${new Date(visitor.timestamp).toLocaleString()}</small>
+                                ${visitor.referrer ? `<br><small><i class="fas fa-arrow-left me-1"></i>${visitor.referrer.substring(0, 50)}...</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>No visitors yet</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading visitors:', error);
+            loading.classList.remove('active');
+        });
+}
 
         // Load searches
         function loadSearches() {
@@ -1280,6 +1577,110 @@
                 });
         }
 
+
+        // Load devices
+function loadDevices() {
+    fetch(`/api/analytics/devices?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            // Device Type Chart
+            const deviceCtx = document.getElementById('deviceTypeChart').getContext('2d');
+            new Chart(deviceCtx, {
+                type: 'pie',
+                data: {
+                    labels: data.device_types.map(d => d.type),
+                    datasets: [{
+                        data: data.device_types.map(d => d.count),
+                        backgroundColor: ['#667eea', '#f093fb', '#4facfe']
+                    }]
+                }
+            });
+            
+            // Browsers
+            document.getElementById('browsersContainer').innerHTML = data.browsers.map((b, i) => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span><strong>${b.browser}</strong></span>
+                        <span class="badge bg-info">${b.count}</span>
+                    </div>
+                    <div class="progress-bar-custom" style="width: ${(b.count/data.browsers[0].count)*100}%; height: 6px;"></div>
+                </div>
+            `).join('');
+            
+            // Screen Resolutions
+            document.getElementById('resolutionsContainer').innerHTML = data.screen_resolutions.map((res, i) => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span><small>${res.resolution}</small></span>
+                        <span class="badge bg-warning text-dark">${res.count}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            // OS
+            document.getElementById('osContainer').innerHTML = data.operating_systems.map(os => `
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span>${os.os}</span>
+                        <span class="badge bg-success">${os.count}</span>
+                    </div>
+                </div>
+            `).join('');
+        });
+}
+
+// Load sessions
+function loadSessions() {
+    fetch(`/api/analytics/sessions?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalSessions').textContent = data.total_sessions.toLocaleString();
+            document.getElementById('avgDuration').textContent = `${data.avg_duration_seconds}s`;
+            document.getElementById('avgPages').textContent = data.avg_pages_per_session;
+            document.getElementById('bounceRate').textContent = `${data.bounce_rate}%`;
+            
+            // Duration Chart
+            const durationCtx = document.getElementById('sessionDurationChart').getContext('2d');
+            new Chart(durationCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.duration_distribution.map(d => d.range),
+                    datasets: [{
+                        label: 'Sessions',
+                        data: data.duration_distribution.map(d => d.count),
+                        backgroundColor: '#667eea'
+                    }]
+                }
+            });
+            
+            // Pages Chart
+            const pagesCtx = document.getElementById('pagesPerSessionChart').getContext('2d');
+            new Chart(pagesCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.pages_distribution.map(d => d.range),
+                    datasets: [{
+                        label: 'Sessions',
+                        data: data.pages_distribution.map(d => d.count),
+                        backgroundColor: '#f5576c'
+                    }]
+                }
+            });
+        });
+}
+
+// Load performance
+function loadPerformance() {
+    fetch(`/api/analytics/performance?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('avgViewTime').textContent = `${data.avg_drug_view_duration}s`;
+            document.getElementById('engagementRate').textContent = `${data.engagement_rate}%`;
+            document.getElementById('returnRate').textContent = `${data.return_visitor_rate}%`;
+            document.getElementById('returningVisitors').textContent = data.returning_visitors.toLocaleString();
+        });
+}
+
         // Update online users
         function updateOnlineUsers() {
             fetch('/api/online-users')
@@ -1321,19 +1722,239 @@
             if (activeTab === '#searches') loadSearches();
             if (activeTab === '#drugs') loadDrugs();
             if (activeTab === '#geo') loadGeography();
+            if (activeTab === '#devices') loadDevices();
+            if (activeTab === '#sessions') loadSessions();
+            if (activeTab === '#performance') loadPerformance();
+            if (activeTab === '#clicks') loadClicks();
+            if (activeTab === '#scrolls') loadScrolls();
+            if (activeTab === '#forms') loadForms();
+            if (activeTab === '#errors') loadErrors();
             if (activeTab === '#realtime') loadRealtime();
             updateOnlineUsers();
         }
 
         // Event listeners
         document.getElementById('refreshBtn').addEventListener('click', refreshAllData);
-        
+
+        document.getElementById('devices-tab').addEventListener('click', loadDevices);
+        document.getElementById('sessions-tab').addEventListener('click', loadSessions);
+        document.getElementById('performance-tab').addEventListener('click', loadPerformance);
+
         // Tab change listeners
         document.getElementById('visitors-tab').addEventListener('click', loadVisitors);
         document.getElementById('searches-tab').addEventListener('click', loadSearches);
         document.getElementById('drugs-tab').addEventListener('click', loadDrugs);
         document.getElementById('geo-tab').addEventListener('click', loadGeography);
         document.getElementById('realtime-tab').addEventListener('click', loadRealtime);
+        document.getElementById('clicks-tab').addEventListener('click', loadClicks);
+        document.getElementById('scrolls-tab').addEventListener('click', loadScrolls);
+        document.getElementById('forms-tab').addEventListener('click', loadForms);
+        document.getElementById('errors-tab').addEventListener('click', loadErrors);
+
+// Load clicks analytics
+// REPLACE loadClicks with this ENHANCED version:
+function loadClicks() {
+    fetch(`/api/analytics/clicks?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            // Calculate metrics
+            const totalClicks = data.total_clicks || 0;
+            const avgClicksPerSession = data.avg_clicks_per_session || 0;
+            const clickThroughRate = data.click_through_rate || 0;
+            
+            document.getElementById('totalClicks').textContent = totalClicks.toLocaleString();
+            document.getElementById('avgClicksPerSession').textContent = avgClicksPerSession.toFixed(1);
+            document.getElementById('clickThroughRate').textContent = `${clickThroughRate.toFixed(1)}%`;
+            
+            // Top clicked elements
+            if (data.top_clicked_elements && data.top_clicked_elements.length > 0) {
+                document.getElementById('topClickedElements').innerHTML = data.top_clicked_elements.map((el, i) => `
+                    <div class="page-card mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <span class="badge bg-primary me-2">#${i + 1}</span>
+                                <strong>${el.element_id || el.element_tag || 'No ID'}</strong>
+                                ${el.element_class ? `<span class="badge bg-secondary ms-2">${el.element_class.substring(0, 20)}</span>` : ''}
+                                <br>
+                                <small class="text-muted">${el.element_text ? el.element_text.substring(0, 60) + '...' : 'No text'}</small>
+                            </div>
+                            <span class="badge bg-success">${el.clicks} clicks</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('topClickedElements').innerHTML = '<p class="text-muted text-center">No click data available</p>';
+            }
+            
+            // Click heatmap
+            if (data.click_heatmap && data.click_heatmap.length > 0) {
+                document.getElementById('clickHeatmap').innerHTML = data.click_heatmap.slice(0, 10).map((click, i) => `
+                    <div class="location-card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <small class="text-muted">${click.page ? click.page.substring(0, 50) : 'Unknown page'}</small><br>
+                                <small><i class="fas fa-crosshairs me-1"></i>Position: (${click.x}, ${click.y})</small>
+                            </div>
+                            <span class="badge bg-info">${click.clicks} clicks</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('clickHeatmap').innerHTML = '<p class="text-muted text-center">No heatmap data available</p>';
+            }
+        })
+        .catch(error => console.error('Error loading clicks:', error));
+        }
+
+
+// Load scrolls analytics
+function loadScrolls() {
+    fetch(`/api/analytics/scrolls?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            // Scroll depth by page
+            if (data.avg_scroll_by_page && data.avg_scroll_by_page.length > 0) {
+                const maxScroll = Math.max(...data.avg_scroll_by_page.map(s => s.avg_scroll));
+                document.getElementById('scrollDepthContainer').innerHTML = data.avg_scroll_by_page.slice(0, 10).map((page, i) => {
+                    const percentage = (page.avg_scroll / 100) * 100;
+                    return `
+                        <div class="page-card mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="flex-grow-1">
+                                    <small class="text-muted">${page.page}</small>
+                                </div>
+                                <span class="badge bg-info">${page.avg_scroll}%</span>
+                            </div>
+                            <div class="progress-bar-custom" style="width: ${percentage}%; height: 6px;"></div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                document.getElementById('scrollDepthContainer').innerHTML = '<p class="text-muted text-center">No scroll data available</p>';
+            }
+            
+            // Scroll distribution chart
+            if (data.scroll_distribution && data.scroll_distribution.length > 0) {
+                const ctx = document.getElementById('scrollDistributionChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.scroll_distribution.map(d => d.range),
+                        datasets: [{
+                            label: 'Users',
+                            data: data.scroll_distribution.map(d => d.count),
+                            backgroundColor: '#4facfe'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error loading scrolls:', error));
+}
+
+// Load forms analytics
+function loadForms() {
+    fetch(`/api/analytics/forms?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.forms && data.forms.length > 0) {
+                document.getElementById('formStatsContainer').innerHTML = data.forms.map((form, i) => `
+                    <div class="page-card mb-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <h6 class="mb-0">${form.name}</h6>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <span class="badge bg-primary">${form.submissions} submissions</span>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <span class="badge bg-info">${form.avg_time_seconds}s avg time</span>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <span class="badge bg-success">${form.success_rate}% success</span>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="progress-bar-custom" style="width: ${form.success_rate}%; height: 8px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('formStatsContainer').innerHTML = '<p class="text-muted text-center">No form data available</p>';
+            }
+        })
+        .catch(error => console.error('Error loading forms:', error));
+}
+
+// Load errors analytics
+function loadErrors() {
+    const loading = document.getElementById('errorsLoading');
+    loading.classList.add('active');
+    
+    fetch(`/api/analytics/errors?period=${currentPeriod}`)
+        .then(response => response.json())
+        .then(data => {
+            loading.classList.remove('active');
+            
+            // Top errors
+            if (data.top_errors && data.top_errors.length > 0) {
+                document.getElementById('topErrorsContainer').innerHTML = data.top_errors.map((error, i) => `
+                    <div class="search-card mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <span class="badge bg-danger me-2">#${i + 1}</span>
+                                <strong>${error.message.substring(0, 60)}...</strong><br>
+                                <small class="text-muted">${error.page}</small>
+                            </div>
+                            <span class="badge bg-warning text-dark">${error.count}x</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('topErrorsContainer').innerHTML = '<p class="text-muted text-center">No errors tracked</p>';
+            }
+            
+            // Errors by browser
+            if (data.errors_by_browser && data.errors_by_browser.length > 0) {
+                document.getElementById('errorsByBrowserContainer').innerHTML = data.errors_by_browser.map(browser => `
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between">
+                            <span>${browser.browser}</span>
+                            <span class="badge bg-danger">${browser.count}</span>
+                        </div>
+                        <div class="progress-bar-custom" style="width: ${(browser.count/data.errors_by_browser[0].count)*100}%; height: 6px; background: #dc3545;"></div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('errorsByBrowserContainer').innerHTML = '<p class="text-muted text-center">No browser error data</p>';
+            }
+            
+            // Recent errors
+            if (data.recent_errors && data.recent_errors.length > 0) {
+                document.getElementById('recentErrorsContainer').innerHTML = data.recent_errors.map(error => `
+                    <div class="visitor-row">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <strong class="text-danger">${error.message}</strong><br>
+                                <small class="text-muted">${error.page} | ${error.browser}</small>
+                            </div>
+                            <small class="text-muted">${new Date(error.timestamp).toLocaleString()}</small>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('recentErrorsContainer').innerHTML = '<p class="text-muted text-center">No recent errors</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading errors:', error);
+            loading.classList.remove('active');
+        });
+}
 
         // Initial load
         loadDashboard();

@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Latest News & FDA Approvals - Drugly{% endblock %}
 
 {% block extra_css %}
@@ -13,6 +12,46 @@
     .navbar {
         background: #2c3e50 !important;
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        padding: 15px 0;
+    }
+    .navbar-brand {
+        font-size: 1.8rem;
+        font-weight: 600;
+    }
+    .nav-link {
+        color: #fff !important;
+        font-weight: 400;
+        transition: color 0.3s ease;
+    }
+    .nav-link:hover, .nav-link.active {
+        color: #00b4d8 !important;
+    }
+    .btn-outline-light, .btn-light, .btn-warning {
+        border-radius: 25px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .search-form {
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: 20px;
+        position: relative;
+    }
+    .search-form .form-control {
+        border-radius: 25px 0 0 25px;
+        border: 1px solid #ced4da;
+        font-size: 0.9rem;
+        padding: 8px 15px;
+    }
+    .search-form .btn {
+        border-radius: 0 25px 25px 0;
+        padding: 8px 15px;
+        background: #00b4d8;
+        border: none;
+        color: #fff;
+    }
+    .search-form .btn:hover {
+        background: #0096b2;
     }
     .news-card {
         transition: all 0.3s ease;
@@ -40,25 +79,50 @@
 {% endblock %}
 
 {% block content %}
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-dark">
+<!-- Enhanced Navbar (same as homepage) -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
     <div class="container-fluid">
-        <a class="navbar-brand fw-bold" href="/">Drugly</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <a class="navbar-brand" href="/">Drugly</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#druglyNavbar" aria-controls="druglyNavbar" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
+        <div class="collapse navbar-collapse" id="druglyNavbar">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
-                <li class="nav-item"><a class="nav-link" href="/#news">News</a></li>
+                <li class="nav-item"><a class="nav-link active" aria-current="page" href="/news">News</a></li>
+                <li class="nav-item"><a class="nav-link" href="/contact">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="/about">About</a></li>
             </ul>
+
+            <!-- Search bar (only for logged-in users) -->
+            {% if user_email %}
+                <form class="search-form d-flex mb-2 mb-lg-0" action="/search" method="POST" id="searchForm">
+                    <input class="form-control" type="search" name="query" placeholder="Search drugs, diseases..." aria-label="Search" required autocomplete="off">
+                    <button class="btn" type="submit"><i class="fas fa-search"></i></button>
+                </form>
+            {% endif %}
+
+            <!-- Admin buttons -->
+            {% if user and user.is_admin %}
+                <a href="/online-users" class="btn btn-success me-2"><i class="fas fa-users"></i> Online Users</a>
+                <a href="/backend" class="btn btn-warning me-2">Admin Backend</a>
+            {% endif %}
+
+            <!-- Auth buttons -->
+            {% if user_email %}
+                <a href="/profile" class="btn btn-light me-2">Profile</a>
+                <a href="/logout" class="btn btn-outline-light">Logout</a>
+            {% else %}
+                <a href="/login" class="btn btn-light me-2">Login</a>
+                <a href="/register" class="btn btn-outline-light">Register</a>
+            {% endif %}
         </div>
     </div>
 </nav>
 
 <div class="container my-5">
     <h1 class="display-4 fw-bold text-center mb-5">Drugly News Center</h1>
-    
+
     <!-- FDA Approvals Section -->
     {% if fda_approvals %}
     <section class="mb-5">
@@ -96,7 +160,7 @@
         </div>
     </section>
     {% endif %}
-    
+
     <!-- Other News -->
     {% if other_news %}
     <section>
@@ -124,7 +188,7 @@
         </div>
     </section>
     {% endif %}
-    
+
     {% if not all_news %}
     <div class="text-center py-5">
         <p class="fs-3 text-muted">No news available yet. Check back soon!</p>

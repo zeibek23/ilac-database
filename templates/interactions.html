@@ -809,62 +809,62 @@
                             <th><i class="fas fa-book me-1"></i>Reference</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for interaction in interaction_results %}
-                        <tr>
-                            <td><strong>{{ interaction.drug1 }}</strong></td>
-                            <td><strong>{{ interaction.drug2 }}</strong></td>
-                            <td>{{ interaction.route }}</td>
-                            <td><span class="badge bg-primary">{{ interaction.interaction_type }}</span></td>
-                            <td>{{ interaction.interaction_description | safe }}</td>
-                            <td>
-                                <span class="severity-badge severity-{{ interaction.severity.name | replace(' ', '-') }}">
-                                    {{ interaction.severity.name }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="severity-badge ai-predicted-badge">
-                                    {{ interaction.predicted_severity.name if interaction.predicted_severity else 'Bilinmiyor' }}
-                                </span>
-                            </td>
-                            <td>
-                            {% set severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati Risk İçeren", "Bilinmiyor"] %}
-                            {% set manual_idx = severity_order.index(interaction.severity.name) if interaction.severity and interaction.severity.name in severity_order else -1 %}
-                            {% set predicted_idx = severity_order.index(interaction.predicted_severity.name) if interaction.predicted_severity and interaction.predicted_severity.name in severity_order else -1 %}
-                                {% if manual_idx == predicted_idx %}
-                                    <span class="match-indicator match">
-                                        <i class="fas fa-check-circle"></i> Match
-                                    </span>
-                                {% elif manual_idx != -1 and predicted_idx != -1 %}
-                                    {% set diff = (manual_idx - predicted_idx) | abs %}
-                                    {% if diff == 1 %}
-                                        <span class="match-indicator mismatch">
-                                            <i class="fas fa-exclamation-circle"></i> Close
-                                        </span>
-                                    {% else %}
-                                        <span class="match-indicator severe-mismatch">
-                                            <i class="fas fa-times-circle"></i> Different
-                                        </span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="match-indicator">
-                                        <i class="fas fa-question-circle"></i> N/A
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td>{{ interaction.mechanism }}</td>
-                            <td>{{ interaction.monitoring }}</td>
-                            <td>{{ interaction.alternatives }}</td>
-                            <td>
-                                {% if interaction.reference and interaction.reference != "Belirtilmemiş" %}
-                                    <small>{{ interaction.reference }}</small>
-                                {% else %}
-                                    <em class="text-muted">Not provided</em>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+<tbody>
+    {% for interaction in interaction_results %}
+    <tr>
+        <td><strong>{{ interaction.drug1 }}</strong></td>
+        <td><strong>{{ interaction.drug2 }}</strong></td>
+        <td>{{ interaction.route }}</td>
+        <td><span class="badge bg-primary">{{ interaction.interaction_type }}</span></td>
+        <td>{{ interaction.interaction_description | safe }}</td>
+        <td>
+            <span class="severity-badge severity-{{ interaction.severity | replace(' ', '-') }}">
+                {{ interaction.severity }}
+            </span>
+        </td>
+        <td>
+            <span class="severity-badge ai-predicted-badge">
+                {{ interaction.predicted_severity }}
+            </span>
+        </td>
+        <td>
+        {% set severity_order = ["Hafif", "Orta", "Şiddetli", "Hayati", "Bilinmiyor"] %}
+        {% set manual_idx = severity_order.index(interaction.severity) if interaction.severity and interaction.severity in severity_order else -1 %}
+        {% set predicted_idx = severity_order.index(interaction.predicted_severity) if interaction.predicted_severity and interaction.predicted_severity in severity_order else -1 %}
+            {% if manual_idx == predicted_idx %}
+                <span class="match-indicator match">
+                    <i class="fas fa-check-circle"></i> Match
+                </span>
+            {% elif manual_idx != -1 and predicted_idx != -1 %}
+                {% set diff = (manual_idx - predicted_idx) | abs %}
+                {% if diff == 1 %}
+                    <span class="match-indicator mismatch">
+                        <i class="fas fa-exclamation-circle"></i> Close
+                    </span>
+                {% else %}
+                    <span class="match-indicator severe-mismatch">
+                        <i class="fas fa-times-circle"></i> Different
+                    </span>
+                {% endif %}
+            {% else %}
+                <span class="match-indicator">
+                    <i class="fas fa-question-circle"></i> N/A
+                </span>
+            {% endif %}
+        </td>
+        <td>{{ interaction.mechanism }}</td>
+        <td>{{ interaction.monitoring }}</td>
+        <td>{{ interaction.alternatives }}</td>
+        <td>
+            {% if interaction.reference and interaction.reference != "Belirtilmemiş" %}
+                <small>{{ interaction.reference }}</small>
+            {% else %}
+                <em class="text-muted">Not provided</em>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
                 </table>
             </div>
             <div class="alert alert-info-custom mt-4">

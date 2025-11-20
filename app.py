@@ -1,6 +1,7 @@
 from flask import Flask, render_template, render_template_string, request, session, redirect, url_for, jsonify, make_response, flash, send_from_directory, Blueprint, current_app, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
+from user_agents import parse
 from dotenv import load_dotenv
 from flask.cli import FlaskGroup
 from openpyxl import load_workbook
@@ -163,6 +164,41 @@ COMMIT_FREQUENCY = 100  # Commit every N batches
 MAX_RETRIES = 3
 
 
+
+def parse_user_agent(user_agent_string):
+    """Parse user agent to extract device, browser, and OS info"""
+    try:
+        from user_agents import parse
+        user_agent = parse(user_agent_string)
+        
+        return {
+            'device_type': 'mobile' if user_agent.is_mobile else 'tablet' if user_agent.is_tablet else 'desktop',
+            'browser': f"{user_agent.browser.family} {user_agent.browser.version_string}",
+            'os': f"{user_agent.os.family} {user_agent.os.version_string}",
+            'device_brand': user_agent.device.brand or 'Unknown',
+            'device_model': user_agent.device.model or 'Unknown',
+            'is_bot': user_agent.is_bot,
+            'is_touch_capable': user_agent.is_touch_capable,
+            'browser_family': user_agent.browser.family,
+            'browser_version': user_agent.browser.version_string,
+            'os_family': user_agent.os.family,
+            'os_version': user_agent.os.version_string
+        }
+    except Exception as e:
+        logger.error(f"Error parsing user agent: {str(e)}")
+        return {
+            'device_type': 'unknown',
+            'browser': 'unknown',
+            'os': 'unknown',
+            'device_brand': 'unknown',
+            'device_model': 'unknown',
+            'is_bot': False,
+            'is_touch_capable': False,
+            'browser_family': 'unknown',
+            'browser_version': 'unknown',
+            'os_family': 'unknown',
+            'os_version': 'unknown'
+        }
 
 # Define junction tables globally
 drug_route_metabolism_organ = db.Table(
@@ -1304,6 +1340,20 @@ class Visitor(db.Model):
     page_url = db.Column(db.Text)
     referrer = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    language = db.Column(db.String(10))
+    screen_width = db.Column(db.Integer)
+    screen_height = db.Column(db.Integer)
+    viewport_width = db.Column(db.Integer)
+    viewport_height = db.Column(db.Integer)
+    color_depth = db.Column(db.Integer)
+    pixel_ratio = db.Column(db.Float)
+    connection_type = db.Column(db.String(50))
+    device_memory = db.Column(db.Integer)
+    hardware_concurrency = db.Column(db.Integer)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    accuracy = db.Column(db.Float)
+    
 
 class PageView(db.Model):
     __tablename__ = 'page_view'
@@ -1312,23 +1362,37 @@ class PageView(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     visitor_hash = db.Column(db.String(32), nullable=False, index=True)
     page_url = db.Column(db.Text)
+    page_title = db.Column(db.String(255))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    time_on_page = db.Column(db.Integer)
+    scroll_depth = db.Column(db.Integer)
+    exit_page = db.Column(db.Boolean, default=False)
 
 class VisitorSession(db.Model):
-    """Track individual user sessions with detailed metrics"""
     __tablename__ = 'visitor_session'
     __table_args__ = {'schema': 'public', 'extend_existing': True}
-    
+   
     id = db.Column(db.Integer, primary_key=True)
     visitor_hash = db.Column(db.String(32), nullable=False, index=True)
     session_start = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     session_end = db.Column(db.DateTime, nullable=True, index=True)
     duration_seconds = db.Column(db.Integer, nullable=True)
     pages_visited = db.Column(db.Integer, default=0)
-    device_type = db.Column(db.String(50))  # mobile, desktop, tablet
+    device_type = db.Column(db.String(50))
     browser = db.Column(db.String(100))
     os = db.Column(db.String(100))
     screen_resolution = db.Column(db.String(50))
+    device_brand = db.Column(db.String(100))
+    device_model = db.Column(db.String(100))
+    is_bot = db.Column(db.Boolean, default=False)
+    is_touch_capable = db.Column(db.Boolean, default=False)
+    entry_page = db.Column(db.Text)
+    exit_page = db.Column(db.Text)
+    total_clicks = db.Column(db.Integer, default=0)
+    total_scrolls = db.Column(db.Integer, default=0)
+    max_scroll_depth = db.Column(db.Integer, default=0)
+
+
     
 class SearchQuery(db.Model):
     """Track search queries made on the platform"""
@@ -1340,8 +1404,12 @@ class SearchQuery(db.Model):
     visitor_hash = db.Column(db.String(32), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
     results_count = db.Column(db.Integer, default=0)
-    category = db.Column(db.String(100))  # drug, interaction, indication, etc.
+    category = db.Column(db.String(100))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    clicked_result_position = db.Column(db.Integer)
+    clicked_result_id = db.Column(db.Integer)
+    time_to_first_click = db.Column(db.Integer)
+    refined_query = db.Column(db.Boolean, default=False)
     
     user = db.relationship('User', backref='searches')
 
@@ -1354,8 +1422,13 @@ class DrugView(db.Model):
     drug_id = db.Column(db.Integer, db.ForeignKey('public.drug.id'), nullable=False, index=True)
     visitor_hash = db.Column(db.String(32), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
-    view_duration = db.Column(db.Integer)  # seconds spent on page
+    view_duration = db.Column(db.Integer)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    sections_viewed = db.Column(db.JSON)
+    scroll_depth = db.Column(db.Integer)
+    interactions = db.Column(db.Integer, default=0)
+    shared = db.Column(db.Boolean, default=False)
+    bookmarked = db.Column(db.Boolean, default=False)
     
     drug = db.relationship('Drug', backref='views')
     user = db.relationship('User', backref='drug_views')
@@ -1366,12 +1439,17 @@ class InteractionCheck(db.Model):
     __table_args__ = {'schema': 'public', 'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
-    drug_ids = db.Column(db.JSON, nullable=False)  # Array of drug IDs checked
+    drug_ids = db.Column(db.JSON, nullable=False)
     visitor_hash = db.Column(db.String(32), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
     interactions_found = db.Column(db.Integer, default=0)
-    severity_levels = db.Column(db.JSON)  # Count of each severity level
+    severity_levels = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    checked_food_interactions = db.Column(db.Boolean, default=False)
+    checked_disease_interactions = db.Column(db.Boolean, default=False)
+    checked_lab_interactions = db.Column(db.Boolean, default=False)
+    time_spent = db.Column(db.Integer)
+    exported = db.Column(db.Boolean, default=False)
     
     user = db.relationship('User', backref='interaction_checks')
 
@@ -1387,8 +1465,78 @@ class AnalyticsEvent(db.Model):
     visitor_hash = db.Column(db.String(32), index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    page_url = db.Column(db.Text)
+    event_value = db.Column(db.Float)
     
     user = db.relationship('User', backref='analytics_events')
+
+class UserClick(db.Model):
+    """Track click events"""
+    __tablename__ = 'user_click'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_hash = db.Column(db.String(32), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
+    element_id = db.Column(db.String(255))
+    element_class = db.Column(db.String(255))
+    element_tag = db.Column(db.String(50))
+    element_text = db.Column(db.Text)
+    page_url = db.Column(db.Text)
+    x_position = db.Column(db.Integer)
+    y_position = db.Column(db.Integer)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    user = db.relationship('User', backref='clicks')
+
+class UserScroll(db.Model):
+    """Track scroll events"""
+    __tablename__ = 'user_scroll'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_hash = db.Column(db.String(32), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
+    page_url = db.Column(db.Text)
+    scroll_depth = db.Column(db.Integer)
+    scroll_percentage = db.Column(db.Float)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    user = db.relationship('User', backref='scrolls')
+
+class FormSubmission(db.Model):
+    """Track form submissions"""
+    __tablename__ = 'form_submission'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_hash = db.Column(db.String(32), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
+    form_name = db.Column(db.String(255))
+    page_url = db.Column(db.Text)
+    fields_filled = db.Column(db.JSON)
+    submission_success = db.Column(db.Boolean, default=True)
+    time_to_submit = db.Column(db.Integer)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    user = db.relationship('User', backref='form_submissions')
+
+class ErrorLog(db.Model):
+    """Track client-side errors"""
+    __tablename__ = 'error_log'
+    __table_args__ = {'schema': 'public', 'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_hash = db.Column(db.String(32), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('public.user.id'), nullable=True, index=True)
+    error_message = db.Column(db.Text)
+    error_stack = db.Column(db.Text)
+    page_url = db.Column(db.Text)
+    browser = db.Column(db.String(100))
+    os = db.Column(db.String(100))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    
+    user = db.relationship('User', backref='errors')
 
 class DailyStats(db.Model):
     """Aggregated daily statistics for performance"""
@@ -1403,11 +1551,18 @@ class DailyStats(db.Model):
     total_drug_views = db.Column(db.Integer, default=0)
     total_interaction_checks = db.Column(db.Integer, default=0)
     new_users = db.Column(db.Integer, default=0)
-    avg_session_duration = db.Column(db.Float)  # in seconds
-    bounce_rate = db.Column(db.Float)  # percentage
-    top_drugs = db.Column(db.JSON)  # Top 10 viewed drugs
-    top_searches = db.Column(db.JSON)  # Top 10 search queries
-    top_countries = db.Column(db.JSON)  # Top 10 countries
+    avg_session_duration = db.Column(db.Float)
+    bounce_rate = db.Column(db.Float)
+    top_drugs = db.Column(db.JSON)
+    top_searches = db.Column(db.JSON)
+    top_countries = db.Column(db.JSON)
+    total_clicks = db.Column(db.Integer, default=0)
+    total_scrolls = db.Column(db.Integer, default=0)
+    total_errors = db.Column(db.Integer, default=0)
+    mobile_percentage = db.Column(db.Float)
+    tablet_percentage = db.Column(db.Float)
+    desktop_percentage = db.Column(db.Float)
+    avg_page_load_time = db.Column(db.Float)
 
 class DoseResponseSimulation(db.Model):
     __tablename__ = 'dose_response_simulation'
@@ -4514,6 +4669,28 @@ def delete_drug(drug_id):
 def drug_detail(drug_id):
     drug = Drug.query.get_or_404(drug_id)
     
+    # 🔥 ADD TRACKING HERE 🔥
+    try:
+        visitor_hash = get_visitor_hash(
+            request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+            request.headers.get('User-Agent', '')
+        )
+        
+        drug_view = DrugView(
+            drug_id=drug_id,
+            visitor_hash=visitor_hash,
+            user_id=session.get('user_id'),
+            view_duration=0,  # Will be updated by JS if needed
+            timestamp=datetime.utcnow()
+        )
+        db.session.add(drug_view)
+        db.session.commit()
+        logger.info(f"Tracked drug view: drug_id={drug_id}, user_id={session.get('user_id')}")
+    except Exception as track_error:
+        logger.error(f"Error tracking drug view: {str(track_error)}")
+        # Don't fail the page if tracking fails
+    # 🔥 END TRACKING 🔥
+
     # NEW: Fetch ATC codes for this drug
     atc_codes_list = []
     drug_atc_mappings = DrugATCMapping.query.filter_by(drug_id=drug_id).all()
@@ -5634,18 +5811,20 @@ def check_interactions():
         drug2_id = request.form.get('drug2_id')
         route_ids = request.form.getlist('route_ids[]')
         logger.debug(f"Received: drug1_id={drug1_id}, drug2_id={drug2_id}, route_ids={route_ids}")
+        
         try:
             drug1_id = int(drug1_id) if drug1_id else None
             drug2_id = int(drug2_id) if drug2_id else None
             route_ids = [int(route_id) for route_id in route_ids if route_id] if route_ids else []
+            
             if not drug1_id or not drug2_id or drug1_id == drug2_id:
                 logger.error("Invalid or identical drug IDs provided")
                 return render_template('interactions.html', 
-                                     drugs=drugs, 
-                                     interaction_results=[], 
-                                     error="Please select two different drugs.",
-                                     user_email=user_email,
-                                     user=user)
+                                    drugs=drugs, 
+                                    interaction_results=[], 
+                                    error="Please select two different drugs.",
+                                    user_email=user_email,
+                                    user=user)
             
             query = DrugInteraction.query.filter(
                 or_(
@@ -5663,6 +5842,31 @@ def check_interactions():
             
             interactions = query.all()
             logger.debug(f"Found {len(interactions)} interactions")
+            
+            # 🔥 ADD THIS TRACKING CODE HERE 🔥
+            try:
+                visitor_hash = get_visitor_hash(
+                    request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+                    request.headers.get('User-Agent', '')
+                )
+                
+                severity_levels = [interaction.severity_level.name for interaction in interactions if interaction.severity_level]
+                
+                interaction_check = InteractionCheck(
+                    drug_ids=[drug1_id, drug2_id],
+                    visitor_hash=visitor_hash,
+                    user_id=session.get('user_id'),
+                    interactions_found=len(interactions),
+                    severity_levels=severity_levels,
+                    time_spent=0  # Can be tracked with JS if needed
+                )
+                db.session.add(interaction_check)
+                db.session.commit()
+                logger.info(f"Tracked interaction check: {len(interactions)} interactions found")
+            except Exception as track_error:
+                logger.error(f"Error tracking interaction: {str(track_error)}")
+                # Don't fail the request if tracking fails
+            # 🔥 END OF TRACKING CODE 🔥
             
             for interaction in interactions:
                 predicted_severity = getattr(interaction, 'predicted_severity', 'Bilinmiyor')
@@ -13711,24 +13915,36 @@ def delete_news(news_id):
 
 @app.route('/news')
 def public_news():
+    # === ADD THIS BLOCK (same as in your /about route) ===
+    user = None
+    user_email = None
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if user:
+            user_email = user.email
+    # =====================================================
+
     # Fetch all news in reverse chronological order
     all_news = News.query.order_by(News.publication_date.desc()).all()
-    
-    # Separate FDA approvals for special highlighting if you want
+   
+    # Separate FDA approvals for special highlighting
     fda_approvals = [n for n in all_news if n.category == 'FDA Approval']
     other_news = [n for n in all_news if n.category != 'FDA Approval']
-    
+   
     return render_template(
         'public_news.html',
         fda_approvals=fda_approvals,
         other_news=other_news,
-        all_news=all_news  # or just pass all_news if you prefer one list
+        all_news=all_news,
+        user=user,          # ← Add these two lines
+        user_email=user_email  # ← Essential for the navbar logic
     )
 
 @app.route('/news/<int:news_id>')
 def news_detail(news_id):
     news = News.query.get_or_404(news_id)
     return render_template('news_detail.html', news=news)
+
 
 # Doz - Cevap Simülasyonu....
 # Request model (Pydantic V2)
@@ -15866,7 +16082,7 @@ def chatbot_page():
 #Track users!
 def get_visitor_hash(ip, user_agent):
     return hashlib.md5(f"{ip}{user_agent}".encode()).hexdigest()
-
+    
 @app.route('/api/track', methods=['POST'])
 def track_visitor():
     try:
@@ -15878,6 +16094,8 @@ def track_visitor():
         
         visitor_hash = get_visitor_hash(ip, user_agent)
         
+        ua_data = parse_user_agent(user_agent)
+        
         visitor = Visitor(
             visitor_hash=visitor_hash,
             ip_address=ip,
@@ -15888,15 +16106,62 @@ def track_visitor():
             timezone=data.get('timezone'),
             isp=data.get('isp'),
             page_url=data.get('page_url'),
-            referrer=data.get('referrer')
+            referrer=data.get('referrer'),
+            language=data.get('language'),
+            screen_width=data.get('screen_width'),
+            screen_height=data.get('screen_height'),
+            viewport_width=data.get('viewport_width'),
+            viewport_height=data.get('viewport_height'),
+            color_depth=data.get('color_depth'),
+            pixel_ratio=data.get('pixel_ratio'),
+            connection_type=data.get('connection_type'),
+            device_memory=data.get('device_memory'),
+            hardware_concurrency=data.get('hardware_concurrency'),
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude'),
+            accuracy=data.get('accuracy')
         )
         db.session.add(visitor)
         
         page_view = PageView(
             visitor_hash=visitor_hash,
-            page_url=data.get('page_url')
+            page_url=data.get('page_url'),
+            page_title=data.get('page_title'),
+            time_on_page=data.get('time_on_page'),
+            scroll_depth=data.get('scroll_depth')
         )
         db.session.add(page_view)
+        
+        active_session = VisitorSession.query.filter_by(
+            visitor_hash=visitor_hash,
+            session_end=None
+        ).order_by(VisitorSession.session_start.desc()).first()
+        
+        if not active_session or (datetime.utcnow() - active_session.session_start) > timedelta(minutes=30):
+            session_data = VisitorSession(
+                visitor_hash=visitor_hash,
+                device_type=ua_data['device_type'],
+                browser=ua_data['browser'],
+                os=ua_data['os'],
+                screen_resolution=data.get('screen_resolution'),
+                device_brand=ua_data['device_brand'],
+                device_model=ua_data['device_model'],
+                is_bot=ua_data['is_bot'],
+                is_touch_capable=ua_data['is_touch_capable'],
+                entry_page=data.get('page_url'),
+                pages_visited=1
+            )
+            db.session.add(session_data)
+        else:
+            active_session.pages_visited += 1
+            active_session.session_end = datetime.utcnow()
+            active_session.duration_seconds = int((active_session.session_end - active_session.session_start).total_seconds())
+            active_session.exit_page = data.get('page_url')
+            # FIX: Handle None values for scroll_depth
+            current_scroll = data.get('scroll_depth', 0) or 0
+            max_scroll = active_session.max_scroll_depth or 0
+            if current_scroll > max_scroll:
+                active_session.max_scroll_depth = current_scroll
         
         db.session.commit()
         
@@ -15904,35 +16169,314 @@ def track_visitor():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error tracking visitor: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/api/analytics/devices', methods=['GET'])
+@admin_required
+def get_device_analytics():
+    """Get device, browser, and OS statistics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        # Device type breakdown
+        device_types = db.session.query(
+            VisitorSession.device_type,
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(VisitorSession.session_start >= start_date)\
+        .group_by(VisitorSession.device_type)\
+        .all()
+        
+        # Browser breakdown
+        browsers = db.session.query(
+            VisitorSession.browser,
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(VisitorSession.session_start >= start_date)\
+        .group_by(VisitorSession.browser)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        # OS breakdown
+        operating_systems = db.session.query(
+            VisitorSession.os,
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(VisitorSession.session_start >= start_date)\
+        .group_by(VisitorSession.os)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        # Screen resolution breakdown
+        resolutions = db.session.query(
+            VisitorSession.screen_resolution,
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(
+            VisitorSession.session_start >= start_date,
+            VisitorSession.screen_resolution.isnot(None)
+        ).group_by(VisitorSession.screen_resolution)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        return jsonify({
+            'device_types': [{'type': d[0] or 'Unknown', 'count': d[1]} for d in device_types],
+            'browsers': [{'browser': b[0] or 'Unknown', 'count': b[1]} for b in browsers],
+            'operating_systems': [{'os': o[0] or 'Unknown', 'count': o[1]} for o in operating_systems],
+            'screen_resolutions': [{'resolution': r[0] or 'Unknown', 'count': r[1]} for r in resolutions]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in device analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/analytics/sessions', methods=['GET'])
+@admin_required
+def get_session_analytics():
+    """Get detailed session analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        # Total sessions
+        total_sessions = db.session.query(db.func.count(VisitorSession.id))\
+            .filter(VisitorSession.session_start >= start_date).scalar() or 0
+        
+        # Average session duration
+        avg_duration = db.session.query(db.func.avg(VisitorSession.duration_seconds))\
+            .filter(
+                VisitorSession.session_start >= start_date,
+                VisitorSession.duration_seconds.isnot(None)
+            ).scalar()
+        
+        # Average pages per session
+        avg_pages = db.session.query(db.func.avg(VisitorSession.pages_visited))\
+            .filter(VisitorSession.session_start >= start_date).scalar()
+        
+        # Bounce rate (sessions with only 1 page)
+        bounced_sessions = db.session.query(db.func.count(VisitorSession.id))\
+            .filter(
+                VisitorSession.session_start >= start_date,
+                VisitorSession.pages_visited == 1
+            ).scalar() or 0
+        
+        bounce_rate = (bounced_sessions / total_sessions * 100) if total_sessions > 0 else 0
+        
+        # Session duration distribution
+        duration_distribution = db.session.query(
+            db.case(
+                (VisitorSession.duration_seconds < 30, '0-30s'),
+                (VisitorSession.duration_seconds < 60, '30-60s'),
+                (VisitorSession.duration_seconds < 180, '1-3min'),
+                (VisitorSession.duration_seconds < 300, '3-5min'),
+                (VisitorSession.duration_seconds < 600, '5-10min'),
+                else_='10min+'
+            ).label('duration_range'),
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(
+            VisitorSession.session_start >= start_date,
+            VisitorSession.duration_seconds.isnot(None)
+        ).group_by(db.text('duration_range')).all()
+        
+        # Pages per session distribution
+        pages_distribution = db.session.query(
+            db.case(
+                (VisitorSession.pages_visited == 1, '1 page'),
+                (VisitorSession.pages_visited <= 3, '2-3 pages'),
+                (VisitorSession.pages_visited <= 5, '4-5 pages'),
+                (VisitorSession.pages_visited <= 10, '6-10 pages'),
+                else_='10+ pages'
+            ).label('page_range'),
+            db.func.count(VisitorSession.id).label('count')
+        ).filter(VisitorSession.session_start >= start_date)\
+        .group_by(db.text('page_range')).all()
+        
+        return jsonify({
+            'total_sessions': total_sessions,
+            'avg_duration_seconds': round(float(avg_duration), 1) if avg_duration else 0,
+            'avg_pages_per_session': round(float(avg_pages), 1) if avg_pages else 0,
+            'bounce_rate': round(bounce_rate, 2),
+            'duration_distribution': [{'range': d[0], 'count': d[1]} for d in duration_distribution],
+            'pages_distribution': [{'range': p[0], 'count': p[1]} for p in pages_distribution]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in session analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/analytics/user-journey', methods=['GET'])
+@admin_required
+def get_user_journey():
+    """Get user journey and page flow analytics"""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        # Entry pages (first page in session)
+        entry_pages = db.session.query(
+            Visitor.page_url,
+            db.func.count(db.func.distinct(Visitor.visitor_hash)).label('count')
+        ).filter(Visitor.timestamp >= start_date)\
+        .group_by(Visitor.page_url)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        # Exit pages (last page in session)
+        exit_pages = db.session.query(
+            PageView.page_url,
+            db.func.count(PageView.id).label('count')
+        ).filter(PageView.timestamp >= start_date)\
+        .group_by(PageView.page_url)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        # Most common page sequences
+        sequences = db.session.query(
+            PageView.visitor_hash,
+            db.func.array_agg(PageView.page_url).label('pages')
+        ).filter(PageView.timestamp >= start_date)\
+        .group_by(PageView.visitor_hash)\
+        .limit(limit).all()
+        
+        return jsonify({
+            'entry_pages': [{'page': e[0], 'count': e[1]} for e in entry_pages],
+            'exit_pages': [{'page': e[0], 'count': e[1]} for e in exit_pages],
+            'sample_journeys': [{'visitor': s[0], 'pages': s[1]} for s in sequences[:20]]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in user journey analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/analytics/performance', methods=['GET'])
+@admin_required
+def get_performance_metrics():
+    """Get performance and engagement metrics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        # Page load times (if you add this tracking)
+        # Average time on page
+        avg_drug_view_time = db.session.query(db.func.avg(DrugView.view_duration))\
+            .filter(
+                DrugView.timestamp >= start_date,
+                DrugView.view_duration.isnot(None)
+            ).scalar()
+        
+        # Engagement rate
+        total_visitors = db.session.query(db.func.count(db.func.distinct(Visitor.visitor_hash)))\
+            .filter(Visitor.timestamp >= start_date).scalar() or 1
+        
+        engaged_visitors = db.session.query(db.func.count(db.func.distinct(VisitorSession.visitor_hash)))\
+            .filter(
+                VisitorSession.session_start >= start_date,
+                VisitorSession.duration_seconds > 30
+            ).scalar() or 0
+        
+        engagement_rate = (engaged_visitors / total_visitors * 100) if total_visitors > 0 else 0
+        
+        # Return visitor rate
+        returning_visitors = db.session.query(
+            Visitor.visitor_hash,
+            db.func.count(Visitor.id).label('visits')
+        ).filter(Visitor.timestamp >= start_date)\
+        .group_by(Visitor.visitor_hash)\
+        .having(db.func.count(Visitor.id) > 1)\
+        .all()
+        
+        return_rate = (len(returning_visitors) / total_visitors * 100) if total_visitors > 0 else 0
+        
+        return jsonify({
+            'avg_drug_view_duration': round(float(avg_drug_view_time), 1) if avg_drug_view_time else 0,
+            'engagement_rate': round(engagement_rate, 2),
+            'return_visitor_rate': round(return_rate, 2),
+            'returning_visitors': len(returning_visitors)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in performance metrics: {str(e)}")
+        return jsonify({"error": str(e)}), 500    
+
 
 @app.route('/api/analytics/visitors', methods=['GET'])
 @admin_required
 def get_visitors():
+    """Get detailed visitor information"""
     try:
         limit = request.args.get('limit', 100, type=int)
         
-        visitors = Visitor.query.order_by(Visitor.timestamp.desc()).limit(limit).all()
+        # Get recent visitors with ALL detailed data
+        visitors = db.session.query(Visitor)\
+            .order_by(Visitor.timestamp.desc())\
+            .limit(limit)\
+            .all()
         
-        result = [{
-            'id': v.id,
-            'visitor_hash': v.visitor_hash,
+        return jsonify([{
             'ip_address': v.ip_address,
-            'user_agent': v.user_agent,
             'country': v.country,
             'city': v.city,
             'region': v.region,
-            'timezone': v.timezone,
-            'isp': v.isp,
             'page_url': v.page_url,
             'referrer': v.referrer,
-            'timestamp': v.timestamp.isoformat() if v.timestamp else None
-        } for v in visitors]
+            'timestamp': v.timestamp.isoformat() if v.timestamp else None,
+            'language': v.language,
+            'screen_width': v.screen_width,
+            'screen_height': v.screen_height,
+            'viewport_width': v.viewport_width,
+            'viewport_height': v.viewport_height,
+            'device_memory': v.device_memory,
+            'hardware_concurrency': v.hardware_concurrency,
+            'connection_type': v.connection_type,
+            'latitude': v.latitude,
+            'longitude': v.longitude,
+            'timezone': v.timezone,
+            'isp': v.isp,
+            'user_agent': v.user_agent
+        } for v in visitors]), 200
         
-        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting visitors: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/analytics/stats', methods=['GET'])
 @admin_required
@@ -16602,7 +17146,11 @@ def track_search():
             visitor_hash=visitor_hash,
             user_id=session.get('user_id'),
             results_count=data.get('results_count', 0),
-            category=data.get('category')
+            category=data.get('category'),
+            clicked_result_position=data.get('clicked_result_position'),
+            clicked_result_id=data.get('clicked_result_id'),
+            time_to_first_click=data.get('time_to_first_click'),
+            refined_query=data.get('refined_query', False)
         )
         db.session.add(search)
         db.session.commit()
@@ -16612,7 +17160,7 @@ def track_search():
         db.session.rollback()
         logger.error(f"Error tracking search: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
+    
 @app.route('/api/track/drug-view', methods=['POST'])
 def track_drug_view():
     """Track drug page views"""
@@ -16627,7 +17175,12 @@ def track_drug_view():
             drug_id=data.get('drug_id'),
             visitor_hash=visitor_hash,
             user_id=session.get('user_id'),
-            view_duration=data.get('duration')
+            view_duration=data.get('duration'),
+            sections_viewed=data.get('sections_viewed'),
+            scroll_depth=data.get('scroll_depth'),
+            interactions=data.get('interactions', 0),
+            shared=data.get('shared', False),
+            bookmarked=data.get('bookmarked', False)
         )
         db.session.add(drug_view)
         db.session.commit()
@@ -16637,7 +17190,7 @@ def track_drug_view():
         db.session.rollback()
         logger.error(f"Error tracking drug view: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
+    
 @app.route('/api/track/interaction', methods=['POST'])
 def track_interaction():
     """Track interaction checks"""
@@ -16653,7 +17206,12 @@ def track_interaction():
             visitor_hash=visitor_hash,
             user_id=session.get('user_id'),
             interactions_found=data.get('interactions_found', 0),
-            severity_levels=data.get('severity_levels')
+            severity_levels=data.get('severity_levels'),
+            checked_food_interactions=data.get('checked_food_interactions', False),
+            checked_disease_interactions=data.get('checked_disease_interactions', False),
+            checked_lab_interactions=data.get('checked_lab_interactions', False),
+            time_spent=data.get('time_spent'),
+            exported=data.get('exported', False)
         )
         db.session.add(interaction_check)
         db.session.commit()
@@ -16679,7 +17237,9 @@ def track_event():
             event_category=data.get('event_category'),
             event_data=data.get('event_data'),
             visitor_hash=visitor_hash,
-            user_id=session.get('user_id')
+            user_id=session.get('user_id'),
+            page_url=data.get('page_url'),
+            event_value=data.get('event_value')
         )
         db.session.add(event)
         db.session.commit()
@@ -16689,7 +17249,353 @@ def track_event():
         db.session.rollback()
         logger.error(f"Error tracking event: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route('/api/track/click', methods=['POST'])
+def track_click():
+    """Track click events"""
+    try:
+        data = request.json
+        visitor_hash = get_visitor_hash(
+            request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+            request.headers.get('User-Agent', '')
+        )
+        
+        click = UserClick(
+            visitor_hash=visitor_hash,
+            user_id=session.get('user_id'),
+            element_id=data.get('element_id'),
+            element_class=data.get('element_class'),
+            element_tag=data.get('element_tag'),
+            element_text=data.get('element_text'),
+            page_url=data.get('page_url'),
+            x_position=data.get('x_position'),
+            y_position=data.get('y_position')
+        )
+        db.session.add(click)
+        db.session.commit()
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error tracking click: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/track/scroll', methods=['POST'])
+def track_scroll():
+    """Track scroll events"""
+    try:
+        data = request.json
+        visitor_hash = get_visitor_hash(
+            request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+            request.headers.get('User-Agent', '')
+        )
+        
+        scroll = UserScroll(
+            visitor_hash=visitor_hash,
+            user_id=session.get('user_id'),
+            page_url=data.get('page_url'),
+            scroll_depth=data.get('scroll_depth'),
+            scroll_percentage=data.get('scroll_percentage')
+        )
+        db.session.add(scroll)
+        db.session.commit()
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error tracking scroll: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/track/form', methods=['POST'])
+def track_form():
+    """Track form submissions"""
+    try:
+        data = request.json
+        visitor_hash = get_visitor_hash(
+            request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+            request.headers.get('User-Agent', '')
+        )
+        
+        form = FormSubmission(
+            visitor_hash=visitor_hash,
+            user_id=session.get('user_id'),
+            form_name=data.get('form_name'),
+            page_url=data.get('page_url'),
+            fields_filled=data.get('fields_filled'),
+            submission_success=data.get('submission_success', True),
+            time_to_submit=data.get('time_to_submit')
+        )
+        db.session.add(form)
+        db.session.commit()
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error tracking form: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/track/error', methods=['POST'])
+def track_error():
+    """Track client-side errors"""
+    try:
+        data = request.json
+        visitor_hash = get_visitor_hash(
+            request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip(),
+            request.headers.get('User-Agent', '')
+        )
+        
+        error = ErrorLog(
+            visitor_hash=visitor_hash,
+            user_id=session.get('user_id'),
+            error_message=data.get('error_message'),
+            error_stack=data.get('error_stack'),
+            page_url=data.get('page_url'),
+            browser=data.get('browser'),
+            os=data.get('os')
+        )
+        db.session.add(error)
+        db.session.commit()
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error tracking error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/analytics/clicks', methods=['GET'])
+@admin_required
+def get_click_analytics():
+    """Get click analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        # Total clicks
+        total_clicks = db.session.query(db.func.count(UserClick.id))\
+            .filter(UserClick.timestamp >= start_date).scalar() or 0
+        
+        # Total sessions
+        total_sessions = db.session.query(db.func.count(VisitorSession.id))\
+            .filter(VisitorSession.session_start >= start_date).scalar() or 1
+        
+        # Avg clicks per session
+        avg_clicks_per_session = total_clicks / total_sessions if total_sessions > 0 else 0
+        
+        # Click-through rate (sessions with clicks / total sessions)
+        sessions_with_clicks = db.session.query(db.func.count(db.func.distinct(UserClick.visitor_hash)))\
+            .filter(UserClick.timestamp >= start_date).scalar() or 0
+        click_through_rate = (sessions_with_clicks / total_sessions * 100) if total_sessions > 0 else 0
+        
+        # Top clicked elements
+        top_clicked_elements = db.session.query(
+            UserClick.element_id,
+            UserClick.element_class,
+            UserClick.element_tag,
+            UserClick.element_text,
+            db.func.count(UserClick.id).label('clicks')
+        ).filter(UserClick.timestamp >= start_date)\
+        .group_by(UserClick.element_id, UserClick.element_class, UserClick.element_tag, UserClick.element_text)\
+        .order_by(db.text('clicks DESC'))\
+        .limit(20).all()
+        
+        # Click heatmap
+        click_heatmap = db.session.query(
+            UserClick.page_url,
+            UserClick.x_position,
+            UserClick.y_position,
+            db.func.count(UserClick.id).label('clicks')
+        ).filter(UserClick.timestamp >= start_date)\
+        .group_by(UserClick.page_url, UserClick.x_position, UserClick.y_position)\
+        .order_by(db.text('clicks DESC'))\
+        .limit(100).all()
+        
+        return jsonify({
+            'total_clicks': total_clicks,
+            'avg_clicks_per_session': round(avg_clicks_per_session, 2),
+            'click_through_rate': round(click_through_rate, 2),
+            'top_clicked_elements': [{
+                'element_id': c[0],
+                'element_class': c[1],
+                'element_tag': c[2],
+                'element_text': c[3],
+                'clicks': c[4]
+            } for c in top_clicked_elements],
+            'click_heatmap': [{
+                'page': c[0],
+                'x': c[1],
+                'y': c[2],
+                'clicks': c[3]
+            } for c in click_heatmap]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in click analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/analytics/scrolls', methods=['GET'])
+@admin_required
+def get_scroll_analytics():
+    """Get scroll analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        avg_scroll_depth = db.session.query(
+            UserScroll.page_url,
+            db.func.avg(UserScroll.scroll_percentage).label('avg_scroll')
+        ).filter(UserScroll.timestamp >= start_date)\
+        .group_by(UserScroll.page_url)\
+        .order_by(db.text('avg_scroll DESC'))\
+        .limit(20).all()
+        
+        scroll_distribution = db.session.query(
+            db.case(
+                (UserScroll.scroll_percentage < 25, '0-25%'),
+                (UserScroll.scroll_percentage < 50, '25-50%'),
+                (UserScroll.scroll_percentage < 75, '50-75%'),
+                (UserScroll.scroll_percentage < 100, '75-100%'),
+                else_='100%'
+            ).label('range'),
+            db.func.count(UserScroll.id).label('count')
+        ).filter(UserScroll.timestamp >= start_date)\
+        .group_by(db.text('range')).all()
+        
+        return jsonify({
+            'avg_scroll_by_page': [{
+                'page': s[0],
+                'avg_scroll': round(float(s[1]), 2)
+            } for s in avg_scroll_depth],
+            'scroll_distribution': [{
+                'range': s[0],
+                'count': s[1]
+            } for s in scroll_distribution]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in scroll analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/analytics/forms', methods=['GET'])
+@admin_required
+def get_form_analytics():
+    """Get form submission analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        form_stats = db.session.query(
+            FormSubmission.form_name,
+            db.func.count(FormSubmission.id).label('submissions'),
+            db.func.avg(FormSubmission.time_to_submit).label('avg_time'),
+            db.func.sum(db.case((FormSubmission.submission_success == True, 1), else_=0)).label('successful')
+        ).filter(FormSubmission.timestamp >= start_date)\
+        .group_by(FormSubmission.form_name).all()
+        
+        return jsonify({
+            'forms': [{
+                'name': f[0],
+                'submissions': f[1],
+                'avg_time_seconds': round(float(f[2]), 1) if f[2] else 0,
+                'success_rate': round((f[3] / f[1] * 100), 2) if f[1] > 0 else 0
+            } for f in form_stats]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in form analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/analytics/errors', methods=['GET'])
+@admin_required
+def get_error_analytics():
+    """Get error analytics"""
+    try:
+        period = request.args.get('period', 'week')
+        
+        now = datetime.utcnow()
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+        else:
+            start_date = now - timedelta(days=365)
+        
+        total_errors = db.session.query(db.func.count(ErrorLog.id))\
+            .filter(ErrorLog.timestamp >= start_date).scalar() or 0
+        
+        top_errors = db.session.query(
+            ErrorLog.error_message,
+            ErrorLog.page_url,
+            db.func.count(ErrorLog.id).label('count')
+        ).filter(ErrorLog.timestamp >= start_date)\
+        .group_by(ErrorLog.error_message, ErrorLog.page_url)\
+        .order_by(db.text('count DESC'))\
+        .limit(20).all()
+        
+        errors_by_browser = db.session.query(
+            ErrorLog.browser,
+            db.func.count(ErrorLog.id).label('count')
+        ).filter(ErrorLog.timestamp >= start_date)\
+        .group_by(ErrorLog.browser)\
+        .order_by(db.text('count DESC')).all()
+        
+        recent_errors = db.session.query(ErrorLog)\
+            .filter(ErrorLog.timestamp >= start_date)\
+            .order_by(ErrorLog.timestamp.desc())\
+            .limit(50).all()
+        
+        return jsonify({
+            'total_errors': total_errors,
+            'top_errors': [{
+                'message': e[0],
+                'page': e[1],
+                'count': e[2]
+            } for e in top_errors],
+            'errors_by_browser': [{
+                'browser': e[0],
+                'count': e[1]
+            } for e in errors_by_browser],
+            'recent_errors': [{
+                'message': e.error_message,
+                'page': e.page_url,
+                'browser': e.browser,
+                'timestamp': e.timestamp.isoformat()
+            } for e in recent_errors]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in error analytics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
 # Route to manually trigger daily stats aggregation (admin only)
 @app.route('/api/analytics/aggregate-daily', methods=['POST'])
 @admin_required

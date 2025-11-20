@@ -1138,6 +1138,55 @@
 
 {% block extra_js %}
 <script>
+    // Track drug view duration
+let startTime = Date.now();
+
+window.addEventListener('beforeunload', function() {
+    const duration = Math.floor((Date.now() - startTime) / 1000); // seconds
+    
+    // Use sendBeacon for reliable tracking on page unload
+    const data = JSON.stringify({
+        drug_id: {{ drug.id }},
+        duration: duration,
+        scroll_depth: Math.floor((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100),
+        sections_viewed: getSectionsViewed()
+    });
+    
+    navigator.sendBeacon('/api/track/drug-view', data);
+});
+
+function getSectionsViewed() {
+    const sections = [];
+    const sectionElements = document.querySelectorAll('[id^="section-"]'); // Add IDs to your sections
+    
+    sectionElements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            sections.push(el.id);
+        }
+    });
+    
+    return sections;
+}
+
+// Track scroll depth every 5 seconds
+setInterval(() => {
+    const scrollDepth = Math.floor((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100);
+    
+    fetch('/api/track/drug-view', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            drug_id: {{ drug.id }},
+            duration: Math.floor((Date.now() - startTime) / 1000),
+            scroll_depth: scrollDepth,
+            sections_viewed: getSectionsViewed()
+        })
+    }).catch(err => console.error('Tracking error:', err));
+}, 5000);
+
     $(document).ready(function () {
         const savedTheme = localStorage.getItem('theme') || 'light';
         if (savedTheme === 'dark') {
